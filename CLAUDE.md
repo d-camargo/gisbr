@@ -1,0 +1,333 @@
+# CLAUDE.md — geobr-qgis
+
+> Documento de contexto persistente para o Claude Code.
+> Plugin QGIS que replica a funcionalidade do pacote **geobr** (IPEA) usando **apenas a API nativa do QGIS/Qt**, sem dependências externas (`geopandas`, `requests`, `pandas`, `duckdb`).
+
+---
+
+## 1. Visão geral do projeto
+
+**Objetivo:** trazer para dentro do QGIS o acesso "1 linha → 1 camada" aos dados espaciais oficiais do Brasil que o `geobr` oferece em R/Python, reutilizando a **mesma infraestrutura de dados do IPEA** (Opção 1), porém sem instalar nada além do que já vem no QGIS.
+
+**Autor:** Diego Camargo (@d-camargo)
+**Repositório alvo:** `github.com/d-camargo/geobr-qgis`
+**Caminho local:** `~/Documentos/SIG/geobr-qgis/`
+**Ambiente:** Pop!_OS (desktop) / Ubuntu (notebook), QGIS 3.x via instalação do sistema.
+**Região de trabalho:** Belo Horizonte / Contagem, MG.
+
+**Princípio inegociável:** o máximo possível com a API do QGIS e a stdlib do Python. Nada de `pip install`. As únicas "dependências" aceitas são as que **já acompanham o QGIS** (PyQGIS, Qt/PyQt, e a stdlib).
+
+---
+
+## 2. Como o geobr funciona por baixo (arquitetura de referência)
+
+O geobr **não faz geoprocessamento** — é um **catálogo + downloader + loader**. Toda a lógica é:
+
+1. Baixar um **arquivo de metadados** que mapeia `geografia + ano + simplificado` → **URL de download**.
+2. Filtrar esse metadado pelos argumentos do usuário.
+3. Baixar o arquivo de dados para um **cache local** (evita rebaixar).
+4. Carregar como camada vetorial, opcionalmente filtrando por código (estado/município).
+
+> ⚠️ **Descoberta crítica (verificada no código-fonte do pacote Python):** o geobr está em **transição de backend**. Há **dois pipelines coexistindo**:
+>
+> | | **Legacy (v1.7.0)** | **Atual (v2.0.0)** |
+> |---|---|---|
+> | Formato | **GeoPackage** (`.gpkg`) | **Parquet** (`.parquet`) |
+> | Metadados | `http://www.ipea.gov.br/geobr/metadata/metadata_1.7.0_gpkg.csv` (CSV) | release `geobr_prep_data` no GitHub (API de releases) |
+> | Como ler no QGIS | **Nativo** (`QgsVectorLayer(path, name, "ogr")`) | Exige driver Parquet do GDAL **ou** DuckDB |
+> | Status no pacote | usado como **fallback** | pipeline **principal** (`read_geobr_v2`) |
+>
+> O pacote Python implementa `read_geobr_hybrid()`: tenta v2 (parquet), e em caso de falha cai para v1.7.0 (gpkg). **Essa dualidade é exatamente o que define as duas fases deste plugin.**
+
+### Colunas do metadado v1.7.0 (CSV)
+```
+geo, year, code, download_path, code_abbrev
+```
+- `geo` → categoria da geografia (ex.: `state`, `municipality`, `census_tract`, `biome`...).
+- `year` → ano.
+- `download_path` → **URL direta do .gpkg** (contém a substring `simplified` quando é a versão simplificada).
+- O geobr filtra simplificado via `download_path.str.contains("simplified")`.
+
+### Mirrors / fallback de URL (do código real)
+```
+Primário:  http://www.ipea.gov.br/geobr/...
+Mirror:    https://github.com/ipeaGIT/geobr/releases/download/v1.7.0/<file_id>
+```
+O `url_solver()` tenta o primário e, se falhar (status != 200), tenta o mirror do GitHub com o mesmo nome de arquivo. **Replicar essa cadeia de fallback no plugin.**
+
+### CRS e escala
+- Todos os dados em **SIRGAS 2000 / EPSG:4674** (geográfico).
+- Escala ~1:250.000 na maioria dos casos.
+- Para análises métricas em BH, reprojetar para **EPSG:31983 (SIRGAS 2000 / UTM 23S)** — mesma convenção dos projetos `desire_lines` e `pyqgis_113-2021`.
+
+---
+
+## 3. ⚠️ geobr ≠ dados do Censo
+
+**Importante para evitar confusão de escopo:** o geobr entrega **somente geometrias** (polígonos/limites territoriais). **Não há variáveis do censo** (população, renda, domicílios) dentro dele.
+
+Os dados tabulares do censo ficam no **pacote irmão `censobr`** (mesmo time do IPEA), com funções como `read_population()`, `read_households()`, `read_tracts()`. O `censobr` serve **Parquet/Arrow** e enriquece tudo com colunas-chave no padrão do geobr (`code_muni`, `code_state`, `code_weighting`, `code_tract`), feitas justamente para o **join** geometria ↔ tabela.
+
+→ A integração com censo é **Fase 2 / roadmap** (ver §6), não a entrega principal.
+
+---
+
+## 4. Mapeamento geobr → API nativa do QGIS
+
+| Tarefa do geobr | Equivalente nativo no QGIS/Qt/stdlib |
+|---|---|
+| HTTP GET (metadado/dados) | `QgsBlockingNetworkRequest` + `QNetworkRequest` (ou `QgsFileDownloader` para assíncrono com barra de progresso) |
+| Parsear CSV de metadados | módulo `csv` (stdlib) **ou** `QgsVectorLayer` sobre o CSV |
+| Cache em disco | `QStandardPaths.writableLocation(CacheLocation)` + `QDir`/`pathlib` → `~/.cache/geobr-qgis/` |
+| Carregar `.gpkg` | `QgsVectorLayer(path, name, "ogr")` |
+| Filtrar por estado/município | `layer.setSubsetString("code_state = 'MG'")` ou `QgsFeatureRequest` + `QgsExpression` |
+| Concatenar múltiplos arquivos | `QgsVectorLayer` em memória + `addFeatures()`, ou `native:mergevectorlayers` via `processing.run` |
+| Reprojetar (opcional) | `QgsCoordinateTransform` / `native:reprojectlayer` |
+| Adicionar ao projeto | `QgsProject.instance().addMapLayer(layer)` |
+
+**Observação sobre o cache:** o geobr Python usa `~/.cache/geobr/`. Manter um diretório **separado** `~/.cache/geobr-qgis/` para não colidir, mas o layout (um arquivo por `geo_ano_simplificado`) pode ser o mesmo.
+
+---
+
+## 5. Empacotamento: Processing Provider (decisão tomada)
+
+Seguir o estilo do `desire_lines`, mas como **Processing Provider** (mais alinhado a fluxos batch/modelo/console que o Diego usa com OSM2GMNS/NetworkX). Cada `read_*` vira um `QgsProcessingAlgorithm`.
+
+Vantagens: roda na Caixa de Ferramentas, em modelos gráficos, em batch, e via `processing.run("geobr:read_municipality", {...})` no console Python.
+
+### Estrutura de diretórios alvo
+```
+geobr-qgis/
+├── CLAUDE.md                      # este arquivo
+├── metadata.txt                   # metadados do plugin QGIS
+├── __init__.py                    # classmethod classFactory(iface)
+├── geobr_qgis_plugin.py           # registra/desregistra o provider
+├── provider.py                    # GeobrProvider(QgsProcessingProvider)
+├── core/
+│   ├── __init__.py
+│   ├── catalog.py                 # download + parse do metadado, filtro por geo/ano/simplified
+│   ├── downloader.py              # QgsBlockingNetworkRequest + cadeia de mirrors + cache
+│   ├── loader.py                  # bytes/path .gpkg -> QgsVectorLayer, filtro por código
+│   └── constants.py               # URLs, EPSG, mapa geo->função, anos disponíveis
+├── algorithms/
+│   ├── __init__.py
+│   ├── base_read_algorithm.py     # classe-base com params comuns (ano, código, simplified, output)
+│   ├── read_state.py
+│   ├── read_municipality.py
+│   ├── read_census_tract.py
+│   └── ...                        # demais geografias
+├── resources.qrc / icon.png
+├── Makefile                       # compile/deploy via symlink (padrão dos outros plugins)
+└── README.md
+```
+
+### Classe-base dos algoritmos (parâmetros comuns)
+Todos os `read_*` compartilham:
+- `YEAR` (`QgsProcessingParameterEnum` populado a partir do catálogo) — default = ano mais recente.
+- `CODE` (`QgsProcessingParameterString`) — `"all"`, sigla (`"MG"`), código IBGE (`31`, `3106200`).
+- `SIMPLIFIED` (`QgsProcessingParameterBoolean`) — default `True` (renderização rápida).
+- `OUTPUT` (`QgsProcessingParameterFeatureSink` ou `QgsProcessingParameterVectorDestination`).
+
+Fluxo do `processAlgorithm()`:
+1. `catalog.select(geo, year, simplified)` → URL(s).
+2. `downloader.fetch(url)` → caminho local no cache (com fallback de mirror).
+3. `loader.load(path, code)` → `QgsVectorLayer` já filtrado por `setSubsetString`.
+4. materializar no `sink` (iterar features) e retornar `{OUTPUT: dest_id}`.
+
+> ⚠️ **Lembrete de padrão do Diego (visto no `desire_lines`):** assinaturas de algumas APIs do PyQGIS variam entre versões do QGIS 3.x. Validar `QgsBlockingNetworkRequest` e `setSubsetString` no QGIS local antes de assumir comportamento.
+
+---
+
+## 6. Plano em DUAS FASES
+
+### 🟢 FASE 1 — Backend GPKG legacy (v1.7.0) — entrega principal
+
+**Meta:** espelho fiel do geobr, 100% API nativa, **sem nenhuma surpresa de driver**.
+
+1. **`core/catalog.py`**
+   - Baixar `metadata_1.7.0_gpkg.csv` (via `downloader`), parsear com `csv` da stdlib.
+   - Funções: `download_metadata()`, `select(geo, year=None, simplified=True)`.
+   - `select_year`: se `year` for `None`, usar `max(year)`; senão validar e listar anos disponíveis em erro amigável.
+   - `select_simplified`: filtrar por substring `"simplified"` em `download_path`.
+   - Cachear o CSV na sessão (memória) e em disco.
+
+2. **`core/downloader.py`**
+   - `fetch(url) -> Path`: checar cache em disco primeiro; se ausente, baixar via `QgsBlockingNetworkRequest`.
+   - **Cadeia de mirrors** (replicar `url_solver`): tentar IPEA primário → mirror GitHub `releases/download/v1.7.0/<file_id>`.
+   - Gravar em `~/.cache/geobr-qgis/<file_id>`; validar `size > 0`.
+
+3. **`core/loader.py`**
+   - `load(path, code="all") -> QgsVectorLayer`: abrir com driver `ogr`.
+   - `filter_by_code`: traduzir sigla→código quando necessário e montar `setSubsetString` na coluna certa (`code_state`, `abbrev_state`, `code_muni`...). Tabela de siglas/códigos IBGE (UF 11–53, exceto 20/30/40) já mapeada no `_filter.py` do geobr — portar.
+
+4. **`algorithms/`** — começar pelas geografias mais usadas:
+   - `read_state`, `read_municipality`, `read_census_tract`, `read_weighting_area`, `read_metro_area`, `read_biomes`.
+   - Depois expandir para o catálogo completo (ver lista em §7).
+
+5. **`provider.py` + `metadata.txt` + `Makefile`** — registrar todos os algoritmos; deploy por symlink para `~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/`.
+
+**Critério de pronto da Fase 1:** `processing.run("geobr:read_municipality", {"YEAR": 2022, "CODE": "MG", "SIMPLIFIED": True})` retorna camada de municípios de MG no QGIS, em EPSG:4674, sem nenhum pacote externo.
+
+---
+
+### 🟡 FASE 2 — Backend Parquet (v2.0.0) + integração censobr — roadmap
+
+**Meta:** acessar o catálogo mais novo/completo (v2) e habilitar **join com dados do censo**.
+
+> 🔧 **Progresso Fase 2 (2026-06-23) — camada independente do driver, implementada e validada:**
+> - `core/capabilities.py` — `parquet_available()` (testa drivers `Parquet`/`Arrow` do OGR) + `install_hint()`. **Resultado na máquina do Diego: driver AUSENTE.**
+> - `core/catalog_v2.py` — lista assets `.parquet` do release `ipea/geobr_prep_data` via API do GitHub (`json` da stdlib + `QgsBlockingNetworkRequest`), parse `geo/year/simplified`, suporte a `zone` (setores 2000), cache em disco. **Validado contra os 503 assets reais do v2.0.0** (anos até 2025).
+> - `constants.py` — `GEO_BY_FUNCTION_V2` (mapa função→token v2, **plural**: `states`, `municipalities`, `censustracts`...), **28/28 tokens conferidos** contra os assets; URLs/relase v2; cadeia **invertida** (GitHub primário → IPEA fallback `data_v2.0.0/`).
+> - ✅ **Leitura v2 IMPLEMENTADA (2026-06-23, decisão: backend `pyarrow`):** em vez de exigir o driver GDAL, o plugin lê GeoParquet via **cadeia de backends** — driver GDAL nativo (Windows/Mac/conda) → **`pyarrow`** (fallback Linux apt/flatpak) → erro orientado. Decisão do Diego: pode instalar pacote python (`pip install --user pyarrow`); manter o "máximo QGIS" como caminho primário.
+>   - `core/capabilities.py`: + `pyarrow_available()`, `parquet_backend()` ('gdal'|'pyarrow'|None).
+>   - `core/loader_v2.py`: lê .parquet → QgsVectorLayer. Backend pyarrow decodifica WKB (coluna do metadado GeoParquet `geo`) → `QgsGeometry.fromWkb`, monta camada em memória; CRS do metadado ou default 4674; **arquivos sem geometria (censobr) viram camada NoGeometry**. Validado end-to-end com geoparquet sintético.
+>   - `core/downloader.py`: + `fetch_v2()` (cadeia invertida GitHub→IPEA) + `_fetch_to_cache()` reusável.
+>   - `algorithms/base_read_v2_algorithm.py` + `algorithms/v2_factory.py`: **28 algoritmos `read_*_v2`** gerados dinamicamente (grupo "Geografias (Parquet / v2.0.0)", ids com sufixo `_v2`). Filtro por código é **pós-load** (arquivos v2 são nacionais), via `QgsExpression` (funciona em camada OGR e em memória). Inclui as 3 só-v2: `read_favela_v2`, `read_polling_places_v2`, `read_quilombola_land_v2`.
+>   - **Validado:** 54 algoritmos (26 v1 + 28 v2) instanciam, nomes únicos; `read_state_v2` CODE=MG → 1 feição, geom válida, EPSG:4674 (backend pyarrow, download mockado).
+> - ⏭️ **Falta na Fase 2:** (a) confirmar um **download real** de .parquet na máquina do Diego após `pip install --user pyarrow`; (b) o **`join_censo`** (catálogo do censobr + join geometria↔tabela via `native:joinattributestable`).
+>
+> ⚠️ **CORREÇÃO empírica sobre o driver (verificado no Pop!_OS 'noble', GDAL 3.8.4):** o caminho via apt **NÃO funciona** nesta build:
+> - `gdal-plugins` (3.8.4) **está instalado mas não traz nenhum `.so`** (só um `drivers.ini`) — ou seja, não inclui o driver arrow/parquet.
+> - **Não há** `libarrow-dev`/`libparquet-dev`/`libarrow-glib-dev` no apt do noble para compilar o plugin.
+> - `ubuntugis-unstable` historicamente também não distribui o plugin arrow.
+>
+> **Caminhos reais (Pop!_OS/Ubuntu):** (a) ~~**QGIS via Flatpak**~~ — **TESTADO E DESCARTADO**; ou (b) **conda-forge** `libgdal-arrow-parquet` casando a versão do GDAL. A mensagem do `capabilities.install_hint()` já reflete isso. Mantida a decisão: **não montar pipeline de conversão.**
+>
+> ❌ **Flatpak descartado empiricamente (2026-06-23):** o build flathub `org.qgis.qgis` **não embute o driver GeoParquet de vetor** — testado em GDAL 3.5.2 (LTS antigo) e GDAL **3.13.0** (Stable atual). Em `/app/lib/gdalplugins/` há `ogr_ADBC.so` (Arrow *Database* Connectivity ≠ leitura de arquivo Parquet), mas **não** `ogr_Parquet.so`/`ogr_Arrow.so`. `ogrinfo --formats | grep -i parquet` volta vazio. → **Restou conda-forge** como caminho confiável. Ideia enxuta: `conda create -n qgis-parquet -c conda-forge qgis libgdal-arrow-parquet`, e fazer o deploy do plugin no perfil desse QGIS.
+
+> ⚠️ **Dependência da Fase 2 — driver Parquet do GDAL:** o QGIS só lê Parquet se o driver `Parquet`/`Arrow` do GDAL estiver presente. As builds **oficiais do QGIS (Windows/Linux)** normalmente já vêm com suporte a GeoParquet; a build do **apt do Ubuntu/Pop!_OS pode não vir** (há relatos no Ubuntu 24.04). O driver é distribuído **à parte** do GDAL core (`libgdal-arrow-parquet`).
+>
+> **Decisão (Diego):** se faltar, **instalar o driver** — não montar pipeline de conversão. Detectar primeiro, e se ausente, orientar a instalação.
+>
+> **Detecção** (no startup do provider):
+> ```python
+> from osgeo import ogr
+> has_parquet = ogr.GetDriverByName("Parquet") is not None
+> ```
+> ou via PyQGIS: `"Parquet" in [d.shortName() for d in QgsProviderRegistry.instance()...]` — na prática o teste do `ogr` acima é o mais direto.
+>
+> **Instalação do driver (Ubuntu / Pop!_OS):**
+> ```bash
+> # Opção A — apt (build do sistema). Pode exigir o PPA ubuntugis:
+> sudo add-apt-repository ppa:ubuntugis/ubuntugis-unstable
+> sudo apt update
+> sudo apt install gdal-plugins        # fornece o driver Parquet/Arrow
+> # verificar:
+> ogrinfo --formats | grep -i parquet
+>
+> # Opção B — conda-forge (se o QGIS/GDAL for de ambiente conda):
+> conda install -c conda-forge libgdal-arrow-parquet
+> ```
+> **Importante:** a versão do `libgdal-arrow-parquet` precisa **casar exatamente** com a versão do GDAL do QGIS, senão o plugin não carrega. Conferir `gdalinfo --version` antes.
+>
+> Como isso depende do ambiente da máquina (não é `pip`), a Fase 2 continua como **roadmap separado**: o plugin **detecta** o driver e, se ausente, mostra mensagem amigável com o comando de instalação acima — em vez de quebrar.
+
+1. **Detecção de capacidade** (`core/catalog.py`):
+   - Checar driver Parquet do GDAL no startup. Expor flag `PARQUET_AVAILABLE`.
+   - Se indisponível, os algoritmos v2 ficam desabilitados/avisam, e o plugin opera só em Fase 1.
+
+2. **Metadado v2** (`core/catalog_v2.py`):
+   - Listar assets via API de releases do GitHub: `api.github.com/repos/ipea/geobr_prep_data/releases/latest`.
+   - Extrair `geo`, `year`, `simplified` do nome do arquivo `.parquet` (regex, como no `download_metadata_v2`).
+   - Fallback para tag fixa `v2.0.0` se `latest` falhar.
+
+3. **Leitura Parquet** (se driver disponível):
+   - `QgsVectorLayer(path, name, "ogr")` funciona sobre `.parquet` quando o driver existe.
+   - Filtro por código continua via `setSubsetString`.
+
+4. **Integração censobr (join geometria ↔ censo):**
+   - Algoritmo `join_censo`: recebe uma camada do geobr + um dataset censobr (`read_tracts`, `read_population`...).
+   - Baixar parquet do censobr (releases do `censobr`), juntar pela chave (`code_tract` / `code_muni` / `code_weighting`) via `native:joinattributestable` ou `QgsVectorLayer.addJoin`.
+   - Com o driver Parquet instalado (§ ressalva acima), o censobr abre direto como camada/tabela (`QgsVectorLayer(path, name, "ogr")`) — sem etapa de conversão. A única exigência é o mesmo driver da Fase 2 já estar presente.
+
+**Critério de pronto da Fase 2:** dado o setor censitário de BH (geometria, Fase 1) + `read_tracts(2010, "DomicilioRenda")` (censobr), produzir um mapa coroplético de renda por setor — tudo dentro do QGIS.
+
+---
+
+## 7. Catálogo de geografias (do `list_geobr` real)
+
+Geografias a implementar como algoritmos (ordem de §6.4 prioriza as primeiras):
+
+`read_country`, `read_region`, **`read_state`**, `read_meso_region`, `read_micro_region`, `read_intermediate_region`, `read_immediate_region`, **`read_municipality`**, `read_municipal_seat`, **`read_weighting_area`**, **`read_census_tract`**, `read_statistical_grid`, **`read_metro_area`**, `read_urban_area`, `read_amazon`, **`read_biomes`**, `read_conservation_units`, `read_disaster_risk_area`, `read_indigenous_land`, `read_semiarid`, `read_health_facilities`, `read_health_region`, `read_neighborhood`, `read_schools`, `read_comparable_areas`, `read_urban_concentrations`, `read_pop_arrangements`, `read_favela`, `read_polling_places`, `read_quilombola_land`.
+
+Fontes: IBGE (maioria), MMA (amazônia/UCs), FUNAI (terras indígenas), CNES/DataSUS (saúde), INEP (escolas), TSE (locais de votação), INCRA (quilombolas).
+
+> ⚠️ O nome da `geo` no metadado v1.7.0 **difere** do nome da função (ex.: função `read_state` → `geo == "state"`; `read_municipality` → `geo == "municipality"`). Em caso de dúvida, baixar o CSV e inspecionar os valores únicos de `geo` antes de hardcodar. Em v2 os nomes mudam de novo (ex.: `"municipalities"` no plural). Manter um **dicionário de mapeamento** em `constants.py` por backend.
+
+---
+
+## 8. Stack / APIs PyQGIS de referência
+
+- `qgis.core`: `QgsVectorLayer`, `QgsProject`, `QgsFeatureRequest`, `QgsExpression`, `QgsCoordinateReferenceSystem`, `QgsCoordinateTransform`, `QgsBlockingNetworkRequest`, `QgsFileDownloader`, `QgsProcessingProvider`, `QgsProcessingAlgorithm`, `QgsProcessingParameter*`, `QgsProcessingParameterFeatureSink`.
+- `qgis.PyQt.QtCore`: `QStandardPaths`, `QDir`, `QUrl`, `QEventLoop`.
+- `qgis.PyQt.QtNetwork`: `QNetworkRequest`, `QNetworkReply`.
+- stdlib: `csv`, `pathlib`, `tempfile`, `re`, `unicodedata` (para `strip_accents` em nomes), `json` (releases v2).
+- `processing`: `processing.run(...)` para reaproveitar `native:*` (merge, join, reproject) em vez de reimplementar.
+
+**CRS:** entrada EPSG:4674; reprojeção opcional para EPSG:31983 (UTM 23S, BH).
+
+---
+
+## 9. Fluxo de desenvolvimento (CLI, padrão Diego)
+
+```bash
+# Clonar / posicionar
+cd ~/Documentos/SIG/geobr-qgis/
+
+# Compilar resources (se houver .qrc) e fazer deploy por symlink
+make compile
+make deploy        # symlink -> profiles/default/python/plugins/geobr_qgis
+
+# Recarregar no QGIS: usar o Plugin Reloader, ou reiniciar o QGIS.
+# Testar no Console Python do QGIS:
+#   import processing
+#   processing.run("geobr:read_state", {"YEAR":2020,"CODE":"all","SIMPLIFIED":True,"OUTPUT":"memory:"})
+```
+
+- Desenvolvimento e testes rodam na **máquina principal Pop!_OS** (mesmo fluxo do `desire_lines`).
+- Versionar tudo; `CLAUDE.md` é o documento de contexto persistente — manter atualizado a cada mudança de backend do IPEA.
+
+---
+
+## 9.1. Status da Fase 1 (implementado) — 2026-06-23
+
+🟢 **Fase 1 concluída e validada** (QGIS 3.34 Prizren, GDAL 3.8.4, sem driver Parquet).
+
+- Provider `geobr` com **26 algoritmos `read_*`** registrados, cobrindo **26 dos 29** valores de `geo` do metadado v1.7.0.
+- Núcleo 100% PyQGIS + stdlib: `core/{constants,downloader,catalog,loader}.py`. Cache em `~/.cache/geobr-qgis/`.
+- Descobertas verificadas no CSV real (já refletidas no código):
+  - `meso_region` e `micro_region` **também são fatiados por UF** (`UF_SLICED`), como `municipality`/`census_tract`/`weighting_area`/`state` (recente).
+  - Geografias de **pontos sem versão simplificada** (`schools`, `health_facilities`, `municipal_seat`, `statistical_grid`): `catalog.select()` tem **fallback** simplificado↔não-simplificado.
+  - `statistical_grid` é fatiado em ~56 arquivos de grade → sem filtro baixa o Brasil inteiro (vários GB). Marcado com aviso; sem recorte fino na Fase 1.
+
+### ⏸️ Itens do catálogo NÃO implementados (talvez mais pra frente)
+Decisão consciente — não é esquecimento. Reavaliar quando houver demanda:
+
+| Item | Função geobr | Motivo de ter ficado de fora |
+|---|---|---|
+| `amc` | `read_comparable_areas` | Assinatura diferente: `start_year` + `end_year` (áreas mínimas comparáveis entre dois censos). Exige classe-base própria com dois parâmetros de ano — não encaixa na `BaseReadAlgorithm` de `YEAR` único. |
+| `health_region_macro` | (variante de `read_health_region`) | No geobr é um parâmetro `macro=True` da mesma função, não geografia separada. Encaixar depois como booleano `MACRO` no `read_health_region`. |
+| `lookup_muni` | `lookup_muni()` | **Não é geometria** — tabela de consulta código↔nome. Candidata a virar helper interno (tradução sigla/código), não um `read_*`. |
+
+Geografias **só-v2** (não existem no metadado v1.7.0, ficam para a Fase 2): `read_favela`, `read_polling_places`, `read_quilombola_land`.
+
+---
+
+## 10. Notas / armadilhas conhecidas
+
+- **Backend instável:** o IPEA já migrou de GPKG→Parquet uma vez. **Não hardcodar URLs sem fallback.** Sempre cadeia: primário IPEA → mirror GitHub.
+- **`verify=False` no geobr Python:** o pacote desativa verificação SSL em alguns downloads. No QGIS, preferir a verificação padrão; se houver erro de certificado no IPEA, documentar e decidir conscientemente — não copiar o `verify=False` cegamente.
+- **Tamanho dos arquivos:** geografias nacionais não-simplificadas (ex.: todos os setores censitários do Brasil) são pesadas. Default `simplified=True`; baixar por estado quando possível (passar `CODE` antes de baixar nacional inteiro só não é possível no v1.7.0, onde o filtro é pós-download — avaliar baixar por UF quando o metadado tiver granularidade por estado).
+- **Nomes de `geo` divergentes entre v1.7.0 e v2.0.0:** manter mapeamentos separados.
+- **Parquet via driver instalável:** a Fase 2 depende do driver GDAL Parquet (`libgdal-arrow-parquet` / `gdal-plugins`). Builds oficiais do QGIS costumam trazer; apt do Ubuntu pode não. **Detectar e, se faltar, orientar a instalação** (comandos em §6) — a versão do driver deve casar com a do GDAL do QGIS.
+- **censobr é Parquet/Arrow:** com o driver instalado, abre direto como tabela no QGIS e o join com a geometria roda via `native:joinattributestable` — sem conversão intermediária.
+
+---
+
+## 11. Referências
+
+- geobr (repo): `github.com/ipeaGIT/geobr` — código Python em `python-package/geobr/`, lógica de backend em `utils.py`, `_cache.py`, `_filter.py`.
+- censobr (repo): `github.com/ipeaGIT/censobr` — funções `read_tracts`, `read_population` etc.
+- Metadado legacy: `metadata_1.7.0_gpkg.csv` (IPEA).
+- Dados v2: releases do repo `ipea/geobr_prep_data`.
+- PyQGIS Cookbook (Processing providers, network). Validar APIs na versão local do QGIS.

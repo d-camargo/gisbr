@@ -1,0 +1,32 @@
+# Metadados do plugin QGIS geobr-qgis
+
+[general]
+name=geobr
+qgisMinimumVersion=3.0
+description=Acesso "1 linha -> 1 camada" aos dados espaciais oficiais do Brasil (geobr/IPEA) direto no QGIS, sem dependencias externas.
+version=0.1.0
+author=Diego Camargo
+email=dg.camargo@proton.me
+
+about=Replica a funcionalidade do pacote geobr (IPEA) usando apenas a API nativa do QGIS/Qt e a stdlib do Python (sem geopandas/requests/pandas). Fase 1: backend GeoPackage legacy (v1.7.0). Cada read_* (estados, municipios, setores censitarios, areas de ponderacao, regioes metropolitanas, biomas...) e um algoritmo de Processing, utilizavel na Caixa de Ferramentas, em modelos graficos, em batch e via processing.run(). Dados em SIRGAS 2000 / EPSG:4674.
+
+tracker=https://github.com/d-camargo/geobr-qgis/issues
+repository=https://github.com/d-camargo/geobr-qgis
+homepage=https://github.com/d-camargo/geobr-qgis
+
+hasProcessingProvider=yes
+
+changelog=
+    0.1.0
+    - Release inicial (Fase 1): Processing Provider "geobr" com backend GPKG v1.7.0.
+    - Algoritmos: read_country, read_region, read_state, read_municipality,
+      read_census_tract, read_weighting_area, read_metro_area, read_biomes.
+    - Download com cache em disco e cadeia de mirrors (IPEA -> GitHub).
+    - 100% PyQGIS + stdlib, sem dependencias externas.
+
+tags=brazil,brasil,ibge,geobr,ipea,boundaries,census,municipios,vector
+category=Vector
+icon=icon.png
+experimental=True
+deprecated=False
+server=False

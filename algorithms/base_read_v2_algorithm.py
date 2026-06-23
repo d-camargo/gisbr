@@ -1,0 +1,211 @@
+# -*- coding: utf-8 -*-
+"""Classe-base dos algoritmos read_*_v2 (backend Parquet / v2.0.0).
+
+Diferencas em relacao ao v1.7.0 (GPKG):
+  * dados em .parquet (lidos via driver GDAL nativo OU pyarrow — ver loader_v2);
+  * arquivos NACIONAIS unicos (nao fatiados por UF) -> filtro por codigo e
+    sempre pos-load;
+  * catalogo via API de releases do GitHub (catalog_v2).
+
+Gated: se nenhum backend Parquet estiver disponivel, o algoritmo aborta com a
+mensagem de instalacao (capabilities.install_hint()).
+"""
+
+from qgis.core import (
+    QgsExpression,
+    QgsExpressionContext,
+    QgsExpressionContextUtils,
+    QgsFeatureSink,
+    QgsProcessingAlgorithm,
+    QgsProcessingException,
+    QgsProcessingParameterBoolean,
+    QgsProcessingParameterEnum,
+    QgsProcessingParameterString,
+    QgsProcessingParameterFeatureSink,
+)
+
+from ..core import capabilities, catalog_v2, downloader, loader_v2
+from ..core.constants import normalize_uf
+
+
+class BaseReadV2Algorithm(QgsProcessingAlgorithm):
+    YEAR = "YEAR"
+    CODE = "CODE"
+    SIMPLIFIED = "SIMPLIFIED"
+    OUTPUT = "OUTPUT"
+
+    # --- definido pelas subclasses ---
+    GEO = None                 # token v2 (plural): "states", "municipalities"...
+    FUNCTION_NAME = None        # id do algoritmo, ex.: "read_state_v2"
+    DISPLAY_NAME = None
+    CODE_COLUMN = None          # coluna numerica p/ filtro (national, pos-load)
+    ABBREV_COLUMN = None        # coluna de sigla (ex.: "abbrev_state")
+    SUPPORTS_CODE = True
+    HELP = ""
+
+    _years_cache = None
+
+    def years(self):
+        if self._years_cache is None:
+            try:
+                self._years_cache = catalog_v2.available_years(self.GEO)
+            except Exception:
+                self._years_cache = []
+        return self._years_cache
+
+    def initAlgorithm(self, config=None):
+        years = self.years()
+        labels = [str(y) for y in years] if years else ["(catalogo v2 indisponivel)"]
+        self.addParameter(
+            QgsProcessingParameterEnum(
+                self.YEAR, "Ano", options=labels,
+                defaultValue=(len(years) - 1 if years else 0),
+            )
+        )
+        if self.SUPPORTS_CODE:
+            self.addParameter(
+                QgsProcessingParameterString(
+                    self.CODE, 'Codigo / sigla ("all", "MG", 31, 3106200)',
+                    defaultValue="all", optional=True,
+                )
+            )
+        self.addParameter(
+            QgsProcessingParameterBoolean(
+                self.SIMPLIFIED, "Geometria simplificada", defaultValue=True
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterFeatureSink(self.OUTPUT, "Saida")
+        )
+
+    # ------------------------------------------------------------- filtro
+    def _filter_expression(self, field_names, code):
+        """Monta expressao de filtro (national, pos-load) ou None."""
+        if not code or str(code).strip().lower() == "all":
+            return None
+        s = str(code).strip()
+        digits = "".join(ch for ch in s if ch.isdigit())
+        is_alpha = not digits and s.isalpha()
+
+        if is_alpha and self.ABBREV_COLUMN in field_names:
+            return f"\"{self.ABBREV_COLUMN}\" = '{s.upper()}'"
+        if digits:
+            # codigo de 2 digitos (UF) com filtro fino so de estado disponivel
+            if len(digits) <= 2 and self.ABBREV_COLUMN in field_names:
+                uf_code, uf_abbrev = normalize_uf(s)
+                if uf_abbrev:
+                    return f"\"{self.ABBREV_COLUMN}\" = '{uf_abbrev}'"
+            if self.CODE_COLUMN in field_names:
+                return f'"{self.CODE_COLUMN}" = {int(digits)}'
+        return None
+
+    # ------------------------------------------------------------- processamento
+    def processAlgorithm(self, parameters, context, feedback):
+        backend = capabilities.parquet_backend()
+        if backend is None:
+            raise QgsProcessingException(capabilities.install_hint())
+        feedback.pushInfo(f"Backend Parquet: {backend}")
+
+        years = self.years()
+        if not years:
+            raise QgsProcessingException(
+                "Catalogo v2 indisponivel (releases do geobr_prep_data no GitHub)."
+            )
+        year = years[self.parameterAsEnum(parameters, self.YEAR, context)]
+        simplified = self.parameterAsBool(parameters, self.SIMPLIFIED, context)
+        code = "all"
+        if self.SUPPORTS_CODE:
+            code = (self.parameterAsString(parameters, self.CODE, context) or "all").strip()
+
+        try:
+            rows = catalog_v2.select(self.GEO, year=year, simplified=simplified)
+        except ValueError as exc:
+            raise QgsProcessingException(str(exc))
+        feedback.pushInfo(f"{self.GEO} {year} | simplified={simplified} | {len(rows)} arquivo(s)")
+
+        # download + carga
+        layers = []
+        for i, row in enumerate(rows):
+            if feedback.isCanceled():
+                break
+            try:
+                path = downloader.fetch_v2(
+                    row["file_name"], row["download_url"], feedback=feedback
+                )
+            except Exception as exc:
+                raise QgsProcessingException(
+                    f"Falha no download de {row['file_name']}: {exc}"
+                )
+            layers.append(loader_v2.read_parquet_layer(path, f"{self.GEO}_{i}"))
+            feedback.setProgress(int((i + 1) / len(rows) * 60))
+
+        if not layers:
+            raise QgsProcessingException("Nenhuma camada carregada.")
+
+        from ..core.loader import merge_layers
+        merged = merge_layers(layers, context, feedback)
+        feedback.setProgress(70)
+
+        # filtro pos-load por expressao (funciona em camada ogr e em memoria)
+        expr_str = None
+        if self.SUPPORTS_CODE and self.CODE_COLUMN:
+            expr_str = self._filter_expression(
+                [f.name() for f in merged.fields()], code
+            )
+        expression = QgsExpression(expr_str) if expr_str else None
+        exp_ctx = QgsExpressionContext()
+        if expression is not None:
+            feedback.pushInfo(f"Filtro: {expr_str}")
+            exp_ctx.appendScopes(
+                QgsExpressionContextUtils.globalProjectLayerScopes(merged)
+            )
+            expression.prepare(exp_ctx)
+
+        sink, dest_id = self.parameterAsSink(
+            parameters, self.OUTPUT, context,
+            merged.fields(), merged.wkbType(), merged.crs(),
+        )
+        if sink is None:
+            raise QgsProcessingException("Nao foi possivel criar a saida.")
+
+        total = merged.featureCount() or 0
+        kept = 0
+        for j, feature in enumerate(merged.getFeatures()):
+            if feedback.isCanceled():
+                break
+            if expression is not None:
+                exp_ctx.setFeature(feature)
+                if not expression.evaluate(exp_ctx):
+                    continue
+            sink.addFeature(feature, QgsFeatureSink.FastInsert)
+            kept += 1
+            if total:
+                feedback.setProgress(70 + int((j + 1) / total * 30))
+
+        feedback.pushInfo(f"Concluido: {kept} feicao(oes).")
+        return {self.OUTPUT: dest_id}
+
+    # ------------------------------------------------------------------ metadata
+    def name(self):
+        return self.FUNCTION_NAME
+
+    def displayName(self):
+        return self.DISPLAY_NAME or self.FUNCTION_NAME
+
+    def group(self):
+        return "Geografias (Parquet / v2.0.0)"
+
+    def groupId(self):
+        return "geobr_parquet_v2"
+
+    def shortHelpString(self):
+        base = (
+            "Backend Parquet (v2.0.0): catalogo mais novo do geobr "
+            "(ipea/geobr_prep_data), em SIRGAS 2000 / EPSG:4674. Le via driver "
+            "GDAL Parquet OU pyarrow. Arquivos nacionais (filtro por codigo "
+            "e pos-download).\n\n"
+        )
+        return base + (self.HELP or "")
+
+    def createInstance(self):
+        return type(self)()
