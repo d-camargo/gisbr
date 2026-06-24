@@ -39,6 +39,14 @@ def merge_layers(layers, context, feedback):
     return result["OUTPUT"]
 
 
+def _eq_expr(layer, column, digits):
+    """Monta '"col" = valor' com aspas conforme o tipo da coluna (texto/numero)."""
+    field = layer.fields().field(column)
+    if field.isNumeric():
+        return f'"{column}" = {int(digits)}'
+    return f"\"{column}\" = '{digits}'"
+
+
 def apply_code_filter(layer, code, code_column, abbrev_column=None,
                       uf_sliced=False):
     """Aplica setSubsetString para filtrar por codigo/sigla.
@@ -66,14 +74,23 @@ def apply_code_filter(layer, code, code_column, abbrev_column=None,
 
     expr = None
     if uf_sliced:
-        # recorte por UF ja feito no catalogo; so codigo completo filtra
-        if len(digits) > 2 and code_column in field_names:
-            expr = f'"{code_column}" = {digits}'
+        # recorte por UF ja feito no catalogo; so codigo completo filtra.
+        # Um codigo de 7 digitos e um MUNICIPIO -> filtra code_muni (ex.: pegar
+        # os setores/areas de ponderacao de BH). Codigo proprio (15 digitos do
+        # setor, etc.) -> filtra a coluna especifica da geografia.
+        if len(digits) > 2:
+            col = (
+                "code_muni"
+                if len(digits) == 7 and "code_muni" in field_names
+                else code_column
+            )
+            if col in field_names:
+                expr = _eq_expr(layer, col, digits)
     else:
         if is_alpha and abbrev_column and abbrev_column in field_names:
             expr = f"\"{abbrev_column}\" = '{s.upper()}'"
         elif digits and code_column in field_names:
-            expr = f'"{code_column}" = {digits}'
+            expr = _eq_expr(layer, code_column, digits)
 
     if expr is None:
         return layer

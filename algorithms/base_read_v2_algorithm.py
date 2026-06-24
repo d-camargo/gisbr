@@ -79,24 +79,36 @@ class BaseReadV2Algorithm(QgsProcessingAlgorithm):
         )
 
     # ------------------------------------------------------------- filtro
-    def _filter_expression(self, field_names, code):
-        """Monta expressao de filtro (national, pos-load) ou None."""
+    def _filter_expression(self, fields, code):
+        """Monta expressao de filtro (national, pos-load) ou None.
+
+        ``fields`` e o QgsFields da camada (usado p/ checar tipo e quotar).
+        """
         if not code or str(code).strip().lower() == "all":
             return None
         s = str(code).strip()
         digits = "".join(ch for ch in s if ch.isdigit())
         is_alpha = not digits and s.isalpha()
+        names = [f.name() for f in fields]
 
-        if is_alpha and self.ABBREV_COLUMN in field_names:
+        def eq(col, value):
+            if fields.field(col).isNumeric():
+                return f'"{col}" = {int(value)}'
+            return f"\"{col}\" = '{value}'"
+
+        if is_alpha and self.ABBREV_COLUMN in names:
             return f"\"{self.ABBREV_COLUMN}\" = '{s.upper()}'"
         if digits:
-            # codigo de 2 digitos (UF) com filtro fino so de estado disponivel
-            if len(digits) <= 2 and self.ABBREV_COLUMN in field_names:
+            # codigo de 2 digitos (UF) -> filtra estado pela sigla
+            if len(digits) <= 2 and self.ABBREV_COLUMN in names:
                 uf_code, uf_abbrev = normalize_uf(s)
                 if uf_abbrev:
                     return f"\"{self.ABBREV_COLUMN}\" = '{uf_abbrev}'"
-            if self.CODE_COLUMN in field_names:
-                return f'"{self.CODE_COLUMN}" = {int(digits)}'
+            # 7 digitos = municipio -> filtra code_muni (ex.: setores de BH)
+            if len(digits) == 7 and "code_muni" in names:
+                return eq("code_muni", digits)
+            if self.CODE_COLUMN in names:
+                return eq(self.CODE_COLUMN, digits)
         return None
 
     # ------------------------------------------------------------- processamento
@@ -149,9 +161,7 @@ class BaseReadV2Algorithm(QgsProcessingAlgorithm):
         # filtro pos-load por expressao (funciona em camada ogr e em memoria)
         expr_str = None
         if self.SUPPORTS_CODE and self.CODE_COLUMN:
-            expr_str = self._filter_expression(
-                [f.name() for f in merged.fields()], code
-            )
+            expr_str = self._filter_expression(merged.fields(), code)
         expression = QgsExpression(expr_str) if expr_str else None
         exp_ctx = QgsExpressionContext()
         if expression is not None:

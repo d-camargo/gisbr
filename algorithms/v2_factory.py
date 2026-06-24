@@ -56,7 +56,7 @@ def _make_class(geo, function_base, display, code_col, abbrev_col, supports, hel
         {
             "GEO": geo,
             "FUNCTION_NAME": f"{function_base}_v2",
-            "DISPLAY_NAME": display,
+            "DISPLAY_NAME": f"{display} (v2)",
             "CODE_COLUMN": code_col,
             "ABBREV_COLUMN": abbrev_col,
             "SUPPORTS_CODE": supports,

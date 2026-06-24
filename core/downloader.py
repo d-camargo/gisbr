@@ -121,3 +121,8 @@ def fetch_v2(file_name, download_url, feedback=None):
     """
     urls = [download_url, f"{IPEA_V2_FALLBACK_BASE}/{file_name}"]
     return _fetch_to_cache(file_name, urls, feedback=feedback)
+
+
+def fetch_asset(file_name, url, feedback=None):
+    """Baixa um asset por URL unica para o cache (ex.: parquet do censobr)."""
+    return _fetch_to_cache(file_name, [url], feedback=feedback)

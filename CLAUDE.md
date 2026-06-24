@@ -184,7 +184,12 @@ Fluxo do `processAlgorithm()`:
 >   - `core/downloader.py`: + `fetch_v2()` (cadeia invertida GitHub→IPEA) + `_fetch_to_cache()` reusável.
 >   - `algorithms/base_read_v2_algorithm.py` + `algorithms/v2_factory.py`: **28 algoritmos `read_*_v2`** gerados dinamicamente (grupo "Geografias (Parquet / v2.0.0)", ids com sufixo `_v2`). Filtro por código é **pós-load** (arquivos v2 são nacionais), via `QgsExpression` (funciona em camada OGR e em memória). Inclui as 3 só-v2: `read_favela_v2`, `read_polling_places_v2`, `read_quilombola_land_v2`.
 >   - **Validado:** 54 algoritmos (26 v1 + 28 v2) instanciam, nomes únicos; `read_state_v2` CODE=MG → 1 feição, geom válida, EPSG:4674 (backend pyarrow, download mockado).
-> - ⏭️ **Falta na Fase 2:** (a) confirmar um **download real** de .parquet na máquina do Diego após `pip install --user pyarrow`; (b) o **`join_censo`** (catálogo do censobr + join geometria↔tabela via `native:joinattributestable`).
+> - ✅ **`join_censo` IMPLEMENTADO (2026-06-23) — critério de pronto da Fase 2 atingido:**
+>   - `core/catalog_censo.py`: lista os datasets de setor (`*_tracts_*`) dos releases do `ipeaGIT/censobr`; anos **2000, 2010, 2022**; datasets por ano (ex.: 2010 → Basico, Domicilio, **DomicilioRenda**, Pessoa, PessoaRenda...). Dedup por versão mais alta.
+>   - `algorithms/join_censo.py` (grupo "Censo (censobr)"): recebe camada de setores do geobr + ano + dataset, baixa o parquet do censobr (`downloader.fetch_asset`), lê como tabela (loader_v2) e junta por **`code_tract`** via `native:joinattributestable` (METHOD 1, prefixo configurável). Avisa se os **tipos da chave divergirem** e reporta `JOINED_COUNT`/`UNJOINABLE_COUNT` (evita o "join silencioso vazio").
+>   - **Validado end-to-end** (pyarrow): setor geobr + censobr DomicilioRenda → camada com `censo_V001`/`censo_V002`; 2 de 3 setores casaram, não-match = NULL. **55 algoritmos no total** (26 v1 + 28 v2 + join).
+> - ⏭️ **Pendência única:** validar com **dados reais** na máquina do Diego (download real do parquet geobr v2 + censobr). pyarrow já confirmado lendo setores de MG reais. Atenção: arquivos de setor do censobr são NACIONAIS (download pesado); o join mantém só os setores da camada de entrada.
+> - ⚠️ Risco conhecido: se o `code_tract` do geobr e do censobr tiverem **tipos diferentes** (string vs int) o join vem vazio — o algoritmo já avisa; se ocorrer na vida real, portar um cast da chave para string nos dois lados.
 >
 > ⚠️ **CORREÇÃO empírica sobre o driver (verificado no Pop!_OS 'noble', GDAL 3.8.4):** o caminho via apt **NÃO funciona** nesta build:
 > - `gdal-plugins` (3.8.4) **está instalado mas não traz nenhum `.so`** (só um `drivers.ini`) — ou seja, não inclui o driver arrow/parquet.

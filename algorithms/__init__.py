@@ -45,6 +45,9 @@ from .read_schools import ReadSchools
 # --- Backend Parquet / v2.0.0 (Fase 2, classes geradas dinamicamente) ---
 from .v2_factory import V2_ALGORITHMS
 
+# --- Censo (censobr): join geometria <-> tabela ---
+from .join_censo import JoinCenso
+
 # Ordem de registro no provider.
 ALGORITHMS = [
     # politico-administrativa
@@ -78,4 +81,7 @@ ALGORITHMS = [
     ReadHealthRegion,
     ReadHealthFacilities,
     ReadSchools,
-] + V2_ALGORITHMS
+] + V2_ALGORITHMS + [
+    # censo
+    JoinCenso,
+]
