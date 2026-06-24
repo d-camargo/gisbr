@@ -136,30 +136,53 @@ class JoinCenso(QgsProcessingAlgorithm):
             )
         feedback.setProgress(55)
 
-        # aviso de tipos divergentes na chave (causa comum de join vazio)
+        # 3) normalizar a chave para TEXTO nos dois lados.
+        # A chave do geobr costuma ser numerica (double) e a do censobr texto;
+        # to_string(to_int(...)) leva ambos a "310620005000001" e elimina o
+        # mismatch de tipo (e o ".0" do double) que zera o join.
+        import processing  # lazy: plugin 'processing' so existe em runtime
         t_in = source.fields().field(join_field).typeName()
         t_ce = censo.fields().field(join_field).typeName()
-        if t_in != t_ce:
-            feedback.pushWarning(
-                f"Tipos da chave diferentes (setor={t_in}, censo={t_ce}); "
-                "se o join vier vazio, e por isso."
-            )
+        feedback.pushInfo(
+            f"Normalizando chave para texto (setor={t_in}, censo={t_ce})..."
+        )
+        key = "__geobr_jk"
+        formula = f'to_string(to_int("{join_field}"))'
+        fc_params = {
+            "FIELD_NAME": key, "FIELD_TYPE": 2,  # 2 = Texto (string)
+            "FIELD_LENGTH": 40, "FIELD_PRECISION": 0,
+            "FORMULA": formula, "OUTPUT": "memory:",
+        }
+        inp_norm = processing.run(
+            "native:fieldcalculator",
+            dict(fc_params, INPUT=parameters[self.INPUT]),
+            context=context, feedback=feedback, is_child_algorithm=True,
+        )["OUTPUT"]
+        censo_norm = processing.run(
+            "native:fieldcalculator",
+            dict(fc_params, INPUT=censo),
+            context=context, feedback=feedback, is_child_algorithm=True,
+        )["OUTPUT"]
 
-        # 3) join via algoritmo nativo
-        import processing  # lazy: plugin 'processing' so existe em runtime
+        # campos do censo a copiar (exclui a chave original e a auxiliar)
+        from qgis.core import QgsProcessingUtils
+        censo_lyr = QgsProcessingUtils.mapLayerFromString(censo_norm, context) \
+            if isinstance(censo_norm, str) else censo_norm
+        copy_fields = [
+            f.name() for f in censo_lyr.fields()
+            if f.name() not in (key, join_field)
+        ]
+
+        # 4) join pela chave normalizada
         feedback.pushInfo(f"Join por '{join_field}' (prefixo '{prefix}')...")
         res = processing.run(
             "native:joinattributestable",
             {
-                "INPUT": parameters[self.INPUT],
-                "FIELD": join_field,
-                "INPUT_2": censo,
-                "FIELD_2": join_field,
-                "FIELDS_TO_COPY": [],
-                "METHOD": 1,  # 1:1 (primeira correspondencia)
-                "DISCARD_NONMATCHING": False,
-                "PREFIX": prefix,
-                "OUTPUT": parameters[self.OUTPUT],
+                "INPUT": inp_norm, "FIELD": key,
+                "INPUT_2": censo_norm, "FIELD_2": key,
+                "FIELDS_TO_COPY": copy_fields, "METHOD": 1,
+                "DISCARD_NONMATCHING": False, "PREFIX": prefix,
+                "OUTPUT": "memory:",
             },
             context=context, feedback=feedback, is_child_algorithm=True,
         )
@@ -169,10 +192,18 @@ class JoinCenso(QgsProcessingAlgorithm):
             feedback.pushInfo(f"Setores com censo: {joined} | sem match: {unjoin}")
             if joined == 0:
                 feedback.pushWarning(
-                    "Nenhum setor casou com o censo — verifique o campo-chave "
-                    "e os tipos (acima)."
+                    "Nenhum setor casou com o censo mesmo apos normalizar a "
+                    "chave — confira se o campo-chave e o code_tract correto."
                 )
-        return {self.OUTPUT: res["OUTPUT"]}
+
+        # 5) remove a coluna auxiliar e materializa no OUTPUT
+        out = processing.run(
+            "native:deletecolumn",
+            {"INPUT": res["OUTPUT"], "COLUMN": [key],
+             "OUTPUT": parameters[self.OUTPUT]},
+            context=context, feedback=feedback, is_child_algorithm=True,
+        )
+        return {self.OUTPUT: out["OUTPUT"]}
 
     # ------------------------------------------------------------------ metadata
     def name(self):
