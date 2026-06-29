@@ -19,6 +19,30 @@
 
 ---
 
+## 1.1. Evolução de escopo e publicação (decisões de 2026-06-29)
+
+> Esta seção registra a virada de escopo discutida com o Diego. O núcleo (espelho do geobr, §2–§10) continua valendo; o que vem abaixo é a camada que cresce por cima.
+
+**Evolução para sistema de Diagnóstico de Plano Diretor.** Além de espelhar o geobr, o plugin vai evoluir para um **sistema de diagnóstico de cidades que precisam elaborar/revisar o Plano Diretor**, subindo dados de bases oficiais organizados em **6 eixos**: (1) Infraestrutura de transportes, (2) Drenagem e Saneamento, (3) Demografia (já coberto via geobr/censobr), (4) Ambiental (MMA/SICAR/MapBiomas/…), (5) Educação (já temos `read_schools`; agregar INEP/IBGE), (6) Saúde (já temos `read_health_*`; agregar DataSUS/CNES/MS).
+
+- **Decisão de arquitetura:** **evoluir o próprio plugin** (não plugin separado, não repo novo). A evolução acontece em **branch** (`feat/diagnostico-plano-diretor`), mantendo a `main` sempre publicável.
+- **Reaproveitamento mapeado:** o projeto irmão `~/Drive/02_Projetos_Tecnicos/haCARthon/desafio-2/src/plugin-qgis/` tem peças prontas a portar — `core/wfs.py` (loader WFS robusto: pilha de rede do QGIS p/ contornar SSL de GeoServer, fallback `/vsicurl/`, grava `data_extracao`, filtro `CQL_FILTER`), `core/parecer.py`+`layout_parecer.py` (relatório), `gui/kpis_dock.py` (painel de KPIs), e a disciplina de **data de extração** de `docs/referencias.md`. Código portado entra primeiro em `desafio-2-port/` (staging, fora do pacote).
+- **Geoservers de interesse:** federais e estaduais e, quando disponíveis, municipais (provavelmente só municípios grandes — manter a referência mesmo assim).
+- **Pesquisa primeiro:** a varredura de geoservers + taxonomia de cidades (REGIC etc.) + panorama de dados abertos é registrada como ACTIONS e salva como `.md` de referência em `docs/diagnostico-plano-diretor/`. É ela que informa a arquitetura de código dos eixos.
+
+**Publicação no repositório oficial do QGIS (plugins.qgis.org).** Será feita **várias vezes**, começando pelo estado atual (Fases 1 e 2).
+
+- **Skill de empacotamento:** `build-qgis-zip` (`.claude/skills/build-qgis-zip/`) gera `dist/gisbr-<version>.zip` com a estrutura exigida (uma pasta de topo `gisbr/` com `metadata.txt` na raiz) e **exclui** docs/pesquisa/`*.pdf`/arquivos de processo. Toda geração de zip usa essa skill; a submissão final é passo **manual do Diego** (conta OSGeo).
+- **Higiene de empacotamento:** material de pesquisa (`docs/`), ports do haCARthon (`desafio-2-port/`) e arquivos de processo (`ACTIONS/AGENTS/INSTRUCTIONS/CLAUDE.md`, `Makefile`, `STRUCTURE.md`) **não entram** no pacote publicado.
+- **Idioma (constraint do QGIS):** o repositório oficial espera o plugin em **inglês**. Feito: `metadata.txt` reescrito em inglês. Pendente: i18n da UI (nomes/grupos de algoritmos ainda em PT-BR) via Qt (`tr()`/`.ts`/`.qm`) com PT-BR como tradução. Cogitado um "botão/opção de idioma".
+- **Nome — DECIDIDO (2026-06-29): `GisBR`** (disponibilidade conferida no repo do QGIS; remote git já é `d-camargo/gisbr`). Aplicado: `metadata.txt name=GisBR`, provider `id()="gisbr"`/`name()="GisBR"`, `PLUGINNAME=gisbr` (Makefile), `PLUGIN_DIR="gisbr"` (skill). Algoritmos agora em `gisbr:read_*`. Observação registrada: "GeoBR" é o pacote R/Python do IPEA; vale consultar a equipe deles, mas o nome do plugin passou a ser GisBR (distinto).
+- **Licença — DECIDIDA: GPL-3.0** (arquivo `LICENSE` na raiz, texto completo).
+- **`metadata.txt` — ATUALIZADO:** versão **0.2.0**, `experimental=True` (mantido), descrição/about/changelog refletindo Fases 1+2 (55 algoritmos), em inglês. Repos apontando para `github.com/d-camargo/gisbr`.
+
+**Fluxo de trabalho planejador→executor.** O projeto adota o trio `AGENTS.md` (papel do senior), `INSTRUCTIONS.md` (papel do junior) e `ACTIONS.md` (tarefas concretas com status). O senior planeja e registra ACTIONS; o junior executa só as marcadas `status: pronta`.
+
+---
+
 ## 2. Como o geobr funciona por baixo (arquitetura de referência)
 
 O geobr **não faz geoprocessamento** — é um **catálogo + downloader + loader**. Toda a lógica é:
@@ -93,7 +117,7 @@ Os dados tabulares do censo ficam no **pacote irmão `censobr`** (mesmo time do 
 
 Seguir o estilo do `desire_lines`, mas como **Processing Provider** (mais alinhado a fluxos batch/modelo/console que o Diego usa com OSM2GMNS/NetworkX). Cada `read_*` vira um `QgsProcessingAlgorithm`.
 
-Vantagens: roda na Caixa de Ferramentas, em modelos gráficos, em batch, e via `processing.run("geobr:read_municipality", {...})` no console Python.
+Vantagens: roda na Caixa de Ferramentas, em modelos gráficos, em batch, e via `processing.run("gisbr:read_municipality", {...})` no console Python.
 
 ### Estrutura de diretórios alvo
 ```
@@ -166,7 +190,7 @@ Fluxo do `processAlgorithm()`:
 
 5. **`provider.py` + `metadata.txt` + `Makefile`** — registrar todos os algoritmos; deploy por symlink para `~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/`.
 
-**Critério de pronto da Fase 1:** `processing.run("geobr:read_municipality", {"YEAR": 2022, "CODE": "MG", "SIMPLIFIED": True})` retorna camada de municípios de MG no QGIS, em EPSG:4674, sem nenhum pacote externo.
+**Critério de pronto da Fase 1:** `processing.run("gisbr:read_municipality", {"YEAR": 2022, "CODE": "MG", "SIMPLIFIED": True})` retorna camada de municípios de MG no QGIS, em EPSG:4674, sem nenhum pacote externo.
 
 ---
 
@@ -286,7 +310,7 @@ make deploy        # symlink -> profiles/default/python/plugins/geobr_qgis
 # Recarregar no QGIS: usar o Plugin Reloader, ou reiniciar o QGIS.
 # Testar no Console Python do QGIS:
 #   import processing
-#   processing.run("geobr:read_state", {"YEAR":2020,"CODE":"all","SIMPLIFIED":True,"OUTPUT":"memory:"})
+#   processing.run("gisbr:read_state", {"YEAR":2020,"CODE":"all","SIMPLIFIED":True,"OUTPUT":"memory:"})
 ```
 
 - Desenvolvimento e testes rodam na **máquina principal Pop!_OS** (mesmo fluxo do `desire_lines`).

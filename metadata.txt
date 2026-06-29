@@ -1,30 +1,35 @@
-# Metadados do plugin QGIS geobr-qgis
+# GisBR — QGIS plugin metadata
 
 [general]
-name=geobr
+name=GisBR
 qgisMinimumVersion=3.0
-description=Acesso "1 linha -> 1 camada" aos dados espaciais oficiais do Brasil (geobr/IPEA) direto no QGIS, sem dependencias externas.
-version=0.1.0
+description=Load official Brazilian spatial data (IBGE/IPEA geobr + censobr) into QGIS with one click, using only the native QGIS API.
+version=0.2.0
 author=Diego Camargo
 email=dg.camargo@proton.me
 
-about=Replica a funcionalidade do pacote geobr (IPEA) usando apenas a API nativa do QGIS/Qt e a stdlib do Python (sem geopandas/requests/pandas). Fase 1: backend GeoPackage legacy (v1.7.0). Cada read_* (estados, municipios, setores censitarios, areas de ponderacao, regioes metropolitanas, biomas...) e um algoritmo de Processing, utilizavel na Caixa de Ferramentas, em modelos graficos, em batch e via processing.run(). Dados em SIRGAS 2000 / EPSG:4674.
+about=GisBR brings the "one line -> one layer" access of the geobr/censobr packages (IPEA) into QGIS as a Processing provider, using only the native QGIS/Qt API and the Python standard library (no geopandas/requests/pandas). Phase 1: legacy GeoPackage backend (geobr v1.7.0), 100% native. Phase 2: Parquet backend (geobr v2.0.0) read via the GDAL Parquet driver or a pyarrow fallback, plus a join with census tables from censobr. Each read_* algorithm (states, municipalities, census tracts, weighting areas, metropolitan areas, biomes, schools, health facilities and more) works in the Processing Toolbox, in graphical models, in batch and via processing.run(). Data in SIRGAS 2000 / EPSG:4674. Licensed under GPL-3.0.
 
-tracker=https://github.com/d-camargo/geobr-qgis/issues
-repository=https://github.com/d-camargo/geobr-qgis
-homepage=https://github.com/d-camargo/geobr-qgis
+tracker=https://github.com/d-camargo/gisbr/issues
+repository=https://github.com/d-camargo/gisbr
+homepage=https://github.com/d-camargo/gisbr
 
 hasProcessingProvider=yes
 
 changelog=
+    0.2.0
+    - Phase 2: Parquet backend (geobr v2.0.0) with 28 read_*_v2 algorithms.
+    - censobr integration: join_censo joins geobr census tracts with census tables.
+    - Parquet read via the GDAL driver or a pyarrow fallback (driver-independent).
+    - 55 algorithms total (26 v1 + 28 v2 + join_censo).
     0.1.0
-    - Release inicial (Fase 1): Processing Provider "geobr" com backend GPKG v1.7.0.
-    - Algoritmos: read_country, read_region, read_state, read_municipality,
-      read_census_tract, read_weighting_area, read_metro_area, read_biomes.
-    - Download com cache em disco e cadeia de mirrors (IPEA -> GitHub).
-    - 100% PyQGIS + stdlib, sem dependencias externas.
+    - Initial release (Phase 1): Processing provider with the legacy GPKG v1.7.0 backend.
+    - read_country, read_region, read_state, read_municipality, read_census_tract,
+      read_weighting_area, read_metro_area, read_biomes and more.
+    - On-disk cache and mirror fallback (IPEA -> GitHub).
+    - 100% PyQGIS + stdlib, no external dependencies.
 
-tags=brazil,brasil,ibge,geobr,ipea,boundaries,census,municipios,vector
+tags=brazil,brasil,ibge,ipea,geobr,censobr,boundaries,census,municipios,vector
 category=Vector
 icon=icon.png
 experimental=True

@@ -1,7 +1,7 @@
 # Makefile — geobr-qgis
 # Deploy por symlink para o perfil default do QGIS (padrao dos outros plugins).
 
-PLUGINNAME = geobr_qgis
+PLUGINNAME = gisbr
 QGIS_PLUGINS = $(HOME)/.local/share/QGIS/QGIS3/profiles/default/python/plugins
 # Perfil do QGIS instalado via Flatpak (org.qgis.qgis) — traz GDAL com GeoParquet.
 FLATPAK_PLUGINS = $(HOME)/.var/app/org.qgis.qgis/data/QGIS/QGIS3/profiles/default/python/plugins

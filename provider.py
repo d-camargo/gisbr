@@ -15,13 +15,13 @@ class GeobrProvider(QgsProcessingProvider):
             self.addAlgorithm(alg_class())
 
     def id(self):
-        return "geobr"
+        return "gisbr"
 
     def name(self):
-        return "geobr (IPEA)"
+        return "GisBR"
 
     def longName(self):
-        return "geobr — dados espaciais oficiais do Brasil (IPEA)"
+        return "GisBR — dados espaciais oficiais do Brasil (IBGE/IPEA)"
 
     def icon(self):
         here = os.path.dirname(__file__)
