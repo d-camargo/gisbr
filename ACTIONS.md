@@ -718,7 +718,7 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/connectors
 
 ## [T-009] Conectores: WFS + basemap de satelite
 
-- status: pronta
+- status: concluida
 - responsavel: junior
 - fase: diagnostico — Fase A (codigo)
 - branch: `feat/diagnostico-plano-diretor` (ja ativa)
@@ -905,7 +905,10 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/connectors
 
 ### Resultado
 
-(preencher ao concluir)
+- Criados com sucesso os arquivos `core/connectors/wfs.py` e `core/connectors/basemap.py` com o conteúdo exato fornecido.
+- `make test` passou sem erros de sintaxe.
+- Validação AST em Python bem-sucedida para ambos os conectores.
+- Nenhum arquivo proibido foi alterado.
 
 ---
 
