@@ -423,7 +423,7 @@ Validação:
 
 ## [T-002] Varredura de geoservers por eixo tematico
 
-- status: pronta
+- status: concluida
 - libera quando: T-001 concluida
 - responsavel: junior (agente de pesquisa — precisa de WebSearch/WebFetch)
 - fase: diagnostico (pre-arquitetura)
@@ -514,6 +514,188 @@ ls docs/diagnostico-plano-diretor/eixos/
 - O indice classifica cada eixo por esforco (ja coberto / conector novo / so
   download).
 - Nenhum arquivo de codigo foi tocado.
+
+### Resultado
+
+Arquivos criados no diretório `docs/diagnostico-plano-diretor/eixos/`:
+- `README.md` (Índice geral com legenda e estimativa de esforço/cobertura)
+- `1-transportes.md` (Contendo DNIT, ANTT, DER-MG, IBGE/SGB e OSM)
+- `2-drenagem-saneamento.md` (Contendo ANA, SGB/CPRM, SNIS e COPASA)
+- `3-demografia.md` (Contendo GisBR/censobr, IBGE SIDRA e BDiA)
+- `4-ambiental.md` (Contendo SICAR, ICMBio, MapBiomas Alertas, IBAMA e IDE-Sisema)
+- `5-educacao.md` (Contendo Censo Escolar/GisBR, IBGE e INEP)
+- `6-saude.md` (Contendo CNES/GisBR, Regiões de Saúde/GisBR, DATASUS e Min. Saúde)
+
+Validação:
+- Verificação real de GetCapabilities realizada via requisição HTTP direta para os endpoints OGC (DNIT, SGB/CPRM, ICMBio, SICAR, MapBiomas Alertas, IDE-Sisema) e APIs REST (ANA, IBAMA). Os resultados do XML foram conferidos para extrair os nomes das camadas, CRS padrão e formatos suportados.
+- make test passou com sucesso.
+- Nenhum arquivo de código foi modificado.
+
+---
+
+## [T-007] Hardening do catalogo de fontes (campos de filtro municipal)
+
+- status: pronta
+- responsavel: junior (pesquisa/verificacao — precisa de WebFetch)
+- fase: diagnostico (paralela ao planejamento da arquitetura)
+- contexto: ver `docs/diagnostico-plano-diretor/ARQUITETURA.md` §3.1 e §6
+
+### Objetivo
+
+Para cada **fonte WFS e ArcGIS REST** levantada nos eixos, confirmar o servico e
+extrair os metadados exatos que o futuro catalogo `core/sources.py` vai precisar
+— em especial **qual campo permite filtrar por municipio**. Isto NAO escreve
+codigo Python; produz/atualiza `.md`. Independe das decisoes de arquitetura.
+
+### Arquivos permitidos
+
+- `docs/diagnostico-plano-diretor/eixos/1-transportes.md` ... `6-saude.md`
+  (acrescentar colunas/notas; nao remover o que ja existe)
+- `docs/diagnostico-plano-diretor/fontes-detalhe.md` (criar — tabela consolidada
+  pronta para virar o registry)
+
+### Arquivos proibidos
+
+- qualquer `.py`, `provider.py`, `metadata.txt`, `CLAUDE.md`, `ARQUITETURA.md`
+
+### Passos
+
+Para cada fonte **WFS** (DNIT, ANTT, DER-MG/IDE-Sisema, SGB/CPRM, SICAR, ICMBio):
+
+1. Abrir o **GetCapabilities** (ja anotado nos eixos) e confirmar o `type_name`
+   exato (`<FeatureType><Name>`) e os **CRS** (`DefaultCRS`/`OtherCRS`) — checar
+   se **EPSG:4674** esta disponivel.
+2. Conferir os **outputFormats** do servico (no `<ows:Operation name="GetFeature">`):
+   anotar se aceita **GeoJSON** (`application/json`) — necessario para o caminho
+   `QgsBlockingNetworkRequest` do conector WFS.
+3. Rodar um **DescribeFeatureType** por camada de interesse:
+   `<endpoint>?service=WFS&version=2.0.0&request=DescribeFeatureType&typeName=<type_name>`
+   e listar os **campos (atributos)**. Identificar o **campo de filtro municipal**
+   — algo como `cd_mun`, `geocodigo`, `cod_ibge`, `municipio`, `cd_geocmu`. Anotar
+   o nome EXATO e o tipo (texto vs numero) — isso define o `CQL_FILTER`.
+4. Se nao houver campo municipal, anotar **"sem campo muni -> filtrar por bbox"**
+   (o diagnostico usara o bbox do municipio via `read_municipality` do GisBR).
+
+Para cada fonte **ArcGIS REST** (ANA/BHO, IBAMA):
+
+5. Abrir o servico com `?f=json` (e a camada `.../<id>?f=json`) e anotar: a **URL
+   da layer** (com id), os **fields** (nome + tipo) e o **campo de filtro
+   municipal** para o parametro `where=`. Anotar o `spatialReference` (wkid).
+
+Consolidacao:
+
+6. Criar `fontes-detalhe.md` com **uma linha por fonte** e as colunas:
+   `id | eixo | protocolo | endpoint | type_name/layer | crs | output_format |
+   campo_muni (nome exato + tipo) | licenca | status (data)`. Esta tabela e o
+   rascunho 1:1 do `core/sources.py`.
+7. Disciplina de rastreabilidade: **data de acesso** e, se algo nao responder,
+   status = "nao confirmado" + erro (nunca "Online" no chute).
+
+> **Nota ao Junior:** aqui o forte e seu — leitura de XML/JSON dos servicos. NAO
+> precisa de QGIS. O passo de abrir a camada dentro do QGIS fica para uma tarefa
+> de codigo posterior, conduzida pelo senior. Foque em extrair **nomes exatos**
+> (camada, campo municipal, formato) — e o que vai destravar o codigo depois.
+
+### Comandos de verificacao
+
+```bash
+ls docs/diagnostico-plano-diretor/fontes-detalhe.md
+```
+
+### Criterios de aceite
+
+- `fontes-detalhe.md` existe, com uma linha por fonte WFS/ArcGIS dos eixos.
+- Cada fonte WFS tem: `type_name` exato, CRS (com nota se 4674 existe),
+  outputFormat (tem GeoJSON?), e o **campo de filtro municipal** (nome exato +
+  tipo) OU "sem campo muni -> bbox".
+- Cada fonte ArcGIS tem: URL da layer com id, campo `where` municipal, wkid.
+- Status com data; o que nao respondeu marcado "nao confirmado" + erro.
+- Nenhum arquivo de codigo (`.py`) tocado.
+
+### Resultado
+
+(preencher ao concluir)
+
+---
+
+## [T-008] Branch + scaffolding do diagnostico
+
+- status: pronta
+- responsavel: junior
+- fase: diagnostico — Fase A (estrutura de codigo)
+- contexto: `docs/diagnostico-plano-diretor/ARQUITETURA.md` §3
+
+### Objetivo
+
+Criar a **branch de evolucao** e o **esqueleto de pastas/arquivos** do
+diagnostico, **sem logica e sem registrar nada no provider** (nenhuma mudanca de
+comportamento; `make test` continua passando). E so a fundacao para as proximas
+tarefas.
+
+### Arquivos permitidos (criar)
+
+- `core/connectors/__init__.py`
+- `core/sources.py`
+- `algorithms/diagnostico/__init__.py`
+
+### Arquivos proibidos
+
+- `provider.py`, `algorithms/__init__.py` (NAO registrar nada ainda)
+- qualquer `read_*.py`, `core/{catalog,downloader,loader}*.py` (intocados)
+- `CLAUDE.md`, `metadata.txt`
+
+### Passos
+
+1. Criar e mudar para a branch a partir da `main` atualizada:
+   ```bash
+   git switch -c feat/diagnostico-plano-diretor
+   ```
+2. Criar `core/connectors/__init__.py` com exatamente este conteudo:
+   ```python
+   # -*- coding: utf-8 -*-
+   """Conectores por protocolo do diagnostico (WFS, ArcGIS REST, basemap).
+
+   Vazio por enquanto; preenchido nas tarefas T-009+ (ver ARQUITETURA.md §3.2).
+   """
+   ```
+3. Criar `core/sources.py` com exatamente este conteudo:
+   ```python
+   # -*- coding: utf-8 -*-
+   """Catalogo declarativo de fontes do diagnostico (ver ARQUITETURA.md §3.1).
+
+   Cada fonte e um dict: id, eixo, nivel, protocolo ("wfs"|"arcgis"|"basemap"),
+   endpoint, type_name, crs, campo_muni, output_format, licenca, fonte.
+   Sera preenchido na T-010 a partir de docs/.../fontes-detalhe.md (T-007).
+   """
+
+   SOURCES = []  # type: list[dict]
+   ```
+4. Criar `algorithms/diagnostico/__init__.py` com exatamente este conteudo:
+   ```python
+   # -*- coding: utf-8 -*-
+   """Algoritmos do diagnostico (gerados por factory nas tarefas T-010+).
+
+   Vazio por enquanto. NAO importar daqui no provider ate a T-010.
+   """
+
+   DIAGNOSTICO_ALGORITHMS = []  # type: list
+   ```
+5. NAO tocar em `provider.py` nem em `algorithms/__init__.py`.
+
+### Comandos de verificacao
+
+```bash
+git branch --show-current      # feat/diagnostico-plano-diretor
+make test                      # sintaxe OK (inclui os novos arquivos)
+python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/connectors/__init__.py','core/sources.py','algorithms/diagnostico/__init__.py']]; print('stubs ok')"
+```
+
+### Criterios de aceite
+
+- Branch `feat/diagnostico-plano-diretor` criada e ativa.
+- Os 3 arquivos existem com o conteudo exato acima.
+- `make test` passa; `provider.py` e `algorithms/__init__.py` **inalterados**
+  (nada novo registrado ainda).
 
 ### Resultado
 

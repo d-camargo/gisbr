@@ -1,0 +1,205 @@
+{
+  "currentVersion": 11.5,
+  "folders": [
+    "01_Publicacoes",
+    "01_Publicacoes_Bases",
+    "21_SIGA_Geo",
+    "23_DIPRO_FISCALIZACAO",
+    "app_dadosabertos",
+    "BasesSincronizadas",
+    "CAR_NACIONAL",
+    "CASV",
+    "central_log_rotinas",
+    "Coaer",
+    "crotalus",
+    "CTF_APP",
+    "DDA",
+    "Ferramentas",
+    "Gripe_Aviaria",
+    "Hosted",
+    "Inventario",
+    "Multiespectral_Drone",
+    "PAMGIA_AFF",
+    "PMOC",
+    "prevfogo",
+    "pro_especies",
+    "ProManguezal",
+    "Recooperar",
+    "SIGAGEO",
+    "SINAFLORGEO",
+    "SISCOM",
+    "sisfogo-db_incra",
+    "sisfogo_focos",
+    "Utilities"
+  ],
+  "services": [
+    {
+      "name": "acoes_fisc_dda",
+      "type": "FeatureServer"
+    },
+    {
+      "name": "acoes_fisc_dda",
+      "type": "MapServer"
+    },
+    {
+      "name": "Brigadas",
+      "type": "FeatureServer"
+    },
+    {
+      "name": "Brigadas",
+      "type": "MapServer"
+    },
+    {
+      "name": "ciman_operacoes_2_3",
+      "type": "FeatureServer"
+    },
+    {
+      "name": "ciman_operacoes_2_3",
+      "type": "MapServer"
+    },
+    {
+      "name": "Cimans_Estaduais",
+      "type": "FeatureServer"
+    },
+    {
+      "name": "Cimans_Estaduais",
+      "type": "MapServer"
+    },
+    {
+      "name": "Cobertura_Natural_2012",
+      "type": "MapServer"
+    },
+    {
+      "name": "Cobertura_Natural_2018",
+      "type": "MapServer"
+    },
+    {
+      "name": "Dados_Minera\u00e7\u00e3o__ANM___RedeMais____Explorat\u00f3rio_2_MIL1",
+      "type": "MapServer"
+    },
+    {
+      "name": "Figuras_10_Pastagens_2010",
+      "type": "MapServer"
+    },
+    {
+      "name": "Figuras_10_Pastagens_2018",
+      "type": "MapServer"
+    },
+    {
+      "name": "Figuras_10_Vigor_Pastagens_2010",
+      "type": "MapServer"
+    },
+    {
+      "name": "Figuras_10_Vigor_Pastagens_2018",
+      "type": "MapServer"
+    },
+    {
+      "name": "focos_calor",
+      "type": "FeatureServer"
+    },
+    {
+      "name": "focos_calor",
+      "type": "MapServer"
+    },
+    {
+      "name": "Focos_Pantanal_Historico_MIL1",
+      "type": "MapServer"
+    },
+    {
+      "name": "IBAMA_TILE_DF",
+      "type": "MapServer"
+    },
+    {
+      "name": "Layout_B\u00e1sico",
+      "type": "GPServer"
+    },
+    {
+      "name": "lim_deter_amz_public_a",
+      "type": "FeatureServer"
+    },
+    {
+      "name": "lim_deter_amz_public_a",
+      "type": "MapServer"
+    },
+    {
+      "name": "lim_deter_cerrado_public_a",
+      "type": "MapServer"
+    },
+    {
+      "name": "Limites_Municipais",
+      "type": "MapServer"
+    },
+    {
+      "name": "Mapa_de_trechos_de_voo_treinamento_MORI_2023_MIL1",
+      "type": "MapServer"
+    },
+    {
+      "name": "Mapa_Locais_do_Curso_MIL1",
+      "type": "MapServer"
+    },
+    {
+      "name": "Mesorregi\u00f5es___Brasil_MIL1",
+      "type": "MapServer"
+    },
+    {
+      "name": "Minera\u00e7\u00e3o_Deter___DDA",
+      "type": "FeatureServer"
+    },
+    {
+      "name": "Minera\u00e7\u00e3o_Deter___DDA",
+      "type": "MapServer"
+    },
+    {
+      "name": "Profundidade_Ambiente_Mar_tif",
+      "type": "MapServer"
+    },
+    {
+      "name": "relatorio_acoes_educativas_rae",
+      "type": "FeatureServer"
+    },
+    {
+      "name": "relatorio_acoes_educativas_rae",
+      "type": "MapServer"
+    },
+    {
+      "name": "relatorio_queima_controlada",
+      "type": "FeatureServer"
+    },
+    {
+      "name": "relatorio_queima_controlada",
+      "type": "MapServer"
+    },
+    {
+      "name": "ROI_Geral",
+      "type": "FeatureServer"
+    },
+    {
+      "name": "ROI_Geral",
+      "type": "MapServer"
+    },
+    {
+      "name": "RQMA_2020_Terra_Cobertura_Florestal",
+      "type": "MapServer"
+    },
+    {
+      "name": "Superintend\u00eancias_e_Unidades_T\u00e9cnicas_3_MIL1",
+      "type": "MapServer"
+    },
+    {
+      "name": "TerrasIndigenas_Manguezal",
+      "type": "MapServer"
+    },
+    {
+      "name": "TIC_JICA_MIL1",
+      "type": "MapServer"
+    },
+    {
+      "name": "Unidades_da_Federa\u00e7\u00e3o",
+      "type": "MapServer"
+    },
+    {
+      "name": "Uso_do_solo_2018",
+      "type": "MapServer"
+    }
+  ]
+}

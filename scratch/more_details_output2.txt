@@ -1,0 +1,111 @@
+
+=== SNIRH Municípios ===
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Municipios/MapServer/0?f=json
+
+--- Layer: Municípios (WKID: 4674) ---
+Fields:
+  SHAPE (esriFieldTypeGeometry)
+  NM_MUNICIP (esriFieldTypeString)
+  CD_GEOCMU (esriFieldTypeString)
+  CD_GEOCUF (esriFieldTypeString)
+  NM_ESTADO (esriFieldTypeString)
+  CD_GEOCME (esriFieldTypeString)
+  NM_MESO (esriFieldTypeString)
+  CD_GEOCMI (esriFieldTypeString)
+  NM_MICRO (esriFieldTypeString)
+  CD_GEOCMU_ (esriFieldTypeString)
+  CD_MUNIBGE (esriFieldTypeInteger)
+  OBJECTID (esriFieldTypeOID)
+  SHAPE.AREA (esriFieldTypeDouble)
+  SHAPE.LEN (esriFieldTypeDouble)
+
+=== SNIRH Hidrografia ===
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrografia/MapServer/0?f=json
+
+--- Layer: Hidrografia (WKID: unknown) ---
+Fields:
+  Shape_Length (esriFieldTypeDouble)
+  OBJECTID (esriFieldTypeOID)
+  Shape (esriFieldTypeGeometry)
+  COTRECHO (esriFieldTypeDouble)
+  COCURSODAG (esriFieldTypeString)
+  COBACIA (esriFieldTypeString)
+  NUCOMPTREC (esriFieldTypeDouble)
+  NUDISTBACT (esriFieldTypeDouble)
+  NUDISTCDAG (esriFieldTypeDouble)
+  NUAREACONT (esriFieldTypeDouble)
+  NUAREAMONT (esriFieldTypeDouble)
+  NUCOMPRIO (esriFieldTypeDouble)
+  NUDISTBACR (esriFieldTypeDouble)
+  COCDADESAG (esriFieldTypeString)
+  NUTRJUS (esriFieldTypeDouble)
+  NUTRMON (esriFieldTypeDouble)
+  NUAFL (esriFieldTypeDouble)
+  NUDISTBACC (esriFieldTypeDouble)
+  NUAREABACC (esriFieldTypeDouble)
+  NUORDEMCDA (esriFieldTypeDouble)
+  NUCOMPCDA (esriFieldTypeDouble)
+  NUNIVOTTO (esriFieldTypeDouble)
+  NUNIVOTCDA (esriFieldTypeDouble)
+  DEDOMINIAL (esriFieldTypeString)
+  DECORPODAG (esriFieldTypeString)
+  DELIGACAO (esriFieldTypeString)
+  NORIO (esriFieldTypeString)
+  NORIOCOMP (esriFieldTypeString)
+  CORIO (esriFieldTypeString)
+  DEVERSAO (esriFieldTypeString)
+
+=== SNIRH IQA ===
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/IQA/MapServer/0?f=json
+
+--- Layer: IQA (WKID: 4674) ---
+Fields:
+  OBJECTID (esriFieldTypeOID)
+  EQL_CD_UF (esriFieldTypeDouble)
+  EQL_NU_LATITUDE (esriFieldTypeDouble)
+  EQL_NU_LONGITUDE (esriFieldTypeDouble)
+  EQL_NU_ALTITUDE (esriFieldTypeDouble)
+  EQL_TP_REDEQUALIDADE (esriFieldTypeDouble)
+  EQL_NM_ENTIDADERESPONSAVEL (esriFieldTypeString)
+  EQL_NM_CURSOAGUA (esriFieldTypeString)
+  EQL_TP_AMBIENTE (esriFieldTypeDouble)
+  EQL_TP_METODO (esriFieldTypeString)
+  EQL_NU_TEMPAMOSTRA (esriFieldTypeDouble)
+  EQL_NU_PH (esriFieldTypeDouble)
+  EQL_NU_OD (esriFieldTypeDouble)
+  EQL_NU_COLIFORMES (esriFieldTypeDouble)
+  EQL_NU_DBO (esriFieldTypeDouble)
+  EQL_NU_TURBIDEZ (esriFieldTypeDouble)
+  EQL_NU_NITROGENIOTOTAL (esriFieldTypeDouble)
+  EQL_NU_FOSFOROTOTAL (esriFieldTypeDouble)
+  EQL_NU_SOLIDOSTOTAIS (esriFieldTypeDouble)
+  EQL_NU_NITROGENIOKJEDHAL (esriFieldTypeDouble)
+  EQL_NU_IQA (esriFieldTypeDouble)
+  EQL_NU_IET (esriFieldTypeDouble)
+  SHAPE (esriFieldTypeGeometry)
+  EQL_CD (esriFieldTypeString)
+  EQL_SG_UF (esriFieldTypeString)
+  EQL_DS (esriFieldTypeString)
+
+=== SNIRH Uso do Solo ===
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Uso_do_Solo/MapServer/0?f=json
+
+--- Layer: Uso do Solo (WKID: unknown) ---
+Fields:
+  uso (esriFieldTypeString)
+  Shape (esriFieldTypeGeometry)
+  FID (esriFieldTypeOID)
+
+=== SNIRH UPGs ===
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/UPGs/MapServer/0?f=json
+
+--- Layer: UPGs (WKID: 4674) ---
+Fields:
+  UPG_AREA_H (esriFieldTypeDouble)
+  SHAPE.AREA (esriFieldTypeDouble)
+  SHAPE.LEN (esriFieldTypeDouble)
+  OBJECTID (esriFieldTypeOID)
+  UPG_CD (esriFieldTypeInteger)
+  UPG_NM (esriFieldTypeString)
+  UPG_SG (esriFieldTypeString)
+  SHAPE (esriFieldTypeGeometry)
