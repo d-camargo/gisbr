@@ -914,22 +914,228 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/connectors
 
 ## [T-010] Registry de fontes + motor (GeoPackage)
 
-- status: bloqueada
-- libera quando: T-009 concluida
-- responsavel: junior (com codigo mastigado do senior)
-- fase: diagnostico — Fase A
+- status: pronta
+- responsavel: junior
+- fase: diagnostico — Fase A (codigo)
+- branch: `feat/diagnostico-plano-diretor` (ja ativa)
 - contexto: `ARQUITETURA.md` §3.1/§3.3/§3.5 + `fontes-detalhe.md` (T-007)
 
-### Objetivo (a detalhar pelo senior quando liberar)
+### Objetivo
 
-Preencher `core/sources.py` (`SOURCES`) a partir das 17 fontes de
-`fontes-detalhe.md` e escrever o motor `core/diagnostico.py`
-(`carregar_fontes(...)`): para cada fonte selecionada, chama o conector
-(WFS/ArcGIS) filtrado por municipio, **grava a camada num GeoPackage** local
-(`QgsVectorFileWriter`, 1 camada por fonte) e adiciona ao projeto; opcionalmente
-adiciona o basemap de satelite. Testavel pelo Console do QGIS.
+Preencher `core/sources.py` (`SOURCES`, Fase A = WFS + basemap) e escrever o
+motor `core/diagnostico.py` (`carregar_fontes`): para cada fonte WFS
+selecionada, busca filtrada por municipio (CQL ou bbox), **grava a camada num
+GeoPackage local** (1 camada/fonte) e adiciona ao projeto; opcional: basemap de
+satelite. **Codigo ja vem pronto abaixo** — o Junior so cria/substitui os 2
+arquivos com o conteudo EXATO. NAO registrar nada no provider/GUI ainda.
 
-> O senior preenche passos/codigo exatos desta tarefa quando a T-009 fechar.
+> Importante: este e o primeiro codigo que **roda logica do QGIS** de verdade
+> (rede + GeoPackage). A validacao funcional fica para o senior/Diego no Console
+> do QGIS (snippet ao fim). O Junior so garante a criacao fiel + `make test`.
+
+### Arquivos permitidos
+
+- `core/sources.py` (substituir o stub pelo conteudo abaixo)
+- `core/diagnostico.py` (criar)
+
+### Arquivos proibidos
+
+- `provider.py`, `geobr_qgis_plugin.py`, `algorithms/**`, `core/connectors/**`
+  (intocados), `CLAUDE.md`, `metadata.txt`
+
+### Passos
+
+1. Substituir TODO o conteudo de `core/sources.py` por EXATAMENTE:
+
+   ```python
+   # -*- coding: utf-8 -*-
+   """Catalogo declarativo de fontes do diagnostico (ARQUITETURA.md §3.1).
+
+   Preenchido a partir de docs/diagnostico-plano-diretor/fontes-detalhe.md (T-007).
+   Fase A: fontes WFS + basemap. As fontes ArcGIS REST entram na T-012.
+
+   Cada fonte e um dict:
+     id, eixo, nome, protocolo ("wfs"|"basemap"), endpoint, type_name, srs,
+     filtro, licenca.
+   filtro: {"tipo": "cql_codigo", "campo": <str>}  -> CQL campo = <code_muni>
+           {"tipo": "cql_nome",   "campo": <str>}  -> CQL campo = '<nome_muni>'
+           {"tipo": "bbox"}                          -> filtro espacial por bbox
+   type_name pode conter "{uf}" (substituido pela sigla da UF do municipio).
+   """
+
+   SOURCES = [
+       # --- Eixo 1: Transportes ---
+       {"id": "dnit_snv", "eixo": "transportes", "nome": "DNIT — SNV (rodovias federais)",
+        "protocolo": "wfs", "endpoint": "https://geoservicos.inde.gov.br/geoserver/DNIT/ows",
+        "type_name": "DNIT:snv_202507a", "srs": "EPSG:4674",
+        "filtro": {"tipo": "bbox"}, "licenca": "Publica"},
+       {"id": "minfra_ferrovias", "eixo": "transportes", "nome": "MInfra — Ferrovias",
+        "protocolo": "wfs", "endpoint": "https://geoservicos.inde.gov.br/geoserver/ows",
+        "type_name": "MInfra:Ferrovias", "srs": "EPSG:4674",
+        "filtro": {"tipo": "cql_nome", "campo": "municipio"}, "licenca": "Publica"},
+       {"id": "der_mg_rodovias", "eixo": "transportes", "nome": "DER-MG — Rodovias estaduais",
+        "protocolo": "wfs", "endpoint": "https://geoserver.meioambiente.mg.gov.br/IDE/wfs",
+        "type_name": "IDE:ide_0401_mg_rodovias_lin", "srs": "EPSG:4674",
+        "filtro": {"tipo": "bbox"}, "licenca": "Publica"},
+       # --- Eixo 2: Drenagem e Saneamento ---
+       {"id": "sgb_rios", "eixo": "saneamento", "nome": "SGB/CPRM — Rios (BC250)",
+        "protocolo": "wfs", "endpoint": "https://opendata.sgb.gov.br/geoserver/ows",
+        "type_name": "p3m:vw_ibge_rios", "srs": "EPSG:4674",
+        "filtro": {"tipo": "bbox"}, "licenca": "Publica"},
+       {"id": "sgb_bacias", "eixo": "saneamento", "nome": "SGB/CPRM — Bacias hidrograficas",
+        "protocolo": "wfs", "endpoint": "https://opendata.sgb.gov.br/geoserver/ows",
+        "type_name": "p3m:vw_ibge_bacia_hidro_6", "srs": "EPSG:4674",
+        "filtro": {"tipo": "bbox"}, "licenca": "Publica"},
+       # --- Eixo 4: Ambiental ---
+       {"id": "sicar_imoveis", "eixo": "ambiental", "nome": "SICAR — Imoveis (CAR)",
+        "protocolo": "wfs", "endpoint": "https://geoserver.car.gov.br/geoserver/sicar/wfs",
+        "type_name": "sicar:sicar_imoveis_{uf}", "srs": "EPSG:4674",
+        "filtro": {"tipo": "cql_codigo", "campo": "cod_municipio_ibge"}, "licenca": "Publica"},
+       {"id": "icmbio_embargos", "eixo": "ambiental", "nome": "ICMBio — Embargos",
+        "protocolo": "wfs", "endpoint": "https://geoservicos.inde.gov.br/geoserver/ICMBio/ows",
+        "type_name": "ICMBio:embargos_icmbio", "srs": "EPSG:4674",
+        "filtro": {"tipo": "cql_nome", "campo": "municipio"}, "licenca": "Publica"},
+       {"id": "icmbio_uc", "eixo": "ambiental", "nome": "ICMBio — UCs federais",
+        "protocolo": "wfs", "endpoint": "https://geoservicos.inde.gov.br/geoserver/ICMBio/ows",
+        "type_name": "ICMBio:limiteucsfederais_a", "srs": "EPSG:4674",
+        "filtro": {"tipo": "bbox"}, "licenca": "Publica"},
+       # --- Contexto ---
+       {"id": "basemap_satelite", "eixo": "contexto", "nome": "Imagem de satelite (Esri)",
+        "protocolo": "basemap"},
+   ]
+   ```
+
+2. Criar `core/diagnostico.py` com EXATAMENTE:
+
+   ```python
+   # -*- coding: utf-8 -*-
+   """Motor do diagnostico (ARQUITETURA.md §3.3/§3.5).
+
+   carregar_fontes(): para cada fonte WFS selecionada, busca filtrada por
+   municipio, grava no GeoPackage (1 camada/fonte) e adiciona ao projeto.
+   Opcional: basemap. NAO resolve nome/bbox do municipio (isso e do painel/caller,
+   T-011); recebe code_muni, nome_muni e bbox explicitos.
+   """
+   from qgis.core import QgsProject, QgsVectorLayer, QgsVectorFileWriter
+
+   from .connectors import wfs, basemap
+   from .sources import SOURCES
+
+   # Prefixo de 2 digitos do code_muni -> sigla da UF.
+   _UF_POR_CODIGO = {
+       "11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16": "AP",
+       "17": "TO", "21": "MA", "22": "PI", "23": "CE", "24": "RN", "25": "PB",
+       "26": "PE", "27": "AL", "28": "SE", "29": "BA", "31": "MG", "32": "ES",
+       "33": "RJ", "35": "SP", "41": "PR", "42": "SC", "43": "RS", "50": "MS",
+       "51": "MT", "52": "GO", "53": "DF",
+   }
+
+
+   def _por_id(ids):
+       return [s for s in SOURCES if s["id"] in ids]
+
+
+   def _filtro_para(s, code_muni, nome_muni):
+       """Retorna (cql_filter, usa_bbox)."""
+       f = s.get("filtro") or {"tipo": "bbox"}
+       t = f.get("tipo")
+       if t == "cql_codigo":
+           return "{} = {}".format(f["campo"], int(code_muni)), False
+       if t == "cql_nome":
+           nome = (nome_muni or "").replace("'", "''")
+           return "{} = '{}'".format(f["campo"], nome), False
+       return None, True
+
+
+   def _grava_gpkg(layer, gpkg_path, layer_name, primeiro):
+       opts = QgsVectorFileWriter.SaveVectorOptions()
+       opts.driverName = "GPKG"
+       opts.layerName = layer_name
+       opts.actionOnExistingFile = (
+           QgsVectorFileWriter.CreateOrOverwriteFile if primeiro
+           else QgsVectorFileWriter.CreateOrOverwriteLayer
+       )
+       ctx = QgsProject.instance().transformContext()
+       res = QgsVectorFileWriter.writeAsVectorFormatV3(layer, gpkg_path, ctx, opts)
+       return res[0] == QgsVectorFileWriter.NoError, res[1]
+
+
+   def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
+                       add_basemap=False, feedback=None):
+       def log(m):
+           if feedback is not None:
+               feedback.pushInfo(m)
+
+       uf = _UF_POR_CODIGO.get(str(code_muni)[:2], "").lower()
+       res = {"ok": [], "falhou": [], "pulou": []}
+       primeiro = True
+
+       for s in _por_id(source_ids):
+           proto = s.get("protocolo")
+           if proto == "basemap":
+               continue
+           if proto != "wfs":
+               res["pulou"].append((s["id"], "conector {} ainda nao implementado".format(proto)))
+               continue
+
+           type_name = s["type_name"].replace("{uf}", uf)
+           cql, usa_bbox = _filtro_para(s, code_muni, nome_muni)
+           layer = wfs.fetch_layer(
+               s["endpoint"], type_name, s["id"], srs=s.get("srs", "EPSG:4674"),
+               cql_filter=cql, bbox=(bbox if usa_bbox else None),
+           )
+           if not layer.isValid():
+               res["falhou"].append((s["id"], getattr(layer, "error_msg", "camada invalida")))
+               continue
+
+           ok, msg = _grava_gpkg(layer, gpkg_path, s["id"], primeiro)
+           if not ok:
+               res["falhou"].append((s["id"], "gravar GeoPackage: {}".format(msg)))
+               continue
+           primeiro = False
+
+           gl = QgsVectorLayer("{}|layername={}".format(gpkg_path, s["id"]), s["id"], "ogr")
+           if gl.isValid():
+               QgsProject.instance().addMapLayer(gl)
+               res["ok"].append(s["id"])
+               log("OK: {}".format(s["id"]))
+           else:
+               res["falhou"].append((s["id"], "camada do GeoPackage invalida"))
+
+       if add_basemap:
+           bl = basemap.satellite_layer()
+           if bl.isValid():
+               QgsProject.instance().addMapLayer(bl)
+               log("basemap de satelite adicionado")
+
+       return res
+   ```
+
+3. NAO registrar nada no provider/GUI (isso e a T-011).
+
+### Comandos de verificacao
+
+```bash
+make test
+python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/sources.py','core/diagnostico.py']]; print('registry+motor ok')"
+```
+
+### Validacao funcional (senior/Diego, no Console do QGIS — NAO e do Junior)
+
+```python
+from gisbr.core import diagnostico
+r = diagnostico.carregar_fontes(
+    ["sicar_imoveis"], code_muni="3106200", nome_muni="Belo Horizonte",
+    bbox=(-44.07, -20.06, -43.86, -19.78), gpkg_path="/tmp/diag_bh.gpkg",
+    add_basemap=True)
+print(r)  # esperado: sicar em r["ok"], camada no projeto + .gpkg em /tmp
+```
+
+### Criterios de aceite
+
+- `core/sources.py` e `core/diagnostico.py` com o conteudo EXATO acima.
+- `make test` passa.
+- `provider.py`/`geobr_qgis_plugin.py`/`algorithms/__init__.py` **inalterados**.
 
 ### Resultado
 
