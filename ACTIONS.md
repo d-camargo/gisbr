@@ -1147,6 +1147,194 @@ print(r)  # esperado: sicar em r["ok"], camada no projeto + .gpkg em /tmp
 
 ---
 
+## [T-011] Painel (dock) do diagnostico
+
+- status: pronta
+- responsavel: junior (IMPLEMENTA o codigo; senior verifica depois)
+- fase: diagnostico — Fase B (GUI)
+- branch: `feat/diagnostico-plano-diretor` (ja ativa)
+- contexto: `ARQUITETURA.md` §3.4 ; motor pronto em `core/diagnostico.py` (T-010)
+
+> **Metodo desta tarefa (NOVO):** o codigo do dock VOCE implementa, seguindo a
+> estrutura e as regras duras abaixo. Os 2 trechos QGIS mais arriscados
+> (resolucao do municipio e fiacao no `initGui`) ja vem **prontos** — use-os como
+> estao. Ao terminar, o senior revisa e valida no Console do QGIS.
+
+### Objetivo
+
+Criar o **painel (dock)** que e a UX principal: campo de municipio + **arvore de
+fontes com checkbox por eixo** + caminho do GeoPackage + opcao satelite + botao
+"Carregar", chamando `core.diagnostico.carregar_fontes(...)`. Ligar o dock no
+`initGui` do plugin (hoje so registra o provider).
+
+### Arquivos permitidos
+
+- `gui/diagnostico_dock.py` (criar — VOCE implementa)
+- `geobr_qgis_plugin.py` (editar SO o `initGui`/`unload`, conforme o bloco exato
+  abaixo — copie verbatim)
+
+### Arquivos proibidos / NAO FACA
+
+- NAO tocar em `provider.py`, `core/**`, `algorithms/**`, `metadata.txt`,
+  `CLAUDE.md`.
+- NAO mudar `initProcessing` nem a ordem em que ele e chamado (o provider PRECISA
+  continuar registrando — nao quebre as Fases 1/2).
+- NAO inventar API do QGIS: use SOMENTE as classes/metodos nomeados abaixo.
+- NAO chamar rede/`carregar_fontes` na construcao do dock — so no clique do botao.
+- NAO adicionar dependencia externa (so PyQGIS/Qt).
+
+### REGRAS DURAS (guardrails)
+
+1. O dock e uma classe `DiagnosticoDock(QgsDockWidget)` em `gui/diagnostico_dock.py`.
+2. Imports permitidos:
+   ```python
+   from qgis.gui import QgsDockWidget
+   from qgis.PyQt.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
+       QTreeWidget, QTreeWidgetItem, QCheckBox, QPushButton, QFileDialog,
+       QLabel, QPlainTextEdit)
+   from qgis.PyQt.QtCore import Qt
+   from qgis.core import QgsProject
+   from ..core.sources import SOURCES
+   from ..core import diagnostico
+   ```
+3. Ler as fontes SEMPRE de `SOURCES` (nao hardcodar lista de fontes no dock).
+4. Agrupar na arvore por `s["eixo"]` (item-pai por eixo, filhos = fontes com
+   checkbox). Pular `protocolo == "basemap"` na arvore (o satelite tem checkbox
+   proprio). Guardar o `s["id"]` em cada item filho via
+   `item.setData(0, Qt.UserRole, s["id"])`.
+5. So coletar como selecionadas as fontes com `checkState(0) == Qt.Checked`.
+6. O botao "Carregar" chama UM metodo `self._on_carregar()`; nada de logica de
+   rede fora dele.
+
+### Estrutura a implementar (VOCE preenche o layout)
+
+`DiagnosticoDock.__init__(self, iface, parent=None)`: chama
+`super().__init__("GisBR — Diagnostico", parent)`, guarda `self.iface = iface`,
+chama `self._build_ui()`.
+
+`_build_ui(self)`: um `QWidget` central com `QVBoxLayout` contendo, nesta ordem:
+- `QLineEdit` para o **codigo do municipio** (IBGE 7 digitos) — guardar em
+  `self.ed_muni`.
+- `QTreeWidget` com as fontes agrupadas por eixo (checkbox por fonte) —
+  `self.tree`. Use `QTreeWidgetItem`, `item.setFlags(... | Qt.ItemIsUserCheckable)`
+  e `item.setCheckState(0, Qt.Unchecked)`.
+- linha com `QLineEdit` (caminho do `.gpkg`, `self.ed_gpkg`) + `QPushButton`
+  "..." que abre `QFileDialog.getSaveFileName(self, "GeoPackage", "", "GeoPackage (*.gpkg)")`.
+- `QCheckBox` "Adicionar imagem de satelite ao fundo" — `self.chk_satelite`.
+- `QPushButton` "Carregar selecionadas" — conectar `clicked` a `self._on_carregar`.
+- `QPlainTextEdit` read-only para log — `self.txt_log`.
+Finalize com `self.setWidget(central)`.
+
+`_selected_source_ids(self)`: percorre `self.tree`, retorna a lista de
+`item.data(0, Qt.UserRole)` dos filhos com `checkState(0) == Qt.Checked`.
+
+### Trecho PRONTO 1 — resolucao do municipio (use como esta)
+
+```python
+def _info_municipio(self, code_muni):
+    """Retorna (nome, bbox) do municipio via geobr read_municipality.
+    bbox = (xmin, ymin, xmax, ymax) em EPSG:4674. Pode levantar excecao."""
+    import processing
+    res = processing.run("gisbr:read_municipality", {
+        "CODE": str(code_muni), "SIMPLIFIED": True, "OUTPUT": "TEMPORARY_OUTPUT",
+    })
+    layer = res["OUTPUT"]
+    if isinstance(layer, str):
+        from qgis.core import QgsVectorLayer
+        layer = QgsProject.instance().mapLayer(layer) or QgsVectorLayer(layer, "muni", "ogr")
+    feats = list(layer.getFeatures())
+    if not feats:
+        raise ValueError("Municipio {} nao encontrado no geobr.".format(code_muni))
+    nome = feats[0]["name_muni"]
+    ext = layer.extent()
+    return nome, (ext.xMinimum(), ext.yMinimum(), ext.xMaximum(), ext.yMaximum())
+```
+
+### Trecho PRONTO 2 — acao do botao (use como base; pode so logar o retorno)
+
+```python
+def _on_carregar(self):
+    self.txt_log.clear()
+    code = self.ed_muni.text().strip()
+    gpkg = self.ed_gpkg.text().strip()
+    ids = self._selected_source_ids()
+    if not code or not gpkg or not ids:
+        self.txt_log.appendPlainText("Informe municipio, GeoPackage e ao menos 1 fonte.")
+        return
+    try:
+        nome, bbox = self._info_municipio(code)
+    except Exception as exc:
+        self.txt_log.appendPlainText("Falha ao resolver o municipio: {}".format(exc))
+        return
+    self.txt_log.appendPlainText("Municipio: {} ({})".format(nome, code))
+    res = diagnostico.carregar_fontes(
+        ids, code_muni=code, nome_muni=nome, bbox=bbox, gpkg_path=gpkg,
+        add_basemap=self.chk_satelite.isChecked(), feedback=None)
+    self.txt_log.appendPlainText("OK: {}".format(", ".join(res["ok"]) or "-"))
+    for sid, msg in res["falhou"]:
+        self.txt_log.appendPlainText("FALHOU {}: {}".format(sid, msg))
+    for sid, msg in res["pulou"]:
+        self.txt_log.appendPlainText("PULOU {}: {}".format(sid, msg))
+```
+
+### Fiacao EXATA no `geobr_qgis_plugin.py` (copie verbatim — so `initGui`/`unload`)
+
+```python
+    def initGui(self):
+        self.initProcessing()
+        from qgis.PyQt.QtWidgets import QAction
+        from qgis.PyQt.QtCore import Qt
+        from .gui.diagnostico_dock import DiagnosticoDock
+        self.dock = DiagnosticoDock(self.iface)
+        self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dock)
+        self.dock.hide()
+        self.action = QAction("Diagnostico Plano Diretor (GisBR)", self.iface.mainWindow())
+        self.action.setCheckable(True)
+        self.action.triggered.connect(self.dock.setUserVisible)
+        self.iface.addPluginToMenu("GisBR", self.action)
+        self.iface.addToolBarIcon(self.action)
+
+    def unload(self):
+        if self.provider is not None:
+            QgsApplication.processingRegistry().removeProvider(self.provider)
+            self.provider = None
+        if getattr(self, "action", None) is not None:
+            self.iface.removePluginMenu("GisBR", self.action)
+            self.iface.removeToolBarIcon(self.action)
+            self.action = None
+        if getattr(self, "dock", None) is not None:
+            self.iface.removeDockWidget(self.dock)
+            self.dock = None
+```
+
+(Mantenha o `import` de `QgsApplication` e `GeobrProvider` que ja existem no topo
+do arquivo; nao mexa em `__init__` nem `initProcessing`.)
+
+### Comandos de verificacao
+
+```bash
+make test
+python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['gui/diagnostico_dock.py','geobr_qgis_plugin.py']]; print('ok')"
+```
+
+> Validacao funcional (abrir o QGIS, ver o dock, marcar SICAR + satelite, carregar
+> BH) e do senior/Diego — NAO sua.
+
+### Criterios de aceite
+
+- `gui/diagnostico_dock.py` define `DiagnosticoDock(QgsDockWidget)` com os widgets
+  e metodos acima; usa SOMENTE os imports permitidos; le de `SOURCES`.
+- `geobr_qgis_plugin.py` com `initGui`/`unload` EXATOS acima; `initProcessing`
+  e `__init__` inalterados; provider continua registrando.
+- `make test` passa. Nenhuma dependencia externa nova.
+- Nenhum arquivo proibido tocado.
+
+### Resultado
+
+(preencher ao concluir)
+
+---
+
 ### Backlog / ideias (ainda nao viram tarefa)
 
 Itens conhecidos do roadmap, mantidos como referencia (nao executar ate virarem
