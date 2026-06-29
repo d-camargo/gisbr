@@ -98,20 +98,59 @@ SOURCES = [
   Alertas, OSM) fica **fora** do MVP; o que entra é só este **basemap de
   satélite**. Precedente e detalhes em `referencia-satelite-hacarthon.md`.
 
-### 3.3 Algoritmos (`algorithms/diagnostico/`)
+### 3.3 Motor de orquestração (`core/diagnostico.py`)
 
-- **Factory declarativo** (espelhando `v2_factory.py`): para cada fonte do
-  catálogo, gera um `QgsProcessingAlgorithm` no grupo do seu eixo. Parâmetro
-  comum: `MUNICIPIO` (`code_muni`), + `OUTPUT`. O protocolo decide o conector.
-- **Orquestrador** `diagnostico_municipio` _(Fase C)_: dado um `code_muni`,
-  carrega o conjunto de camadas disponíveis dos 6 eixos num **grupo de camadas**,
-  combinando conectores novos + os `read_*` do geobr (demografia/educação/saúde).
+Função central reutilizada pelo painel **e** por qualquer algoritmo de Processing:
 
-### 3.4 Relatório / KPIs — **FORA do escopo atual** _(decisão Diego, 2026-06-29)_
+```python
+def carregar_fontes(selecionadas, code_muni, gpkg_path, add_basemap, feedback):
+    # para cada fonte selecionada: conector busca (filtrado por code_muni)
+    #   -> grava a camada no GeoPackage (uma camada por fonte)
+    #   -> adiciona ao projeto a partir do .gpkg
+    # eixos ja cobertos pelo geobr (demografia/educacao/saude) usam os read_* atuais
+    # opcional: adiciona o basemap de satelite ao fundo
+```
 
-O painel/parecer do haCARthon (`parecer.py`/`kpis_dock.py`) **não** entra agora.
-Por ora o diagnóstico **só carrega as camadas** organizadas por eixo (+ basemap
-de satélite). Indicadores/relatório ficam para uma fase futura, se houver demanda.
+### 3.4 Painel de diagnóstico (`gui/diagnostico_dock.py`) — **UX principal**
+
+**Decisão do Diego:** a interface principal é um **dock (painel)**, para não abrir
+várias janelas/diálogos do Processing. Hoje o plugin é só Processing provider
+(`geobr_qgis_plugin.py` → `initGui` só registra o provider); vamos **adicionar**
+ali um botão de barra/menu que abre um `QgsDockWidget`.
+
+Conteúdo do painel (proposta):
+- **Município alvo**: campo `code_muni` (IBGE 7 díg.) — ou busca por nome/UF.
+- **Seleção de bases**: árvore agrupada por eixo, com **checkbox por fonte**
+  (multi-seleção) + "marcar todas do eixo". _(Recomendado vs. "uma por vez" —
+  ver §6.)_ As fontes vêm do `core/sources.py`.
+- **GeoPackage de saída**: seletor de arquivo `.gpkg` (ver §3.5).
+- **Opção** "adicionar imagem de satélite ao fundo" (basemap XYZ Esri).
+- Botão **"Carregar selecionadas"** → chama `core.diagnostico.carregar_fontes(...)`
+  com barra de progresso; reporta o que casou/falhou por fonte.
+
+> KPIs/parecer continuam **fora** (ver §3.6). O painel aqui é **carregador de
+> camadas**, não relatório de indicadores.
+
+### 3.5 Persistência: **GeoPackage local** _(decisão Diego)_
+
+Tudo que for baixado é **gravado num GeoPackage local** (uma camada por fonte),
+e o painel **pede o caminho de salvamento**. Padrão sugerido de nome:
+`diagnostico_<code_muni>.gpkg`.
+
+- Escrita: `QgsVectorFileWriter.writeAsVectorFormatV3(layer, path, ctx, options)`
+  com `options.driverName="GPKG"`, `options.layerName=<id_da_fonte>`, e
+  `actionOnExistingFile = CreateOrOverwriteFile` na 1ª camada e
+  `CreateOrOverwriteLayer` (append de camadas) nas seguintes.
+- Vantagens: um único arquivo por município (portátil), camadas reusáveis sem
+  rebaixar, e o diagnóstico fica reproduzível.
+- O basemap de satélite **não** vai pro GeoPackage (é raster XYZ remoto; entra só
+  como camada de fundo no projeto).
+
+### 3.6 Relatório / KPIs — **FORA do escopo atual** _(decisão Diego)_
+
+Os **indicadores/parecer** do haCARthon (`parecer.py`/`kpis_dock.py`) **não**
+entram agora. (Isto é diferente do **painel de carregamento** do §3.4, que
+está IN.) Por ora o diagnóstico só **carrega e persiste** as camadas por eixo.
 
 ## 4. Filtro por município (peça-chave)
 
@@ -119,7 +158,7 @@ de satélite). Indicadores/relatório ficam para uma fase futura, se houver dema
 |---|---|---|
 | WFS | `CQL_FILTER` no GET (server-side) | ideal; precisa do **campo** certo (T-007) |
 | ArcGIS REST | `where=<campo>='<code>'` na query | idem |
-| WMS | não filtra (raster) | carrega como overlay; recorte visual |
+| basemap (satélite) | não filtra (raster XYZ) | fundo global; usuário dá zoom no município |
 | geobr (já) | pós-download (`setSubsetString`) ou fatiado por UF | como hoje |
 
 Quando a fonte **não** tiver campo municipal, cair para **bbox do município**
@@ -127,29 +166,36 @@ Quando a fonte **não** tiver campo municipal, cair para **bbox do município**
 
 ## 5. Fases de implementação _(proposta)_
 
-- **Fase A — Catálogo declarativo + conector WFS + basemap.** `core/sources.py` +
-  `core/connectors/wfs.py` (portado) + `core/connectors/basemap.py` (satélite
-  XYZ Esri) + factory que gera os algoritmos WFS por eixo (transportes,
-  ambiental/SICAR+ICMBio, saneamento/CPRM). MVP que já entrega. (O basemap é um
-  ganho rápido e pode aterrissar logo no início da Fase A.)
-- **Fase B — ArcGIS REST.** ANA (BHO), IBAMA. _(WMS temático fica fora — ver §3.4
-  e §6.)_
-- **Fase C — Orquestrador `diagnostico_municipio`.** Junta tudo num grupo de
-  camadas a partir de um `code_muni`, incluindo os eixos já cobertos pelo geobr,
-  e adiciona o basemap de satélite ao fundo.
-- ~~**Fase D — Parecer/KPIs.**~~ **Fora do escopo atual** (decisão Diego).
+- **Fase A — Motor WFS + persistência GeoPackage + basemap.** `core/sources.py`
+  + `core/connectors/wfs.py` (portado) + `core/connectors/basemap.py` +
+  `core/diagnostico.py` (motor: busca → grava no `.gpkg` → adiciona ao projeto).
+  MVP de engine, testável pelo Console antes da GUI.
+- **Fase B — Painel (dock).** `gui/diagnostico_dock.py`: município + seleção por
+  checkbox (por eixo) + caminho do GeoPackage + botão "Carregar". Ligado em
+  `initGui`. **É a UX principal** (decisão Diego).
+- **Fase C — ArcGIS REST.** ANA (BHO), IBAMA — novas fontes no mesmo motor/painel.
+- ~~Parecer/KPIs~~ — **fora do escopo atual** (decisão Diego).
+
+> Nota: o painel subiu para a Fase B (logo após o motor) porque é a interface que
+> o Diego quer usar. Algoritmos de Processing por fonte (factory) ficam
+> **opcionais/secundários** — o motor `carregar_fontes` já serve a GUI; expor
+> como Processing pode vir depois, de graça, a partir do mesmo registry.
 
 ## 6. Decisões (resolvidas em 2026-06-29)
 
-1. **Modelo declarativo** (registry + factory). ✅ **Sim.**
+1. **Modelo declarativo** (registry como dados). ✅ **Sim.**
 2. **Fase A só com WFS** (+ basemap). ✅ **Sim.**
-3. **Parecer/KPIs:** ❌ **Fora por ora** — diagnóstico só carrega camadas. O
-   painel/parecer do haCARthon não entra agora.
-4. **WMS temático (MapBiomas/OSM):** ❌ **Fora.** No lugar entra um **basemap de
-   satélite (XYZ Esri World Imagery)** como fundo (ver §3.2 e
-   `referencia-satelite-hacarthon.md`).
-5. **Grupos no Toolbox em PT-BR** agora (`Diagnóstico — <Eixo>`); i18n junto com o
-   resto da UI depois. ✅
+3. **UX = painel (dock)**, não diálogos de Processing. ✅ **Sim** — o usuário não
+   quer abrir várias janelas. (Atenção: isto é o **painel carregador**, ≠ KPIs.)
+4. **Seleção de bases no painel:** **checkbox multi-seleção por eixo.** ✅ **Sim**
+   (decisão Diego) — marca-se várias e carrega de uma vez; combina com "não abrir
+   várias janelas".
+5. **Persistência:** tudo baixado vai para um **GeoPackage local** (1 camada por
+   fonte); o painel **pede o caminho** de salvamento. ✅ **Sim.**
+6. **Parecer/KPIs:** ❌ **Fora por ora** (≠ painel carregador, que está IN).
+7. **WMS temático (MapBiomas/OSM):** ❌ **Fora.** Entra só o **basemap de satélite
+   (XYZ Esri World Imagery)** como fundo (ver §3.2 e `referencia-satelite-hacarthon.md`).
+8. **UI em PT-BR** agora; i18n (inclusive o painel) junto com o resto depois. ✅
 
 ## 7. Roadmap de ACTIONS (a desmembrar após §6)
 
@@ -157,18 +203,20 @@ Quando a fonte **não** tiver campo municipal, cair para **bbox do município**
   planejamento)_: confirmar `GetCapabilities`/`DescribeFeatureType` e extrair, por
   fonte, `type_name` exato, CRS, `outputFormat` (tem GeoJSON?) e **o campo de
   filtro municipal**. Saída alimenta `core/sources.py`.
-- **T-008 — Branch + scaffolding** `feat/diagnostico-plano-diretor`: criar
-  `core/connectors/`, `core/sources.py` (esqueleto) e `algorithms/diagnostico/`
-  sem lógica ainda. (Senior entrega esqueleto mastigado.)
+- **T-008 — Branch + scaffolding** `feat/diagnostico-plano-diretor` ✅ **feita**:
+  criou `core/connectors/`, `core/sources.py`, `algorithms/diagnostico/`
+  (stubs). `core/diagnostico.py` e `gui/` serão criados nas tarefas T-010/T-011.
 - **T-009 — Portar `wfs.py`** do `desafio-2` para `core/connectors/wfs.py` +
-  `core/connectors/basemap.py` (satélite XYZ Esri) e um algoritmo "Adicionar
-  imagem de satélite (fundo)". (Senior fornece o código exato.)
-- **T-010 — Registry + factory WFS (Fase A):** `core/sources.py` preenchido (a
-  partir da T-007) + factory de algoritmos por eixo. (Senior documenta MUITO bem
-  a API QGIS.)
-- **T-011 — ArcGIS REST (Fase B):** ANA (BHO), IBAMA.
-- **T-012 — Orquestrador `diagnostico_municipio` (Fase C).**
-- ~~Parecer/KPIs~~ — fora do escopo atual (§6.3).
+  `core/connectors/basemap.py` (satélite XYZ Esri). (Senior fornece o código exato.)
+- **T-010 — Registry (a partir da T-007) + motor `core/diagnostico.py`** (Fase A):
+  `SOURCES` preenchido + `carregar_fontes()` (busca via conector → grava no
+  GeoPackage → adiciona ao projeto). Testável pelo Console. (Senior documenta
+  MUITO bem a API QGIS, incl. `QgsVectorFileWriter` para GPKG.)
+- **T-011 — Painel (dock)** (Fase B): `gui/diagnostico_dock.py` + ligação no
+  `initGui` (botão/menu). Município + checkboxes por eixo + caminho do GeoPackage
+  + "Carregar". (Senior fornece o esqueleto Qt.)
+- **T-012 — ArcGIS REST (Fase C):** ANA (BHO), IBAMA.
+- ~~Parecer/KPIs~~ — fora do escopo atual (§6.6).
 
 > **Tarefa que o Junior pode fazer JÁ, em paralelo:** **T-007** (acima). É
 > pesquisa/verificação (forte dele), independe das decisões de §6 e produz

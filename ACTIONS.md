@@ -535,7 +535,7 @@ Validação:
 
 ## [T-007] Hardening do catalogo de fontes (campos de filtro municipal)
 
-- status: pronta
+- status: concluida
 - responsavel: junior (pesquisa/verificacao — precisa de WebFetch)
 - fase: diagnostico (paralela ao planejamento da arquitetura)
 - contexto: ver `docs/diagnostico-plano-diretor/ARQUITETURA.md` §3.1 e §6
@@ -614,13 +614,17 @@ ls docs/diagnostico-plano-diretor/fontes-detalhe.md
 
 ### Resultado
 
-(preencher ao concluir)
+Criado o arquivo `docs/diagnostico-plano-diretor/fontes-detalhe.md` com o mapeamento e hardening de todas as 18 fontes geoespaciais (WFS e ArcGIS REST) dos eixos temáticos.
+- Para as fontes WFS (DNIT, MInfra, VALEC, SGB/CPRM, SICAR, ICMBio, DER-MG/IDE-Sisema): identificados os `typeNames` exatos, CRS (todos suportam EPSG:4674), disponibilidade de GeoJSON (`application/json`) e o campo de filtragem municipal (`cod_municipio_ibge`, `municipio`, etc.) ou a indicação de filtragem espacial por BBOX municipal.
+- Para as fontes ArcGIS REST (ANA, IBAMA): identificadas as URLs de camadas exatas com ID (ex: Esgotamento = ID 6, Abastecimento = ID 5, Aterro = ID 8, Autos de Infração = ID 0, Municípios = ID 0), WKID (4674 nativo) e o campo municipal para o parâmetro `where=` (ex: `cod_municipio` ou `CD_MUNIBGE`) ou BBOX espacial.
+- Os arquivos individuais dos eixos 1 (Transportes), 2 (Drenagem e Saneamento) e 4 (Ambiental) foram atualizados com essas informações e observações.
+- `make test` executado e passou com sucesso. Nenhum arquivo `.py` de código foi modificado.
 
 ---
 
 ## [T-008] Branch + scaffolding do diagnostico
 
-- status: pronta
+- status: concluida
 - responsavel: junior
 - fase: diagnostico — Fase A (estrutura de codigo)
 - contexto: `docs/diagnostico-plano-diretor/ARQUITETURA.md` §3
@@ -699,7 +703,16 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/connectors
 
 ### Resultado
 
-(preencher ao concluir)
+- Branch `feat/diagnostico-plano-diretor` criada e ativada a partir da `main`.
+- Esqueleto de arquivos criado:
+  - `core/connectors/__init__.py`: stub de conectores WFS, ArcGIS REST e basemaps.
+  - `core/sources.py`: stub de catálogo declarativo de fontes (`SOURCES = []`).
+  - `algorithms/diagnostico/__init__.py`: stub de algoritmos gerados por factory (`DIAGNOSTICO_ALGORITHMS = []`).
+- Validação:
+  - `git branch --show-current` retornou `feat/diagnostico-plano-diretor`.
+  - `make test` passou sem erros de sintaxe (sintaxe OK).
+  - Validação via AST python bem-sucedida para os 3 novos arquivos (stubs ok).
+  - Nenhuma alteração feita em `provider.py` ou `algorithms/__init__.py`.
 
 ---
 
