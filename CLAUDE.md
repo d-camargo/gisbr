@@ -190,7 +190,7 @@ Fluxo do `processAlgorithm()`:
 
 5. **`provider.py` + `metadata.txt` + `Makefile`** — registrar todos os algoritmos; deploy por symlink para `~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/`.
 
-**Critério de pronto da Fase 1:** `processing.run("gisbr:read_municipality", {"YEAR": 2022, "CODE": "MG", "SIMPLIFIED": True})` retorna camada de municípios de MG no QGIS, em EPSG:4674, sem nenhum pacote externo.
+**Critério de pronto da Fase 1:** `processing.run("gisbr:read_municipality", {"CODE": "MG", "SIMPLIFIED": True})` retorna camada de municípios de MG no QGIS, em EPSG:4674, sem nenhum pacote externo. (`YEAR` é índice do enum de anos; omitido, usa o mais recente.)
 
 ---
 
@@ -310,7 +310,7 @@ make deploy        # symlink -> profiles/default/python/plugins/geobr_qgis
 # Recarregar no QGIS: usar o Plugin Reloader, ou reiniciar o QGIS.
 # Testar no Console Python do QGIS:
 #   import processing
-#   processing.run("gisbr:read_state", {"YEAR":2020,"CODE":"all","SIMPLIFIED":True,"OUTPUT":"memory:"})
+#   processing.run("gisbr:read_state", {"CODE":"all","SIMPLIFIED":True,"OUTPUT":"memory:"})  # YEAR omitido = ano mais recente (enum)
 ```
 
 - Desenvolvimento e testes rodam na **máquina principal Pop!_OS** (mesmo fluxo do `desire_lines`).

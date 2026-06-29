@@ -147,8 +147,8 @@ No Console Python do QGIS (apos Plugin Reloader ou reiniciar):
 
 ```python
 import processing
-processing.run("gisbr:read_state",
-               {"YEAR": 2020, "CODE": "MG", "SIMPLIFIED": True, "OUTPUT": "memory:"})
+processing.run("gisbr:read_state",  # YEAR e indice do enum de anos; omitido = mais recente
+               {"CODE": "MG", "SIMPLIFIED": True, "OUTPUT": "memory:"})
 ```
 
 Se voce nao tiver acesso ao Console do QGIS, **nao invente** que validou
