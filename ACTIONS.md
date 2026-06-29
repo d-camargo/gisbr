@@ -914,7 +914,7 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/connectors
 
 ## [T-010] Registry de fontes + motor (GeoPackage)
 
-- status: pronta
+- status: concluida
 - responsavel: junior
 - fase: diagnostico — Fase A (codigo)
 - branch: `feat/diagnostico-plano-diretor` (ja ativa)
@@ -1139,7 +1139,11 @@ print(r)  # esperado: sicar em r["ok"], camada no projeto + .gpkg em /tmp
 
 ### Resultado
 
-(preencher ao concluir)
+- Substituído `core/sources.py` com o catálogo de fontes da Fase A (WFS de DNIT, MInfra, CPRM, SICAR, ICMBio, e basemap Esri World Imagery).
+- Criado `core/diagnostico.py` contendo a lógica para baixar as camadas, gravá-las no formato GeoPackage local usando `QgsVectorFileWriter` (uma camada por tabela) e adicioná-las ao projeto ativo do QGIS.
+- Executado `make test` com sucesso (*sintaxe OK*).
+- Validação AST em Python bem-sucedida para ambos os arquivos.
+- Os arquivos `provider.py`, `geobr_qgis_plugin.py` e `algorithms/__init__.py` não foram tocados.
 
 ---
 
