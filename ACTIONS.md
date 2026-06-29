@@ -716,6 +716,224 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/connectors
 
 ---
 
+## [T-009] Conectores: WFS + basemap de satelite
+
+- status: pronta
+- responsavel: junior
+- fase: diagnostico — Fase A (codigo)
+- branch: `feat/diagnostico-plano-diretor` (ja ativa)
+- contexto: `docs/diagnostico-plano-diretor/ARQUITETURA.md` §3.2 e
+  `referencia-satelite-hacarthon.md`
+
+### Objetivo
+
+Criar **dois conectores** (funcoes puras que retornam camadas QGIS), sem ligar a
+nada ainda: `core/connectors/wfs.py` (baixa feicoes WFS filtradas) e
+`core/connectors/basemap.py` (camada XYZ de satelite Esri). **Nenhuma mudanca de
+comportamento** no plugin (nada e registrado no provider/GUI). E so criar os 2
+arquivos com o conteudo EXATO abaixo.
+
+> Nota: o codigo ja vem pronto (o senior portou do `desafio-2` e adaptou). Voce
+> NAO precisa inventar API do QGIS — apenas crie os arquivos exatamente como
+> especificado e rode a verificacao.
+
+### Arquivos permitidos (criar)
+
+- `core/connectors/wfs.py`
+- `core/connectors/basemap.py`
+
+### Arquivos proibidos
+
+- `provider.py`, `geobr_qgis_plugin.py`, `algorithms/**`, `core/sources.py`,
+  qualquer `read_*`/`catalog`/`loader` (intocados — os conectores nao se ligam a
+  nada ainda; isso e a T-010)
+- `CLAUDE.md`, `metadata.txt`
+
+### Passos
+
+1. Criar `core/connectors/wfs.py` com EXATAMENTE este conteudo:
+
+   ```python
+   # -*- coding: utf-8 -*-
+   """Conector WFS do diagnostico.
+
+   Baixa feicoes de servicos WFS oficiais usando a pilha de rede do QGIS
+   (QgsBlockingNetworkRequest) — robusta a SSL/proxy do GeoServer (padrao
+   herdado do desafio-2). Saida GeoJSON (outputFormat application/json);
+   fallback GDAL /vsicurl/. Filtro por CQL_FILTER (campo municipal) OU bbox.
+
+   So MONTA a camada (QgsVectorLayer). Gravar no GeoPackage e adicionar ao
+   projeto e do motor (core/diagnostico.py, T-010).
+   """
+   from datetime import datetime
+   import tempfile
+   import urllib.parse
+
+   from qgis.core import QgsVectorLayer, QgsBlockingNetworkRequest
+   from qgis.PyQt.QtCore import QUrl
+   from qgis.PyQt.QtNetwork import QNetworkRequest
+
+   _UA = "GisBR-QGIS/0.2 (diagnostico Plano Diretor)"
+
+
+   def _stamp(layer, fonte):
+       layer.setCustomProperty("data_extracao", datetime.now().strftime("%Y-%m-%d"))
+       layer.setCustomProperty("fonte", fonte)
+       return layer
+
+
+   def _invalid(layer_name, msg):
+       layer = QgsVectorLayer("", layer_name, "ogr")
+       layer.error_msg = msg
+       return layer
+
+
+   def _layer_from_geojson_bytes(data, layer_name):
+       tmp = tempfile.NamedTemporaryFile(suffix=".geojson", delete=False)
+       tmp.write(data)
+       tmp.close()
+       return QgsVectorLayer(tmp.name, layer_name, "ogr")
+
+
+   def build_url(endpoint, type_name, srs="EPSG:4674",
+                 output_format="application/json", cql_filter=None, bbox=None,
+                 version="2.0.0"):
+       """Monta a URL GetFeature. Use cql_filter OU bbox (cql tem prioridade).
+
+       bbox: tupla (minx, miny, maxx, maxy) em graus EPSG:4674.
+       ATENCAO (a validar no QGIS): em WFS 2.0.0 a ordem de eixo pode ser
+       lat,lon; usamos a forma curta 'EPSG:4674' (lon,lat na maioria dos
+       GeoServer). Se algum servico desalinhar, inverter para miny,minx,maxy,maxx.
+       """
+       params = {
+           "service": "WFS",
+           "version": version,
+           "request": "GetFeature",
+           "typeNames": type_name,
+           "srsName": srs,
+           "outputFormat": output_format,
+       }
+       if cql_filter:
+           params["CQL_FILTER"] = cql_filter
+       elif bbox:
+           minx, miny, maxx, maxy = bbox
+           params["bbox"] = "{},{},{},{},{}".format(minx, miny, maxx, maxy, srs)
+       sep = "&" if "?" in endpoint else "?"
+       return endpoint + sep + urllib.parse.urlencode(params)
+
+
+   def fetch_layer(endpoint, type_name, layer_name, srs="EPSG:4674",
+                   output_format="application/json", cql_filter=None, bbox=None,
+                   version="2.0.0"):
+       """Retorna um QgsVectorLayer do WFS (filtrado), ou um layer invalido com
+       .error_msg em caso de falha. NAO levanta excecao."""
+       url = build_url(endpoint, type_name, srs=srs, output_format=output_format,
+                       cql_filter=cql_filter, bbox=bbox, version=version)
+
+       # 1) Pilha de rede do QGIS (respeita SSL/proxy do app)
+       erro = None
+       try:
+           req = QNetworkRequest(QUrl(url))
+           req.setRawHeader(b"User-Agent", _UA.encode("utf-8"))
+           blocking = QgsBlockingNetworkRequest()
+           blocking.get(req, True)
+           reply = blocking.reply()
+           data = bytes(reply.content())
+           if data:
+               layer = _layer_from_geojson_bytes(data, layer_name)
+               if layer.isValid():
+                   return _stamp(layer, "WFS GeoJSON")
+               erro = "GeoJSON recebido, mas o GDAL nao abriu a camada."
+           else:
+               erro = reply.errorString() or "resposta vazia"
+       except Exception as exc:
+           erro = "{}: {}".format(type(exc).__name__, exc)
+
+       # 2) Fallback GDAL /vsicurl/
+       layer = QgsVectorLayer("/vsicurl/" + url, layer_name, "ogr")
+       if layer.isValid():
+           return _stamp(layer, "WFS GeoJSON/vsicurl")
+
+       return _invalid(layer_name, "Falha WFS ({}). {}".format(type_name, erro or ""))
+   ```
+
+2. Criar `core/connectors/basemap.py` com EXATAMENTE este conteudo:
+
+   ```python
+   # -*- coding: utf-8 -*-
+   """Conector de basemap: imagem de satelite de fundo (XYZ Esri World Imagery).
+
+   Ver docs/diagnostico-plano-diretor/referencia-satelite-hacarthon.md.
+   """
+   from qgis.core import QgsRasterLayer
+
+   # {z}/{y}/{x} URL-encodado para o provider "wms"/xyz do QGIS.
+   ESRI_WORLD_IMAGERY = (
+       "type=xyz&zmax=19&zmin=0&url="
+       "https://server.arcgisonline.com/ArcGIS/rest/services/"
+       "World_Imagery/MapServer/tile/%7Bz%7D/%7By%7D/%7Bx%7D"
+   )
+
+
+   def satellite_layer(name="Esri World Imagery"):
+       """QgsRasterLayer de satelite (XYZ). Conferir .isValid() antes de adicionar."""
+       layer = QgsRasterLayer(ESRI_WORLD_IMAGERY, name, "wms")
+       if layer.isValid():
+           layer.setCustomProperty(
+               "fonte", "Esri, Maxar, Earthstar Geographics (World Imagery)")
+       return layer
+   ```
+
+3. NAO tocar em mais nada (sem registrar no provider/GUI; isso vem na T-010/T-011).
+
+### Comandos de verificacao
+
+```bash
+make test
+python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/connectors/wfs.py','core/connectors/basemap.py']]; print('conectores ok')"
+```
+
+> A validacao funcional (abrir camada real no QGIS) NAO e desta tarefa — fica
+> para o senior/Diego no Console do QGIS. Aqui basta a sintaxe.
+
+### Criterios de aceite
+
+- `core/connectors/wfs.py` e `core/connectors/basemap.py` existem com o conteudo
+  EXATO acima.
+- `make test` passa.
+- `provider.py`, `geobr_qgis_plugin.py` e `algorithms/__init__.py` **inalterados**.
+
+### Resultado
+
+(preencher ao concluir)
+
+---
+
+## [T-010] Registry de fontes + motor (GeoPackage)
+
+- status: bloqueada
+- libera quando: T-009 concluida
+- responsavel: junior (com codigo mastigado do senior)
+- fase: diagnostico — Fase A
+- contexto: `ARQUITETURA.md` §3.1/§3.3/§3.5 + `fontes-detalhe.md` (T-007)
+
+### Objetivo (a detalhar pelo senior quando liberar)
+
+Preencher `core/sources.py` (`SOURCES`) a partir das 17 fontes de
+`fontes-detalhe.md` e escrever o motor `core/diagnostico.py`
+(`carregar_fontes(...)`): para cada fonte selecionada, chama o conector
+(WFS/ArcGIS) filtrado por municipio, **grava a camada num GeoPackage** local
+(`QgsVectorFileWriter`, 1 camada por fonte) e adiciona ao projeto; opcionalmente
+adiciona o basemap de satelite. Testavel pelo Console do QGIS.
+
+> O senior preenche passos/codigo exatos desta tarefa quando a T-009 fechar.
+
+### Resultado
+
+(preencher ao concluir)
+
+---
+
 ### Backlog / ideias (ainda nao viram tarefa)
 
 Itens conhecidos do roadmap, mantidos como referencia (nao executar ate virarem
