@@ -7,7 +7,7 @@ definir o caminho de destino do GeoPackage e carregar os dados.
 from qgis.gui import QgsDockWidget
 from qgis.PyQt.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QTreeWidget, QTreeWidgetItem, QCheckBox, QPushButton, QFileDialog,
-    QLabel, QPlainTextEdit)
+    QLabel, QPlainTextEdit, QComboBox)
 from qgis.PyQt.QtCore import Qt
 from qgis.core import QgsProject
 from ..core.sources import SOURCES
@@ -19,19 +19,47 @@ _EIXO_NOMES = {
     "ambiental": "4. Ambiental"
 }
 
+_UFS = [
+    ("AC", "Acre"), ("AL", "Alagoas"), ("AP", "Amapa"), ("AM", "Amazonas"),
+    ("BA", "Bahia"), ("CE", "Ceara"), ("DF", "Distrito Federal"),
+    ("ES", "Espirito Santo"), ("GO", "Goias"), ("MA", "Maranhao"),
+    ("MT", "Mato Grosso"), ("MS", "Mato Grosso do Sul"), ("MG", "Minas Gerais"),
+    ("PA", "Para"), ("PB", "Paraiba"), ("PR", "Parana"), ("PE", "Pernambuco"),
+    ("PI", "Piaui"), ("RJ", "Rio de Janeiro"), ("RN", "Rio Grande do Norte"),
+    ("RS", "Rio Grande do Sul"), ("RO", "Rondonia"), ("RR", "Roraima"),
+    ("SC", "Santa Catarina"), ("SP", "Sao Paulo"), ("SE", "Sergipe"),
+    ("TO", "Tocantins"),
+]
+
 
 class DiagnosticoDock(QgsDockWidget):
     def __init__(self, iface, parent=None):
         super().__init__("GisBR — Diagnostico", parent)
         self.iface = iface
+        self._munis = {}
         self._build_ui()
 
     def _build_ui(self):
         central = QWidget()
         layout = QVBoxLayout(central)
 
-        # 1) Codigo do Municipio
-        layout.addWidget(QLabel("Codigo do Municipio (IBGE 7 digitos):"))
+        # 1.1) Estado (UF)
+        layout.addWidget(QLabel("Estado (UF):"))
+        self.cmb_uf = QComboBox()
+        self.cmb_uf.addItem("— selecione —", "")
+        for sig, nom in _UFS:
+            self.cmb_uf.addItem("{} - {}".format(sig, nom), sig)
+        self.cmb_uf.currentIndexChanged.connect(self._on_uf_changed)
+        layout.addWidget(self.cmb_uf)
+
+        # 1.2) Municipio
+        layout.addWidget(QLabel("Municipio:"))
+        self.cmb_muni = QComboBox()
+        self.cmb_muni.currentIndexChanged.connect(self._on_muni_changed)
+        layout.addWidget(self.cmb_muni)
+
+        # 1.3) Codigo do Municipio (IBGE 7 digitos)
+        layout.addWidget(QLabel("Codigo IBGE (opcional / preenchido pela selecao):"))
         self.ed_muni = QLineEdit()
         self.ed_muni.setPlaceholderText("Ex: 3106200")
         layout.addWidget(self.ed_muni)
@@ -108,6 +136,45 @@ class DiagnosticoDock(QgsDockWidget):
                         ids.append(source_id)
         return ids
 
+    def _listar_municipios(self, uf_sigla):
+        """{code(str): (nome, bbox)} dos municipios da UF via read_municipality."""
+        import processing
+        res = processing.run("gisbr:read_municipality", {
+            "CODE": uf_sigla, "SIMPLIFIED": True, "OUTPUT": "TEMPORARY_OUTPUT",
+        })
+        layer = res["OUTPUT"]
+        if isinstance(layer, str):
+            from qgis.core import QgsVectorLayer
+            layer = QgsProject.instance().mapLayer(layer) or QgsVectorLayer(layer, "m", "ogr")
+        munis = {}
+        for f in layer.getFeatures():
+            code = str(f["code_muni"]).split(".")[0]
+            nome = f["name_muni"]
+            bb = f.geometry().boundingBox()
+            munis[code] = (nome, (bb.xMinimum(), bb.yMinimum(),
+                                  bb.xMaximum(), bb.yMaximum()))
+        return munis
+
+    def _on_uf_changed(self):
+        uf = self.cmb_uf.currentData()
+        self.cmb_muni.clear()
+        if not uf:
+            return
+        self.txt_log.appendPlainText("Carregando municipios de {}...".format(uf))
+        try:
+            self._munis = self._listar_municipios(uf)
+        except Exception as exc:
+            self.txt_log.appendPlainText("Falha ao listar municipios: {}".format(exc))
+            return
+        for code in sorted(self._munis, key=lambda c: self._munis[c][0]):
+            self.cmb_muni.addItem(self._munis[code][0], code)
+        self.txt_log.appendPlainText("{} municipios carregados.".format(len(self._munis)))
+
+    def _on_muni_changed(self):
+        code = self.cmb_muni.currentData()
+        if code:
+            self.ed_muni.setText(str(code))
+
     def _info_municipio(self, code_muni):
         """Retorna (nome, bbox) do municipio via geobr read_municipality.
         bbox = (xmin, ymin, xmax, ymax) em EPSG:4674. Pode levantar excecao."""
@@ -135,7 +202,10 @@ class DiagnosticoDock(QgsDockWidget):
             self.txt_log.appendPlainText("Informe municipio, GeoPackage e ao menos 1 fonte.")
             return
         try:
-            nome, bbox = self._info_municipio(code)
+            if getattr(self, "_munis", None) and code in self._munis:
+                nome, bbox = self._munis[code]
+            else:
+                nome, bbox = self._info_municipio(code)
         except Exception as exc:
             self.txt_log.appendPlainText("Falha ao resolver o municipio: {}".format(exc))
             return

@@ -1341,7 +1341,7 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['gui/diagnostico
 
 ## [T-013] Painel: combos de UF + Municipio (sem precisar do codigo)
 
-- status: pronta
+- status: concluida
 - responsavel: junior (IMPLEMENTA; senior verifica)
 - fase: diagnostico — Fase B (GUI)
 - branch: `feat/diagnostico-plano-diretor`
@@ -1485,7 +1485,12 @@ python3 -c "import ast; ast.parse(open('gui/diagnostico_dock.py').read()); print
 
 ### Resultado
 
-(preencher ao concluir)
+- Adicionados dois widgets `QComboBox` (`self.cmb_uf` e `self.cmb_muni`) no topo da interface.
+- Implementado preenchimento assíncrono dos municípios em cascata a partir da UF selecionada chamando o processamento de `read_municipality`.
+- Implementado cache local (`self._munis`) contendo o mapeamento de código para `(nome, bbox)` dos municípios da UF para evitar chamadas de rede redundantes no momento do clique no botão "Carregar".
+- Mantido o campo `self.ed_muni` como caixa de texto editável e fallback, de modo que selecionar o município preenche o código mas o usuário ainda pode digitar um código diretamente se desejar.
+- Integrado o cache no fluxo do botão `_on_carregar` com fallback automático para `_info_municipio(...)` caso o código não esteja presente no cache.
+- `make test` executado com sucesso (*sintaxe OK*). AST do python validada. Nenhum outro arquivo modificado.
 
 ---
 
