@@ -1339,6 +1339,156 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['gui/diagnostico
 
 ---
 
+## [T-013] Painel: combos de UF + Municipio (sem precisar do codigo)
+
+- status: pronta
+- responsavel: junior (IMPLEMENTA; senior verifica)
+- fase: diagnostico — Fase B (GUI)
+- branch: `feat/diagnostico-plano-diretor`
+- contexto: melhora a UX do `gui/diagnostico_dock.py` (T-011). Muitos usuarios
+  nao sabem o codigo IBGE.
+
+> **Metodo:** instrucoes fortes + trechos QGIS prontos. Voce ALTERA o
+> `gui/diagnostico_dock.py` existente. Senior verifica depois.
+
+### Objetivo
+
+Adicionar dois `QComboBox` em cascata no topo do dock: **UF** (lista estatica) e
+**Municipio** (preenchido ao escolher a UF, via `read_municipality`). Escolher um
+municipio preenche o campo de codigo existente (`self.ed_muni`). **Manter** o
+campo de codigo como alternativa/override. Cachear nome+bbox de cada municipio
+para nao baixar de novo no "Carregar".
+
+### Arquivos permitidos
+
+- `gui/diagnostico_dock.py` (alterar)
+
+### Arquivos proibidos / NAO FACA
+
+- NAO tocar em nenhum outro arquivo (`core/**`, `provider.py`,
+  `geobr_qgis_plugin.py`, etc.).
+- NAO remover o campo `self.ed_muni` nem o `_info_municipio` (vira fallback).
+- NAO mudar a assinatura de `carregar_fontes`.
+- Imports novos permitidos: adicionar `QComboBox` ao import de
+  `qgis.PyQt.QtWidgets` ja existente. Nada alem disso.
+
+### Passos
+
+1. Adicionar a constante de UFs no topo do modulo (apos os imports):
+   ```python
+   _UFS = [
+       ("AC", "Acre"), ("AL", "Alagoas"), ("AP", "Amapa"), ("AM", "Amazonas"),
+       ("BA", "Bahia"), ("CE", "Ceara"), ("DF", "Distrito Federal"),
+       ("ES", "Espirito Santo"), ("GO", "Goias"), ("MA", "Maranhao"),
+       ("MT", "Mato Grosso"), ("MS", "Mato Grosso do Sul"), ("MG", "Minas Gerais"),
+       ("PA", "Para"), ("PB", "Paraiba"), ("PR", "Parana"), ("PE", "Pernambuco"),
+       ("PI", "Piaui"), ("RJ", "Rio de Janeiro"), ("RN", "Rio Grande do Norte"),
+       ("RS", "Rio Grande do Sul"), ("RO", "Rondonia"), ("RR", "Roraima"),
+       ("SC", "Santa Catarina"), ("SP", "Sao Paulo"), ("SE", "Sergipe"),
+       ("TO", "Tocantins"),
+   ]
+   ```
+
+2. No `_build_ui`, ANTES do campo de codigo (`self.ed_muni`), inserir:
+   - `QLabel("Estado (UF):")` + `self.cmb_uf = QComboBox()`. Popular:
+     `self.cmb_uf.addItem("— selecione —", "")` e depois, para cada `(sig, nom)`
+     em `_UFS`, `self.cmb_uf.addItem("{} - {}".format(sig, nom), sig)`. Conectar
+     `self.cmb_uf.currentIndexChanged.connect(self._on_uf_changed)`.
+   - `QLabel("Municipio:")` + `self.cmb_muni = QComboBox()`. Conectar
+     `self.cmb_muni.currentIndexChanged.connect(self._on_muni_changed)`.
+   - Manter o `QLabel` + `self.ed_muni` que ja existem (re-rotular para
+     "Codigo IBGE (opcional / preenchido pela selecao):").
+   - Inicializar `self._munis = {}` no `__init__` (antes de `_build_ui`).
+
+3. Adicionar os 3 metodos abaixo (PRONTOS — use como estao):
+
+   ```python
+   def _listar_municipios(self, uf_sigla):
+       """{code(str): (nome, bbox)} dos municipios da UF via read_municipality."""
+       import processing
+       res = processing.run("gisbr:read_municipality", {
+           "CODE": uf_sigla, "SIMPLIFIED": True, "OUTPUT": "TEMPORARY_OUTPUT",
+       })
+       layer = res["OUTPUT"]
+       if isinstance(layer, str):
+           from qgis.core import QgsVectorLayer
+           layer = QgsProject.instance().mapLayer(layer) or QgsVectorLayer(layer, "m", "ogr")
+       munis = {}
+       for f in layer.getFeatures():
+           code = str(f["code_muni"]).split(".")[0]
+           nome = f["name_muni"]
+           bb = f.geometry().boundingBox()
+           munis[code] = (nome, (bb.xMinimum(), bb.yMinimum(),
+                                 bb.xMaximum(), bb.yMaximum()))
+       return munis
+
+   def _on_uf_changed(self):
+       uf = self.cmb_uf.currentData()
+       self.cmb_muni.clear()
+       if not uf:
+           return
+       self.txt_log.appendPlainText("Carregando municipios de {}...".format(uf))
+       try:
+           self._munis = self._listar_municipios(uf)
+       except Exception as exc:
+           self.txt_log.appendPlainText("Falha ao listar municipios: {}".format(exc))
+           return
+       for code in sorted(self._munis, key=lambda c: self._munis[c][0]):
+           self.cmb_muni.addItem(self._munis[code][0], code)
+       self.txt_log.appendPlainText("{} municipios carregados.".format(len(self._munis)))
+
+   def _on_muni_changed(self):
+       code = self.cmb_muni.currentData()
+       if code:
+           self.ed_muni.setText(str(code))
+   ```
+
+4. No `_on_carregar`, TROCAR a resolucao do municipio para usar o cache quando
+   houver (mantendo `_info_municipio` como fallback). Onde hoje esta:
+   ```python
+       try:
+           nome, bbox = self._info_municipio(code)
+       except Exception as exc:
+           self.txt_log.appendPlainText("Falha ao resolver o municipio: {}".format(exc))
+           return
+   ```
+   passar a ser:
+   ```python
+       try:
+           if getattr(self, "_munis", None) and code in self._munis:
+               nome, bbox = self._munis[code]
+           else:
+               nome, bbox = self._info_municipio(code)
+       except Exception as exc:
+           self.txt_log.appendPlainText("Falha ao resolver o municipio: {}".format(exc))
+           return
+   ```
+
+### Comandos de verificacao
+
+```bash
+make test
+python3 -c "import ast; ast.parse(open('gui/diagnostico_dock.py').read()); print('ok')"
+```
+
+> Validacao funcional (escolher MG -> ver lista de municipios -> escolher BH ->
+> Carregar) e do senior/Diego no QGIS.
+
+### Criterios de aceite
+
+- Dois `QComboBox` (`self.cmb_uf`, `self.cmb_muni`) em cascata; UF estatica,
+  municipio populado via `read_municipality`.
+- Selecionar municipio preenche `self.ed_muni`; campo de codigo continua editavel.
+- `_on_carregar` usa o bbox cacheado quando disponivel, senao `_info_municipio`.
+- `make test` passa; nenhum outro arquivo tocado; so `QComboBox` adicionado aos
+  imports.
+
+### Resultado
+
+(preencher ao concluir)
+
+---
+
 ### Backlog / ideias (ainda nao viram tarefa)
 
 Itens conhecidos do roadmap, mantidos como referencia (nao executar ate virarem
