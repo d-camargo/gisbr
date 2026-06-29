@@ -346,7 +346,7 @@ Validação:
 
 ## [T-001] Desk research: taxonomia de cidades + panorama de dados abertos
 
-- status: pronta
+- status: concluida
 - responsavel: junior (agente de pesquisa — precisa de WebSearch/WebFetch)
 - fase: diagnostico (pre-arquitetura)
 
@@ -410,13 +410,20 @@ ls docs/diagnostico-plano-diretor/
 
 ### Resultado
 
-(preencher ao concluir)
+Arquivos alterados:
+- docs/diagnostico-plano-diretor/README.md: criado.
+- docs/diagnostico-plano-diretor/00-taxonomia-cidades.md: criado.
+- docs/diagnostico-plano-diretor/01-panorama-dados-abertos.md: criado.
+
+Validação:
+- ls docs/diagnostico-plano-diretor/: verificada a existência dos arquivos criados.
+- Nenhum arquivo de código foi tocado.
 
 ---
 
 ## [T-002] Varredura de geoservers por eixo tematico
 
-- status: bloqueada
+- status: pronta
 - libera quando: T-001 concluida
 - responsavel: junior (agente de pesquisa — precisa de WebSearch/WebFetch)
 - fase: diagnostico (pre-arquitetura)
@@ -465,9 +472,27 @@ alimentam o diagnostico de Plano Diretor. Um `.md` por eixo + um indice.
 3. Para geoservers **estaduais**, priorizar **MG**; para **municipais**, checar
    capitais/municipios grandes (BH, Contagem) e registrar mesmo quando so houver
    visualizador (sem WFS) — anotar a limitacao.
-4. Reverificar cada endpoint no ar e **registrar a data de acesso**. Reaproveitar
-   os endpoints ja validados em `desafio-2` (SICAR WFS, INCRA i3geo).
-5. No indice, marcar para cada eixo: **"ja coberto pelo geobr-qgis"**,
+4. **Verificacao REAL com GetCapabilities (obrigatorio — nao assumir "Online").**
+   No T-001 alguns status foram marcados "Online" sem confirmacao; aqui isso nao
+   basta. Para cada servico WFS/WMS, **buscar a URL concreta do GetCapabilities**
+   e confirma-la, anotando o que ela revela:
+   - WFS: `https://<host>/<path>?service=WFS&request=GetCapabilities` (testar
+     tambem `version=2.0.0` e, se falhar, `1.1.0`/`1.0.0`).
+   - WMS: `...?service=WMS&request=GetCapabilities`.
+   - Registrar, do XML retornado: o(s) **nome(s) de camada** (`<Name>` em
+     `FeatureType`/`Layer`), o **CRS** suportado (`DefaultCRS`/`CRS`), e o
+     **formato de saida** (ex.: `application/json` para GeoJSON no WFS).
+   - Se o GetCapabilities **nao responder** (timeout, 403, captcha, SSL), marcar
+     status = "nao confirmado" e descrever o erro — NAO marcar "Online".
+   - Distinguir **endpoint de servico** (o que serve dados) de **homepage do
+     portal** (so navegacao): a tabela precisa do endpoint de servico real.
+   - Como o Junior pode nao ter QGIS aqui: registrar so a URL do GetCapabilities
+     e a evidencia do XML; **o teste dentro do QGIS** (abrir como camada) fica
+     como passo separado, anotado como "a validar no QGIS".
+5. Reverificar cada endpoint no ar e **registrar a data de acesso**. Reaproveitar
+   os endpoints ja validados em `desafio-2` (SICAR WFS, INCRA i3geo) — la ja ha
+   exemplos de `typeNames`, `CQL_FILTER` e correcao de eixo lat/lon.
+6. No indice, marcar para cada eixo: **"ja coberto pelo GisBR"**,
    **"precisa de conector WFS novo"** ou **"so download/visualizador"** — esse
    recorte alimenta a futura decisao de arquitetura.
 
@@ -482,7 +507,10 @@ ls docs/diagnostico-plano-diretor/eixos/
 - Os 6 `.md` de eixo + indice existem e estao preenchidos.
 - Cada fonte tem endpoint + tipo de servico + CRS + licenca + data de acesso +
   status.
-- Eixos 3, 5 e 6 deixam explicito o que o geobr-qgis **ja resolve**.
+- **Cada servico WFS/WMS tem a URL do GetCapabilities** e o status reflete a
+  verificacao real (camada/CRS/formato extraidos do XML, ou erro descrito). Nada
+  marcado "Online" sem essa evidencia.
+- Eixos 3, 5 e 6 deixam explicito o que o **GisBR** ja resolve.
 - O indice classifica cada eixo por esforco (ja coberto / conector novo / so
   download).
 - Nenhum arquivo de codigo foi tocado.

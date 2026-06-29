@@ -230,8 +230,8 @@ No Console Python do QGIS:
 ```python
 import processing
 # Fase 1 (GPKG): municipios de MG
-processing.run("gisbr:read_municipality",
-               {"YEAR": 2022, "CODE": "MG", "SIMPLIFIED": True, "OUTPUT": "memory:"})
+processing.run("gisbr:read_municipality",  # YEAR e indice do enum de anos; omitido = mais recente
+               {"CODE": "MG", "SIMPLIFIED": True, "OUTPUT": "memory:"})
 # Fase 2 (Parquet): setores de BH
 processing.run("gisbr:read_census_tract_v2",
                {"CODE": "3106200", "OUTPUT": "memory:"})
@@ -241,8 +241,9 @@ Recarregar o plugin com o Plugin Reloader ou reiniciar o QGIS apos editar.
 
 ## Criterio de pronto por fase (resumo)
 
-- **Fase 1:** `processing.run("gisbr:read_municipality", {"YEAR":2022,"CODE":"MG",
+- **Fase 1:** `processing.run("gisbr:read_municipality", {"CODE":"MG",
   "SIMPLIFIED":True})` retorna municipios de MG em EPSG:4674, sem pacote externo.
+  (`YEAR` e indice do enum de anos; omitido, usa o mais recente.)
 - **Fase 2:** setor censitario de BH (geometria) + `join_censo` com dataset de
   renda do censobr (ex.: DomicilioRenda) produz camada apta a mapa coropletico.
 
