@@ -1,0 +1,708 @@
+
+=== Services in SNIRH/DADOSABERTOS ===
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS?f=json
+Name: DADOSABERTOS/Agenda_azul, Type: FeatureServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agenda_azul/FeatureServer?f=json
+  Layer ID: 0, Name: Agenda azul
+Name: DADOSABERTOS/Agenda_azul, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agenda_azul/MapServer?f=json
+  Layer ID: 0, Name: Agenda azul
+Name: DADOSABERTOS/Agenda_cinza, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agenda_cinza/MapServer?f=json
+  Layer ID: 0, Name: Agenda cinza
+Name: DADOSABERTOS/Agenda_laranja, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agenda_laranja/MapServer?f=json
+  Layer ID: 0, Name: Agenda laranja
+Name: DADOSABERTOS/Agenda_marrom, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agenda_marrom/MapServer?f=json
+  Layer ID: 0, Name: Agenda marrom
+Name: DADOSABERTOS/Agenda_verde, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agenda_verde/MapServer?f=json
+  Layer ID: 0, Name: Agenda verde
+Name: DADOSABERTOS/Agricultura_Irrigada_Vazão_Consumida_1940, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agricultura_Irrigada_Vazão_Consumida_1940/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agricultura_Irrigada_Vazão_Consumida_1940/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 63: ordinal not in range(128)
+Name: DADOSABERTOS/Agricultura_Irrigada_Vazão_Consumida_1980, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agricultura_Irrigada_Vazão_Consumida_1980/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agricultura_Irrigada_Vazão_Consumida_1980/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 63: ordinal not in range(128)
+Name: DADOSABERTOS/Agricultura_Irrigada_Vazão_Consumida_2017, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agricultura_Irrigada_Vazão_Consumida_2017/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agricultura_Irrigada_Vazão_Consumida_2017/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 63: ordinal not in range(128)
+Name: DADOSABERTOS/Agricultura_Irrigada_Vazão_Consumida_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agricultura_Irrigada_Vazão_Consumida_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agricultura_Irrigada_Vazão_Consumida_2030/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 63: ordinal not in range(128)
+Name: DADOSABERTOS/Agricultura_Irrigada_Vazão_Retirada_1940, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agricultura_Irrigada_Vazão_Retirada_1940/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agricultura_Irrigada_Vazão_Retirada_1940/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 63: ordinal not in range(128)
+Name: DADOSABERTOS/Agricultura_Irrigada_Vazão_Retirada_1980, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agricultura_Irrigada_Vazão_Retirada_1980/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agricultura_Irrigada_Vazão_Retirada_1980/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 63: ordinal not in range(128)
+Name: DADOSABERTOS/Agricultura_Irrigada_Vazão_Retirada_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agricultura_Irrigada_Vazão_Retirada_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Agricultura_Irrigada_Vazão_Retirada_2030/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 63: ordinal not in range(128)
+Name: DADOSABERTOS/Animal_Vazão_Consumida_1940, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Animal_Vazão_Consumida_1940/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Animal_Vazão_Consumida_1940/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 49: ordinal not in range(128)
+Name: DADOSABERTOS/Animal_Vazão_Consumida_1980, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Animal_Vazão_Consumida_1980/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Animal_Vazão_Consumida_1980/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 49: ordinal not in range(128)
+Name: DADOSABERTOS/Animal_Vazão_Consumida_2017, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Animal_Vazão_Consumida_2017/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Animal_Vazão_Consumida_2017/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 49: ordinal not in range(128)
+Name: DADOSABERTOS/Animal_Vazão_Consumida_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Animal_Vazão_Consumida_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Animal_Vazão_Consumida_2030/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 49: ordinal not in range(128)
+Name: DADOSABERTOS/Animal_Vazão_Retirada_1940, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Animal_Vazão_Retirada_1940/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Animal_Vazão_Retirada_1940/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 49: ordinal not in range(128)
+Name: DADOSABERTOS/Animal_Vazão_Retirada_1980, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Animal_Vazão_Retirada_1980/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Animal_Vazão_Retirada_1980/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 49: ordinal not in range(128)
+Name: DADOSABERTOS/Animal_Vazão_Retirada_2017, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Animal_Vazão_Retirada_2017/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Animal_Vazão_Retirada_2017/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 49: ordinal not in range(128)
+Name: DADOSABERTOS/Animal_Vazão_Retirada_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Animal_Vazão_Retirada_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Animal_Vazão_Retirada_2030/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 49: ordinal not in range(128)
+Name: DADOSABERTOS/Aproveitamentos_Hidrelétricos, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Aproveitamentos_Hidrelétricos/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Aproveitamentos_Hidrelétricos/MapServer?f=json: 'ascii' codec can't encode character '\xe9' in position 61: ordinal not in range(128)
+Name: DADOSABERTOS/Arroz_Área_Irrigada, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Arroz_Área_Irrigada/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Arroz_Área_Irrigada/MapServer?f=json: 'ascii' codec can't encode character '\xc1' in position 45: ordinal not in range(128)
+Name: DADOSABERTOS/Balanço_Hídrico_Q95, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Balanço_Hídrico_Q95/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Balanço_Hídrico_Q95/MapServer?f=json: 'ascii' codec can't encode character '\xe7' in position 44: ordinal not in range(128)
+Name: DADOSABERTOS/Balanço_Hídrico_Qualitativo_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Balanço_Hídrico_Qualitativo_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Balanço_Hídrico_Qualitativo_2030/MapServer?f=json: 'ascii' codec can't encode character '\xe7' in position 44: ordinal not in range(128)
+Name: DADOSABERTOS/Balanço_Hídrico_Qualitativo, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Balanço_Hídrico_Qualitativo/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Balanço_Hídrico_Qualitativo/MapServer?f=json: 'ascii' codec can't encode character '\xe7' in position 44: ordinal not in range(128)
+Name: DADOSABERTOS/Balanço_Hídrico_Quantitativo_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Balanço_Hídrico_Quantitativo_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Balanço_Hídrico_Quantitativo_2030/MapServer?f=json: 'ascii' codec can't encode character '\xe7' in position 44: ordinal not in range(128)
+Name: DADOSABERTOS/Balanço_Hídrico_Quantitativo, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Balanço_Hídrico_Quantitativo/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Balanço_Hídrico_Quantitativo/MapServer?f=json: 'ascii' codec can't encode character '\xe7' in position 44: ordinal not in range(128)
+Name: DADOSABERTOS/Cana_Área_Irrigada, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Cana_Área_Irrigada/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Cana_Área_Irrigada/MapServer?f=json: 'ascii' codec can't encode character '\xc1' in position 44: ordinal not in range(128)
+Name: DADOSABERTOS/Capitais, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Capitais/MapServer?f=json
+  Layer ID: 0, Name: Capitais
+Name: DADOSABERTOS/Categoria_de_Restrição_de_Uso_Aspecto_Qualitativo, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Categoria_de_Restrição_de_Uso_Aspecto_Qualitativo/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Categoria_de_Restrição_de_Uso_Aspecto_Qualitativo/MapServer?f=json: 'ascii' codec can't encode characters in position 58-59: ordinal not in range(128)
+Name: DADOSABERTOS/Categoria_de_Restrição_de_Uso_Aspecto_Quantitativo, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Categoria_de_Restrição_de_Uso_Aspecto_Quantitativo/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Categoria_de_Restrição_de_Uso_Aspecto_Quantitativo/MapServer?f=json: 'ascii' codec can't encode characters in position 58-59: ordinal not in range(128)
+Name: DADOSABERTOS/Classe_de_qualidade, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Classe_de_qualidade/MapServer?f=json
+  Layer ID: 0, Name: Classe de qualidade
+  Layer ID: 1, Name: Fósforo
+  Layer ID: 2, Name: OD
+  Layer ID: 3, Name: Turbidez
+  Layer ID: 4, Name: Coliformes termotolerantes
+Name: DADOSABERTOS/Criticidade_de_Qualidade, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Criticidade_de_Qualidade/MapServer?f=json
+  Layer ID: 0, Name: Criticidade de Qualidade
+Name: DADOSABERTOS/Criticidade_de_Quantidade_e_Qualidade, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Criticidade_de_Quantidade_e_Qualidade/MapServer?f=json
+  Layer ID: 0, Name: Criticidade de Quantidade e Qualidade
+Name: DADOSABERTOS/Criticidade_de_Quantidade, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Criticidade_de_Quantidade/MapServer?f=json
+  Layer ID: 0, Name: Criticidade de Quantidade
+Name: DADOSABERTOS/Curso_dÁgua_Paraguai, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Curso_dÁgua_Paraguai/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Curso_dÁgua_Paraguai/MapServer?f=json: 'ascii' codec can't encode character '\xc1' in position 46: ordinal not in range(128)
+Name: DADOSABERTOS/Curso_dÁgua, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Curso_dÁgua/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Curso_dÁgua/MapServer?f=json: 'ascii' codec can't encode character '\xc1' in position 46: ordinal not in range(128)
+Name: DADOSABERTOS/DBO_Q50_cargas_difusas, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/DBO_Q50_cargas_difusas/MapServer?f=json
+  Layer ID: 0, Name: DBO - Q50 (cargas difusas)
+Name: DADOSABERTOS/DBO_Q95_Cenario, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/DBO_Q95_Cenario/MapServer?f=json
+  Layer ID: 0, Name: DBO (Q95)
+  Layer ID: 1, Name: Cenário Tendencial (2035)
+  Layer ID: 2, Name: Cenário Acelerado (2035)
+  Layer ID: 3, Name: Cenário Estagnado (2035)
+Name: DADOSABERTOS/DBO_Q95, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/DBO_Q95/MapServer?f=json
+  Layer ID: 0, Name: DBO - Q95
+Name: DADOSABERTOS/Deficiência_Hídrica_2014_a_2018, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Deficiência_Hídrica_2014_a_2018/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Deficiência_Hídrica_2014_a_2018/MapServer?f=json: 'ascii' codec can't encode character '\xea' in position 45: ordinal not in range(128)
+Name: DADOSABERTOS/Deficiência_Hídrica_Média_Histórica, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Deficiência_Hídrica_Média_Histórica/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Deficiência_Hídrica_Média_Histórica/MapServer?f=json: 'ascii' codec can't encode character '\xea' in position 45: ordinal not in range(128)
+Name: DADOSABERTOS/Demanda_média_anual_por_microbaci_ls_2015, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_média_anual_por_microbaci_ls_2015/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_média_anual_por_microbaci_ls_2015/MapServer?f=json: 'ascii' codec can't encode character '\xe9' in position 48: ordinal not in range(128)
+Name: DADOSABERTOS/Demanda_média_anual_por_microbacia_ls_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_média_anual_por_microbacia_ls_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_média_anual_por_microbacia_ls_2030/MapServer?f=json: 'ascii' codec can't encode character '\xe9' in position 48: ordinal not in range(128)
+Name: DADOSABERTOS/Demanda_total_Cenário_Acelerado_2035, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_total_Cenário_Acelerado_2035/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_total_Cenário_Acelerado_2035/MapServer?f=json: 'ascii' codec can't encode character '\xe1' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Demanda_total_Cenário_Estagnado_2035, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_total_Cenário_Estagnado_2035/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_total_Cenário_Estagnado_2035/MapServer?f=json: 'ascii' codec can't encode character '\xe1' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Demanda_total_Cenário_Tendencial_2035, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_total_Cenário_Tendencial_2035/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_total_Cenário_Tendencial_2035/MapServer?f=json: 'ascii' codec can't encode character '\xe1' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Demanda_Total_Máxima_de_Consumo_m³s, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Máxima_de_Consumo_m³s/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Máxima_de_Consumo_m³s/MapServer?f=json: 'ascii' codec can't encode character '\xe1' in position 54: ordinal not in range(128)
+Name: DADOSABERTOS/Demanda_Total_Vazão_Consumida_1940, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Vazão_Consumida_1940/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Vazão_Consumida_1940/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Demanda_Total_Vazão_Consumida_1980, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Vazão_Consumida_1980/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Vazão_Consumida_1980/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Demanda_Total_Vazão_Consumida_2017, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Vazão_Consumida_2017/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Vazão_Consumida_2017/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Demanda_Total_Vazão_Consumida_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Vazão_Consumida_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Vazão_Consumida_2030/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Demanda_Total_Vazão_Retirada_1940, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Vazão_Retirada_1940/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Vazão_Retirada_1940/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Demanda_Total_Vazão_Retirada_1980, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Vazão_Retirada_1980/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Vazão_Retirada_1980/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Demanda_Total_Vazão_Retirada_2017, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Vazão_Retirada_2017/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Vazão_Retirada_2017/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Demanda_Total_Vazão_Retirada_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Vazão_Retirada_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Demanda_Total_Vazão_Retirada_2030/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Densidade_das_Estações_Fluviométricas, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Densidade_das_Estações_Fluviométricas/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Densidade_das_Estações_Fluviométricas/MapServer?f=json: 'ascii' codec can't encode characters in position 57-58: ordinal not in range(128)
+Name: DADOSABERTOS/Densidade_das_Estações_Pluviométricas, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Densidade_das_Estações_Pluviométricas/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Densidade_das_Estações_Pluviométricas/MapServer?f=json: 'ascii' codec can't encode characters in position 57-58: ordinal not in range(128)
+Name: DADOSABERTOS/Disponibilidade_Hídrica_Q710_m³s, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Disponibilidade_Hídrica_Q710_m³s/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Disponibilidade_Hídrica_Q710_m³s/MapServer?f=json: 'ascii' codec can't encode character '\xed' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Disponibilidade_Hídrica_Vazão_Q95_m³s, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Disponibilidade_Hídrica_Vazão_Q95_m³s/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Disponibilidade_Hídrica_Vazão_Q95_m³s/MapServer?f=json: 'ascii' codec can't encode character '\xed' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Disponibilidade_Q95_m³s, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Disponibilidade_Q95_m³s/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Disponibilidade_Q95_m³s/MapServer?f=json: 'ascii' codec can't encode character '\xb3' in position 60: ordinal not in range(128)
+Name: DADOSABERTOS/Enquadramento_Atual_dos_Corpos_Hídricos, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Enquadramento_Atual_dos_Corpos_Hídricos/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Enquadramento_Atual_dos_Corpos_Hídricos/MapServer?f=json: 'ascii' codec can't encode character '\xed' in position 71: ordinal not in range(128)
+Name: DADOSABERTOS/Estados, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Estados/MapServer?f=json
+Name: DADOSABERTOS/Estação_de_usina_hidroelétrica, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Estação_de_usina_hidroelétrica/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Estação_de_usina_hidroelétrica/MapServer?f=json: 'ascii' codec can't encode characters in position 43-44: ordinal not in range(128)
+Name: DADOSABERTOS/Estação_Fluviométrica_e_UHE_selecionada, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Estação_Fluviométrica_e_UHE_selecionada/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Estação_Fluviométrica_e_UHE_selecionada/MapServer?f=json: 'ascii' codec can't encode characters in position 43-44: ordinal not in range(128)
+Name: DADOSABERTOS/Estação_Pluviométrica_Selecionada, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Estação_Pluviométrica_Selecionada/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Estação_Pluviométrica_Selecionada/MapServer?f=json: 'ascii' codec can't encode characters in position 43-44: ordinal not in range(128)
+Name: DADOSABERTOS/Fertirrigação, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Fertirrigação/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Fertirrigação/MapServer?f=json: 'ascii' codec can't encode characters in position 49-50: ordinal not in range(128)
+Name: DADOSABERTOS/Fotos, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Fotos/MapServer?f=json
+  Layer ID: 0, Name: Fotos
+Name: DADOSABERTOS/Fósforo_Q50_cargas_difusas, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Fósforo_Q50_cargas_difusas/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Fósforo_Q50_cargas_difusas/MapServer?f=json: 'ascii' codec can't encode character '\xf3' in position 40: ordinal not in range(128)
+Name: DADOSABERTOS/Fósforo_Q95_Cenario, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Fósforo_Q95_Cenario/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Fósforo_Q95_Cenario/MapServer?f=json: 'ascii' codec can't encode character '\xf3' in position 40: ordinal not in range(128)
+Name: DADOSABERTOS/Fósforo_Q95, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Fósforo_Q95/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Fósforo_Q95/MapServer?f=json: 'ascii' codec can't encode character '\xf3' in position 40: ordinal not in range(128)
+Name: DADOSABERTOS/Gestao_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Gestao_DA/MapServer?f=json
+  Layer ID: 0, Name: Gestão
+  Layer ID: 1, Name: Áreas de Transferência Interestaduais
+  Layer ID: 2, Name: Áreas Integradas Compartilhadas
+Name: DADOSABERTOS/Grau_de_refinamento_das_informações_por_município, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Grau_de_refinamento_das_informações_por_município/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Grau_de_refinamento_das_informações_por_município/MapServer?f=json: 'ascii' codec can't encode characters in position 70-71: ordinal not in range(128)
+Name: DADOSABERTOS/Hidrelétrica, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrelétrica/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrelétrica/MapServer?f=json: 'ascii' codec can't encode character '\xe9' in position 45: ordinal not in range(128)
+Name: DADOSABERTOS/Hidrelétricas_UHE_e_PCH_Em_estudo, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrelétricas_UHE_e_PCH_Em_estudo/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrelétricas_UHE_e_PCH_Em_estudo/MapServer?f=json: 'ascii' codec can't encode character '\xe9' in position 45: ordinal not in range(128)
+Name: DADOSABERTOS/Hidrelétricas_UHE_e_PCH_Operação, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrelétricas_UHE_e_PCH_Operação/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrelétricas_UHE_e_PCH_Operação/MapServer?f=json: 'ascii' codec can't encode character '\xe9' in position 45: ordinal not in range(128)
+Name: DADOSABERTOS/Hidrogeoquímica_Qualidade_das_Aguas_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrogeoquímica_Qualidade_das_Aguas_DA/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrogeoquímica_Qualidade_das_Aguas_DA/MapServer?f=json: 'ascii' codec can't encode character '\xed' in position 49: ordinal not in range(128)
+Name: DADOSABERTOS/Hidrografia_nível_1, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrografia_nível_1/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrografia_nível_1/MapServer?f=json: 'ascii' codec can't encode character '\xed' in position 52: ordinal not in range(128)
+Name: DADOSABERTOS/Hidrografia_nível_2, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrografia_nível_2/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrografia_nível_2/MapServer?f=json: 'ascii' codec can't encode character '\xed' in position 52: ordinal not in range(128)
+Name: DADOSABERTOS/Hidrografia_nível_3, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrografia_nível_3/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrografia_nível_3/MapServer?f=json: 'ascii' codec can't encode character '\xed' in position 52: ordinal not in range(128)
+Name: DADOSABERTOS/Hidrografia_nível_4, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrografia_nível_4/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrografia_nível_4/MapServer?f=json: 'ascii' codec can't encode character '\xed' in position 52: ordinal not in range(128)
+Name: DADOSABERTOS/Hidrografia_nível_5, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrografia_nível_5/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrografia_nível_5/MapServer?f=json: 'ascii' codec can't encode character '\xed' in position 52: ordinal not in range(128)
+Name: DADOSABERTOS/Hidrografia, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrografia/MapServer?f=json
+  Layer ID: 0, Name: Hidrografia
+Name: DADOSABERTOS/Humano_Rural_Vazão_Consumida_1940, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Rural_Vazão_Consumida_1940/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Rural_Vazão_Consumida_1940/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 55: ordinal not in range(128)
+Name: DADOSABERTOS/Humano_Rural_Vazão_Consumida_1980, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Rural_Vazão_Consumida_1980/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Rural_Vazão_Consumida_1980/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 55: ordinal not in range(128)
+Name: DADOSABERTOS/Humano_Rural_Vazão_Consumida_2017, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Rural_Vazão_Consumida_2017/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Rural_Vazão_Consumida_2017/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 55: ordinal not in range(128)
+Name: DADOSABERTOS/Humano_Rural_Vazão_Retirada_1940, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Rural_Vazão_Retirada_1940/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Rural_Vazão_Retirada_1940/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 55: ordinal not in range(128)
+Name: DADOSABERTOS/Humano_Rural_Vazão_Retirada_2017, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Rural_Vazão_Retirada_2017/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Rural_Vazão_Retirada_2017/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 55: ordinal not in range(128)
+Name: DADOSABERTOS/Humano_Rural_Vazão_Retirada_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Rural_Vazão_Retirada_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Rural_Vazão_Retirada_2030/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 55: ordinal not in range(128)
+Name: DADOSABERTOS/Humano_Urbano_Vazão_Consumida_1940, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Urbano_Vazão_Consumida_1940/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Urbano_Vazão_Consumida_1940/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Humano_Urbano_Vazão_Consumida_1980, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Urbano_Vazão_Consumida_1980/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Urbano_Vazão_Consumida_1980/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Humano_Urbano_Vazão_Consumida_2017, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Urbano_Vazão_Consumida_2017/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Urbano_Vazão_Consumida_2017/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Humano_Urbano_Vazão_Consumida_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Urbano_Vazão_Consumida_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Urbano_Vazão_Consumida_2030/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Humano_Urbano_Vazão_Retirada_1940, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Urbano_Vazão_Retirada_1940/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Urbano_Vazão_Retirada_1940/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Humano_Urbano_Vazão_Retirada_2017, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Urbano_Vazão_Retirada_2017/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Urbano_Vazão_Retirada_2017/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Humano_Urbano_Vazão_Retirada_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Urbano_Vazão_Retirada_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Humano_Urbano_Vazão_Retirada_2030/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Indústria___Transformação_Vazão_Consumida_1980, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Indústria___Transformação_Vazão_Consumida_1980/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Indústria___Transformação_Vazão_Consumida_1980/MapServer?f=json: 'ascii' codec can't encode character '\xfa' in position 42: ordinal not in range(128)
+Name: DADOSABERTOS/Indústria___Transformação_Vazão_Consumida_2017, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Indústria___Transformação_Vazão_Consumida_2017/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Indústria___Transformação_Vazão_Consumida_2017/MapServer?f=json: 'ascii' codec can't encode character '\xfa' in position 42: ordinal not in range(128)
+Name: DADOSABERTOS/Indústria__Transformação_Vazão_Retirada_1980, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Indústria__Transformação_Vazão_Retirada_1980/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Indústria__Transformação_Vazão_Retirada_1980/MapServer?f=json: 'ascii' codec can't encode character '\xfa' in position 42: ordinal not in range(128)
+Name: DADOSABERTOS/Indústria__Transformação_Vazão_Retirada_2017, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Indústria__Transformação_Vazão_Retirada_2017/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Indústria__Transformação_Vazão_Retirada_2017/MapServer?f=json: 'ascii' codec can't encode character '\xfa' in position 42: ordinal not in range(128)
+Name: DADOSABERTOS/Indústria__Transformação_Vazão_Retirada_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Indústria__Transformação_Vazão_Retirada_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Indústria__Transformação_Vazão_Retirada_2030/MapServer?f=json: 'ascii' codec can't encode character '\xfa' in position 42: ordinal not in range(128)
+Name: DADOSABERTOS/Indústria_Transformação_Vazão_Consumida_1940, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Indústria_Transformação_Vazão_Consumida_1940/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Indústria_Transformação_Vazão_Consumida_1940/MapServer?f=json: 'ascii' codec can't encode character '\xfa' in position 42: ordinal not in range(128)
+Name: DADOSABERTOS/Indústria_Transformação_Vazão_Consumida_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Indústria_Transformação_Vazão_Consumida_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Indústria_Transformação_Vazão_Consumida_2030/MapServer?f=json: 'ascii' codec can't encode character '\xfa' in position 42: ordinal not in range(128)
+Name: DADOSABERTOS/Indústria_Transformação_Vazão_Retirada_1940, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Indústria_Transformação_Vazão_Retirada_1940/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Indústria_Transformação_Vazão_Retirada_1940/MapServer?f=json: 'ascii' codec can't encode character '\xfa' in position 42: ordinal not in range(128)
+Name: DADOSABERTOS/Inventário_estações_fluviométricas, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Inventário_estações_fluviométricas/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Inventário_estações_fluviométricas/MapServer?f=json: 'ascii' codec can't encode character '\xe1' in position 45: ordinal not in range(128)
+Name: DADOSABERTOS/IQA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/IQA/MapServer?f=json
+  Layer ID: 0, Name: IQA
+Name: DADOSABERTOS/Irrigação_de_salvamento, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Irrigação_de_salvamento/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Irrigação_de_salvamento/MapServer?f=json: 'ascii' codec can't encode characters in position 45-46: ordinal not in range(128)
+Name: DADOSABERTOS/Irrigação_Plena_e_por_déficit, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Irrigação_Plena_e_por_déficit/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Irrigação_Plena_e_por_déficit/MapServer?f=json: 'ascii' codec can't encode characters in position 45-46: ordinal not in range(128)
+Name: DADOSABERTOS/Limite_do_Semiárido, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Limite_do_Semiárido/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Limite_do_Semiárido/MapServer?f=json: 'ascii' codec can't encode character '\xe1' in position 53: ordinal not in range(128)
+Name: DADOSABERTOS/Limite_Sistema_Aquífero_Urucuia_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Limite_Sistema_Aquífero_Urucuia_DA/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Limite_Sistema_Aquífero_Urucuia_DA/MapServer?f=json: 'ascii' codec can't encode character '\xed' in position 57: ordinal not in range(128)
+Name: DADOSABERTOS/Map, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Map/MapServer?f=json
+  Layer ID: 2, Name: snirh.snirh_divisao_hidrografica.dvh_ugrh_a_2024
+Name: DADOSABERTOS/Massa_dÁgua_Grande, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Massa_dÁgua_Grande/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Massa_dÁgua_Grande/MapServer?f=json: 'ascii' codec can't encode character '\xc1' in position 46: ordinal not in range(128)
+Name: DADOSABERTOS/Massa_dágua, Type: FeatureServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Massa_dágua/FeatureServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Massa_dágua/FeatureServer?f=json: 'ascii' codec can't encode character '\xe1' in position 46: ordinal not in range(128)
+Name: DADOSABERTOS/Massa_dágua, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Massa_dágua/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Massa_dágua/MapServer?f=json: 'ascii' codec can't encode character '\xe1' in position 46: ordinal not in range(128)
+Name: DADOSABERTOS/Mineração_Vazão_Consumida_1940, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Mineração_Vazão_Consumida_1940/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Mineração_Vazão_Consumida_1940/MapServer?f=json: 'ascii' codec can't encode characters in position 45-46: ordinal not in range(128)
+Name: DADOSABERTOS/Mineração_Vazão_Consumida_1980, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Mineração_Vazão_Consumida_1980/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Mineração_Vazão_Consumida_1980/MapServer?f=json: 'ascii' codec can't encode characters in position 45-46: ordinal not in range(128)
+Name: DADOSABERTOS/Mineração_Vazão_Consumida_2017, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Mineração_Vazão_Consumida_2017/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Mineração_Vazão_Consumida_2017/MapServer?f=json: 'ascii' codec can't encode characters in position 45-46: ordinal not in range(128)
+Name: DADOSABERTOS/Mineração_Vazão_Consumida_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Mineração_Vazão_Consumida_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Mineração_Vazão_Consumida_2030/MapServer?f=json: 'ascii' codec can't encode characters in position 45-46: ordinal not in range(128)
+Name: DADOSABERTOS/Mineração_Vazão_Retirada_1940, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Mineração_Vazão_Retirada_1940/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Mineração_Vazão_Retirada_1940/MapServer?f=json: 'ascii' codec can't encode characters in position 45-46: ordinal not in range(128)
+Name: DADOSABERTOS/Mineração_Vazão_Retirada_1980, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Mineração_Vazão_Retirada_1980/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Mineração_Vazão_Retirada_1980/MapServer?f=json: 'ascii' codec can't encode characters in position 45-46: ordinal not in range(128)
+Name: DADOSABERTOS/Mineração_Vazão_Retirada_2017, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Mineração_Vazão_Retirada_2017/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Mineração_Vazão_Retirada_2017/MapServer?f=json: 'ascii' codec can't encode characters in position 45-46: ordinal not in range(128)
+Name: DADOSABERTOS/Mineração_Vazão_Retirada_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Mineração_Vazão_Retirada_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Mineração_Vazão_Retirada_2030/MapServer?f=json: 'ascii' codec can't encode characters in position 45-46: ordinal not in range(128)
+Name: DADOSABERTOS/Municipios, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Municipios/MapServer?f=json
+  Layer ID: 0, Name: Municípios
+Name: DADOSABERTOS/Necessidade_de_Irrigação_2014_a_2018, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Necessidade_de_Irrigação_2014_a_2018/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Necessidade_de_Irrigação_2014_a_2018/MapServer?f=json: 'ascii' codec can't encode characters in position 60-61: ordinal not in range(128)
+Name: DADOSABERTOS/Necessidade_de_Irrigação_Média_Histórica, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Necessidade_de_Irrigação_Média_Histórica/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Necessidade_de_Irrigação_Média_Histórica/MapServer?f=json: 'ascii' codec can't encode characters in position 60-61: ordinal not in range(128)
+Name: DADOSABERTOS/Outorgas_de__agua_superficial_vigentes_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Outorgas_de__agua_superficial_vigentes_DA/MapServer?f=json
+  Layer ID: 0, Name: Outorgas de Água Superficial Vigentes (Julho 2016)
+Name: DADOSABERTOS/outorgas_estaduais_subterraneas, Type: FeatureServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/outorgas_estaduais_subterraneas/FeatureServer?f=json
+  Layer ID: 5, Name: Outorgas Estaduais - Subterrânea
+Name: DADOSABERTOS/outorgas_estaduais_subterraneas, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/outorgas_estaduais_subterraneas/MapServer?f=json
+  Layer ID: 5, Name: Outorgas Estaduais - Subterrânea
+Name: DADOSABERTOS/outorgas_estaduais_superficial, Type: FeatureServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/outorgas_estaduais_superficial/FeatureServer?f=json
+  Layer ID: 0, Name: Outorgas Estaduais - Superficial
+Name: DADOSABERTOS/outorgas_estaduais_superficial, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/outorgas_estaduais_superficial/MapServer?f=json
+  Layer ID: 0, Name: Outorgas Estaduais - Superficial
+Name: DADOSABERTOS/outorgas_federais_superficial, Type: FeatureServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/outorgas_federais_superficial/FeatureServer?f=json
+  Layer ID: 4, Name: Outorgas Federais - Superficial
+Name: DADOSABERTOS/outorgas_federais_superficial, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/outorgas_federais_superficial/MapServer?f=json
+  Layer ID: 4, Name: Outorgas Federais - Superficial
+Name: DADOSABERTOS/Outras_Área_Irrigada, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Outras_Área_Irrigada/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Outras_Área_Irrigada/MapServer?f=json: 'ascii' codec can't encode character '\xc1' in position 46: ordinal not in range(128)
+Name: DADOSABERTOS/Outros_Rios_DBO, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Outros_Rios_DBO/MapServer?f=json
+  Layer ID: 0, Name: Outros Rios
+Name: DADOSABERTOS/Outros_Rios_Fosforo, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Outros_Rios_Fosforo/MapServer?f=json
+  Layer ID: 0, Name: Outros Rios
+Name: DADOSABERTOS/Pantanal, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Pantanal/MapServer?f=json
+  Layer ID: 0, Name: Pantanal
+Name: DADOSABERTOS/Paranapanema_Fotos, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Paranapanema_Fotos/MapServer?f=json
+  Layer ID: 0, Name: Fotos
+Name: DADOSABERTOS/Paranapanema_Trejeto, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Paranapanema_Trejeto/MapServer?f=json
+  Layer ID: 0, Name: Trajeto
+Name: DADOSABERTOS/Países, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Países/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Países/MapServer?f=json: 'ascii' codec can't encode character '\xed' in position 41: ordinal not in range(128)
+Name: DADOSABERTOS/Percentua_Vazão_Retirada_Industrial_Município, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Percentua_Vazão_Retirada_Industrial_Município/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Percentua_Vazão_Retirada_Industrial_Município/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 52: ordinal not in range(128)
+Name: DADOSABERTOS/Piranha_Adutora_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranha_Adutora_DA/MapServer?f=json
+  Layer ID: 0, Name: Adutora
+Name: DADOSABERTOS/Piranha_Avali_Oforta_Hid_Garantia_atend_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranha_Avali_Oforta_Hid_Garantia_atend_DA/MapServer?f=json
+  Layer ID: 0, Name: Avaliação da Oferta Hídrica - Garantia de Atendimento do Sistema de Abastecimento
+Name: DADOSABERTOS/Piranha_CursodÁgua_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranha_CursodÁgua_DA/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranha_CursodÁgua_DA/MapServer?f=json: 'ascii' codec can't encode character '\xc1' in position 53: ordinal not in range(128)
+Name: DADOSABERTOS/Piranha_fonte_Hid_Abast_Mun_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranha_fonte_Hid_Abast_Mun_DA/MapServer?f=json
+  Layer ID: 0, Name: Fonte Hídrica de Abastecimento do Município
+Name: DADOSABERTOS/Piranha_Limite_da_Bacia_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranha_Limite_da_Bacia_DA/MapServer?f=json
+  Layer ID: 0, Name: Limite da Bacia
+Name: DADOSABERTOS/Piranha_Reservatorio_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranha_Reservatorio_DA/MapServer?f=json
+  Layer ID: 0, Name: Reservatório > 10 hm³
+Name: DADOSABERTOS/Piranha_UPH_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranha_UPH_DA/MapServer?f=json
+  Layer ID: 0, Name: Unidade de Planejamento Hídrico
+Name: DADOSABERTOS/Piranha_Uso_Ocupação_Solo_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranha_Uso_Ocupação_Solo_DA/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranha_Uso_Ocupação_Solo_DA/MapServer?f=json: 'ascii' codec can't encode characters in position 56-57: ordinal not in range(128)
+Name: DADOSABERTOS/Piranhas_Balancio_Hidrico_Reservatorio_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranhas_Balancio_Hidrico_Reservatorio_DA/MapServer?f=json
+  Layer ID: 0, Name: Balanço Hídrico do Reservatório (Demanda/Disponibilidade)
+Name: DADOSABERTOS/Piranhas_Coliformes_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranhas_Coliformes_DA/MapServer?f=json
+  Layer ID: 0, Name: Coliformes (NMP/100mL)
+Name: DADOSABERTOS/Piranhas_Demanda_Bioquímica__Oxigênio_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranhas_Demanda_Bioquímica__Oxigênio_DA/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranhas_Demanda_Bioquímica__Oxigênio_DA/MapServer?f=json: 'ascii' codec can't encode character '\xed' in position 61: ordinal not in range(128)
+Name: DADOSABERTOS/Piranhas_Fósforo_Total_Lêntico_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranhas_Fósforo_Total_Lêntico_DA/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranhas_Fósforo_Total_Lêntico_DA/MapServer?f=json: 'ascii' codec can't encode character '\xf3' in position 49: ordinal not in range(128)
+Name: DADOSABERTOS/Piranhas_Fósforo_Total_Lótico_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranhas_Fósforo_Total_Lótico_DA/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranhas_Fósforo_Total_Lótico_DA/MapServer?f=json: 'ascii' codec can't encode character '\xf3' in position 49: ordinal not in range(128)
+Name: DADOSABERTOS/Piranhas_Potencial_Teórico_Incremento_Disponibilidade_Hídrica_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranhas_Potencial_Teórico_Incremento_Disponibilidade_Hídrica_DA/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranhas_Potencial_Teórico_Incremento_Disponibilidade_Hídrica_DA/MapServer?f=json: 'ascii' codec can't encode character '\xf3' in position 60: ordinal not in range(128)
+Name: DADOSABERTOS/Piranhas_Vazão_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranhas_Vazão_DA/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranhas_Vazão_DA/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 51: ordinal not in range(128)
+Name: DADOSABERTOS/Piranhas_Índice_Estado_Trófico_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranhas_Índice_Estado_Trófico_DA/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranhas_Índice_Estado_Trófico_DA/MapServer?f=json: 'ascii' codec can't encode character '\xcd' in position 48: ordinal not in range(128)
+Name: DADOSABERTOS/Piranhas_Índice_Qualidade_Água_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranhas_Índice_Qualidade_Água_DA/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Piranhas_Índice_Qualidade_Água_DA/MapServer?f=json: 'ascii' codec can't encode character '\xcd' in position 48: ordinal not in range(128)
+Name: DADOSABERTOS/Pivôs_Área_Irrigada, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Pivôs_Área_Irrigada/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Pivôs_Área_Irrigada/MapServer?f=json: 'ascii' codec can't encode character '\xf4' in position 42: ordinal not in range(128)
+Name: DADOSABERTOS/Potencialidade_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Potencialidade_DA/MapServer?f=json
+  Layer ID: 0, Name: Potencialidade (m³/h)
+Name: DADOSABERTOS/Potenciomentria_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Potenciomentria_DA/MapServer?f=json
+  Layer ID: 0, Name: Potenciomentria
+  Layer ID: 1, Name: Divisor do Fluxo Subterrâneo
+  Layer ID: 2, Name: Direção do Fluxo Subterrâneo
+  Layer ID: 3, Name: Isovalores Equipotenciais
+  Layer ID: 4, Name: Áreas de Recarga e Descarga 
+Name: DADOSABERTOS/Poços_datados_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Poços_datados_DA/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Poços_datados_DA/MapServer?f=json: 'ascii' codec can't encode character '\xe7' in position 41: ordinal not in range(128)
+Name: DADOSABERTOS/Poços_do_Siagas_CPRM, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Poços_do_Siagas_CPRM/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Poços_do_Siagas_CPRM/MapServer?f=json: 'ascii' codec can't encode character '\xe7' in position 41: ordinal not in range(128)
+Name: DADOSABERTOS/Principais_Centros_Urbanos, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Principais_Centros_Urbanos/MapServer?f=json
+  Layer ID: 0, Name: Principais Centros Urbanos
+Name: DADOSABERTOS/Qualitativo_DBO, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Qualitativo_DBO/MapServer?f=json
+  Layer ID: 0, Name: DBO
+Name: DADOSABERTOS/Qualitativo_Fosforo, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Qualitativo_Fosforo/MapServer?f=json
+  Layer ID: 0, Name: Fósforo
+Name: DADOSABERTOS/Quantitativo_Balanço_Hídrico_Cena_Atual_2016, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Quantitativo_Balanço_Hídrico_Cena_Atual_2016/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Quantitativo_Balanço_Hídrico_Cena_Atual_2016/MapServer?f=json: 'ascii' codec can't encode character '\xe7' in position 57: ordinal not in range(128)
+Name: DADOSABERTOS/Quantitativo_Cenário_do_Plano, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Quantitativo_Cenário_do_Plano/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Quantitativo_Cenário_do_Plano/MapServer?f=json: 'ascii' codec can't encode character '\xe1' in position 55: ordinal not in range(128)
+Name: DADOSABERTOS/Regiões_Críticas_na_Cena_Atual_2016_Componente_Quantitativa, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Regiões_Críticas_na_Cena_Atual_2016_Componente_Quantitativa/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Regiões_Críticas_na_Cena_Atual_2016_Componente_Quantitativa/MapServer?f=json: 'ascii' codec can't encode character '\xf5' in position 43: ordinal not in range(128)
+Name: DADOSABERTOS/Regiões_Hidrográficas, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Regiões_Hidrográficas/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Regiões_Hidrográficas/MapServer?f=json: 'ascii' codec can't encode character '\xf5' in position 43: ordinal not in range(128)
+Name: DADOSABERTOS/Remanescente_sem_tratamento, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Remanescente_sem_tratamento/MapServer?f=json
+  Layer ID: 0, Name: Remanescente sem tratamento
+Name: DADOSABERTOS/Reservatórios, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Reservatórios/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Reservatórios/MapServer?f=json: 'ascii' codec can't encode character '\xf3' in position 47: ordinal not in range(128)
+Name: DADOSABERTOS/RH_Paraguai, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/RH_Paraguai/MapServer?f=json
+  Layer ID: 0, Name: RH-Paraguai
+Name: DADOSABERTOS/Rios_Principais_DBO, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Rios_Principais_DBO/MapServer?f=json
+  Layer ID: 0, Name: Rios Principais
+Name: DADOSABERTOS/Rios_Principais_Fosforo, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Rios_Principais_Fosforo/MapServer?f=json
+  Layer ID: 0, Name: Rios Principais
+Name: DADOSABERTOS/Sede_Municipais, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Sede_Municipais/MapServer?f=json
+  Layer ID: 0, Name: Sedes municipais
+Name: DADOSABERTOS/Semiárido_brasileiro, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Semiárido_brasileiro/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Semiárido_brasileiro/MapServer?f=json: 'ascii' codec can't encode character '\xe1' in position 43: ordinal not in range(128)
+Name: DADOSABERTOS/Termelétricas_Vazão_Consumida_1980, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Termelétricas_Vazão_Consumida_1980/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Termelétricas_Vazão_Consumida_1980/MapServer?f=json: 'ascii' codec can't encode character '\xe9' in position 45: ordinal not in range(128)
+Name: DADOSABERTOS/Termelétricas_Vazão_Consumida_2017, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Termelétricas_Vazão_Consumida_2017/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Termelétricas_Vazão_Consumida_2017/MapServer?f=json: 'ascii' codec can't encode character '\xe9' in position 45: ordinal not in range(128)
+Name: DADOSABERTOS/Termelétricas_Vazão_Consumida_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Termelétricas_Vazão_Consumida_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Termelétricas_Vazão_Consumida_2030/MapServer?f=json: 'ascii' codec can't encode character '\xe9' in position 45: ordinal not in range(128)
+Name: DADOSABERTOS/Termelétricas_Vazão_Retirada_1980, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Termelétricas_Vazão_Retirada_1980/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Termelétricas_Vazão_Retirada_1980/MapServer?f=json: 'ascii' codec can't encode character '\xe9' in position 45: ordinal not in range(128)
+Name: DADOSABERTOS/Termelétricas_Vazão_Retirada_2017, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Termelétricas_Vazão_Retirada_2017/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Termelétricas_Vazão_Retirada_2017/MapServer?f=json: 'ascii' codec can't encode character '\xe9' in position 45: ordinal not in range(128)
+Name: DADOSABERTOS/Termelétricas_Vazão_Retirada_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Termelétricas_Vazão_Retirada_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Termelétricas_Vazão_Retirada_2030/MapServer?f=json: 'ascii' codec can't encode character '\xe9' in position 45: ordinal not in range(128)
+Name: DADOSABERTOS/Terra_Indígina, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Terra_Indígina/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Terra_Indígina/MapServer?f=json: 'ascii' codec can't encode character '\xed' in position 48: ordinal not in range(128)
+Name: DADOSABERTOS/Terras_Indígenas, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Terras_Indígenas/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Terras_Indígenas/MapServer?f=json: 'ascii' codec can't encode character '\xed' in position 49: ordinal not in range(128)
+Name: DADOSABERTOS/Tipo_Manancial_de_Abastecimento_das_Sedes_Municipais_na_Bacia_do_Rio_Grande, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Tipo_Manancial_de_Abastecimento_das_Sedes_Municipais_na_Bacia_do_Rio_Grande/MapServer?f=json
+  Layer ID: 0, Name: Tipo Manancial de Abastecimento das Sedes Municipais na Bacia do Rio Grande
+Name: DADOSABERTOS/Tipologia_predominante, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Tipologia_predominante/MapServer?f=json
+  Layer ID: 0, Name: Tipologia predominante
+Name: DADOSABERTOS/Trajeto, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Trajeto/MapServer?f=json
+  Layer ID: 0, Name: Trajeto
+Name: DADOSABERTOS/Trechos_Críticos, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Trechos_Críticos/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Trechos_Críticos/MapServer?f=json: 'ascii' codec can't encode character '\xed' in position 49: ordinal not in range(128)
+Name: DADOSABERTOS/UEGs_Consulta_pública, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/UEGs_Consulta_pública/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/UEGs_Consulta_pública/MapServer?f=json: 'ascii' codec can't encode character '\xfa' in position 54: ordinal not in range(128)
+Name: DADOSABERTOS/Unidade_de_Conservação_Federal, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Unidade_de_Conservação_Federal/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Unidade_de_Conservação_Federal/MapServer?f=json: 'ascii' codec can't encode characters in position 58-59: ordinal not in range(128)
+Name: DADOSABERTOS/Unidade_de_Conservação, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Unidade_de_Conservação/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Unidade_de_Conservação/MapServer?f=json: 'ascii' codec can't encode characters in position 58-59: ordinal not in range(128)
+Name: DADOSABERTOS/Unidade_de_Gestão_Hidrográfica, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Unidade_de_Gestão_Hidrográfica/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Unidade_de_Gestão_Hidrográfica/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 54: ordinal not in range(128)
+Name: DADOSABERTOS/Unidade_de_Planejamento_Hídrico_UPH, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Unidade_de_Planejamento_Hídrico_UPH/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Unidade_de_Planejamento_Hídrico_UPH/MapServer?f=json: 'ascii' codec can't encode character '\xed' in position 64: ordinal not in range(128)
+Name: DADOSABERTOS/Unidade_Hidrogeológica, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Unidade_Hidrogeológica/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Unidade_Hidrogeológica/MapServer?f=json: 'ascii' codec can't encode character '\xf3' in position 56: ordinal not in range(128)
+Name: DADOSABERTOS/Unidades_de_Gestão_UGH, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Unidades_de_Gestão_UGH/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Unidades_de_Gestão_UGH/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 55: ordinal not in range(128)
+Name: DADOSABERTOS/UPGs, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/UPGs/MapServer?f=json
+  Layer ID: 0, Name: UPGs
+Name: DADOSABERTOS/Usinas_Sucroalcooleiras, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Usinas_Sucroalcooleiras/MapServer?f=json
+  Layer ID: 0, Name: Usinas Sucroalcooleiras
+Name: DADOSABERTOS/Uso_das_aguas_subterrâneas_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Uso_das_aguas_subterrâneas_DA/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Uso_das_aguas_subterrâneas_DA/MapServer?f=json: 'ascii' codec can't encode character '\xe2' in position 60: ordinal not in range(128)
+Name: DADOSABERTOS/Uso_do_Solo, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Uso_do_Solo/MapServer?f=json
+  Layer ID: 0, Name: Uso do Solo
+Name: DADOSABERTOS/Uso_e_Ocupação_do_Solo_Paraguai, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Uso_e_Ocupação_do_Solo_Paraguai/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Uso_e_Ocupação_do_Solo_Paraguai/MapServer?f=json: 'ascii' codec can't encode characters in position 50-51: ordinal not in range(128)
+Name: DADOSABERTOS/Uso_e_Ocupação_do_Solo, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Uso_e_Ocupação_do_Solo/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Uso_e_Ocupação_do_Solo/MapServer?f=json: 'ascii' codec can't encode characters in position 50-51: ordinal not in range(128)
+Name: DADOSABERTOS/Variação_da_área_irrigada_entre_2015_a_2003, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Variação_da_área_irrigada_entre_2015_a_2003/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Variação_da_área_irrigada_entre_2015_a_2003/MapServer?f=json: 'ascii' codec can't encode characters in position 44-45: ordinal not in range(128)
+Name: DADOSABERTOS/Vazão_Consumida_na_Indústria, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Vazão_Consumida_na_Indústria/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Vazão_Consumida_na_Indústria/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 42: ordinal not in range(128)
+Name: DADOSABERTOS/Vazão_Retirada_para_Abate_e_Fabricação_de_Produtos_de_Carne, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Vazão_Retirada_para_Abate_e_Fabricação_de_Produtos_de_Carne/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Vazão_Retirada_para_Abate_e_Fabricação_de_Produtos_de_Carne/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 42: ordinal not in range(128)
+Name: DADOSABERTOS/Vazão_Retirada_para_Celulose_e_Outras_Pastas_para_Fabricação_de_Papel, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Vazão_Retirada_para_Celulose_e_Outras_Pastas_para_Fabricação_de_Papel/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Vazão_Retirada_para_Celulose_e_Outras_Pastas_para_Fabricação_de_Papel/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 42: ordinal not in range(128)
+Name: DADOSABERTOS/Vazão_Retirada_para_Fabricação_de_Biocombustíveis, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Vazão_Retirada_para_Fabricação_de_Biocombustíveis/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Vazão_Retirada_para_Fabricação_de_Biocombustíveis/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 42: ordinal not in range(128)
+Name: DADOSABERTOS/Vazão_Retirada_para_Fabricação_e_Refino_de_Açúcar, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Vazão_Retirada_para_Fabricação_e_Refino_de_Açúcar/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Vazão_Retirada_para_Fabricação_e_Refino_de_Açúcar/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 42: ordinal not in range(128)
+Name: DADOSABERTOS/Vazão_Retirada_para_Siderurgia, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Vazão_Retirada_para_Siderurgia/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Vazão_Retirada_para_Siderurgia/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 42: ordinal not in range(128)
+Name: DADOSABERTOS/Vazão_Retirada_Total_para_Uso_Industrial, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Vazão_Retirada_Total_para_Uso_Industrial/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Vazão_Retirada_Total_para_Uso_Industrial/MapServer?f=json: 'ascii' codec can't encode character '\xe3' in position 42: ordinal not in range(128)
+Name: DADOSABERTOS/Vulnerabilidade_GOD_DA, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Vulnerabilidade_GOD_DA/MapServer?f=json
+  Layer ID: 0, Name: Vulnerabilidade (GOD)
+Name: DADOSABERTOS/Área_total_Irrigada_ha_2015, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Área_total_Irrigada_ha_2015/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Área_total_Irrigada_ha_2015/MapServer?f=json: 'ascii' codec can't encode character '\xc1' in position 39: ordinal not in range(128)
+Name: DADOSABERTOS/Área_total_Irrigada_ha_2030, Type: MapServer
+Querying: https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Área_total_Irrigada_ha_2030/MapServer?f=json
+Error for https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Área_total_Irrigada_ha_2030/MapServer?f=json: 'ascii' codec can't encode character '\xc1' in position 39: ordinal not in range(128)
+
+=== IBAMA Esgotamento Layer 6 ===
+Querying: https://pamgia.ibama.gov.br/server/rest/services/SIGAGEO/Sistema_de_Esgotamento_Sanit%C3%A1rio/MapServer/6?f=json
+
+--- Layer: Sistema de Esgotamento Sanitário (WKID: 4674) ---
+Fields:
+  objectid (esriFieldTypeOID)
+  tp_elemento (esriFieldTypeString)
+  no_empreendedor (esriFieldTypeString)
+  no_empreendimento (esriFieldTypeString)
+  tp_setor (esriFieldTypeString)
+  tp_tipologia (esriFieldTypeString)
+  nu_sei_formatado (esriFieldTypeString)
+  url_licencas_emitidas (esriFieldTypeString)
+  licencas (esriFieldTypeString)
+  shape (esriFieldTypeGeometry)
+
+=== IBAMA Abastecimento Layer 5 ===
+Querying: https://pamgia.ibama.gov.br/server/rest/services/SIGAGEO/Sistema_de_Abastecimento_de_%C3%81gua/MapServer/5?f=json
+
+--- Layer: Sistema de Abastecimento de Água (WKID: 4674) ---
+Fields:
+  objectid (esriFieldTypeOID)
+  tp_elemento (esriFieldTypeString)
+  no_empreendedor (esriFieldTypeString)
+  no_empreendimento (esriFieldTypeString)
+  tp_setor (esriFieldTypeString)
+  tp_tipologia (esriFieldTypeString)
+  nu_sei_formatado (esriFieldTypeString)
+  url_licencas_emitidas (esriFieldTypeString)
+  licencas (esriFieldTypeString)
+  shape (esriFieldTypeGeometry)
+
+=== IBAMA Aterro Layer 8 ===
+Querying: https://pamgia.ibama.gov.br/server/rest/services/SIGAGEO/Aterro_Sanit%C3%A1rio/MapServer/8?f=json
+
+--- Layer: Aterro Sanitário (WKID: 4674) ---
+Fields:
+  objectid (esriFieldTypeOID)
+  tp_elemento (esriFieldTypeString)
+  no_empreendedor (esriFieldTypeString)
+  no_empreendimento (esriFieldTypeString)
+  tp_setor (esriFieldTypeString)
+  tp_tipologia (esriFieldTypeString)
+  nu_sei_formatado (esriFieldTypeString)
+  url_licencas_emitidas (esriFieldTypeString)
+  licencas (esriFieldTypeString)
+  shape (esriFieldTypeGeometry)
+
+=== IBAMA Limites Municipais Layer 0 ===
+Querying: https://pamgia.ibama.gov.br/server/rest/services/SIGAGEO/lim_mun_ibge_250k_2021/MapServer/0?f=json
+
+--- Layer: unknown (WKID: unknown) ---
+Fields:
