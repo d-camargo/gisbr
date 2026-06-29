@@ -1149,7 +1149,7 @@ print(r)  # esperado: sicar em r["ok"], camada no projeto + .gpkg em /tmp
 
 ## [T-011] Painel (dock) do diagnostico
 
-- status: pronta
+- status: concluida
 - responsavel: junior (IMPLEMENTA o codigo; senior verifica depois)
 - fase: diagnostico — Fase B (GUI)
 - branch: `feat/diagnostico-plano-diretor` (ja ativa)
@@ -1331,7 +1331,11 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['gui/diagnostico
 
 ### Resultado
 
-(preencher ao concluir)
+- Criado o painel principal do diagnóstico (`gui/diagnostico_dock.py`) com layout Qt contendo campo de código de município, árvore de fontes dinâmica com checkboxes por eixo (lendo de `SOURCES`), seletor de arquivo de destino do GeoPackage, opção de basemap satélite Maxar/Esri e campo de logs de execução.
+- Integrado o painel `DiagnosticoDock` no ponto de entrada do plugin (`geobr_qgis_plugin.py`) nas funções `initGui` e `unload` conforme especificado (verbatim), adicionando ação no menu "GisBR" e botão na barra de ferramentas.
+- Executado `make test` com sucesso (*sintaxe OK*).
+- Validação AST bem-sucedida para ambos os arquivos.
+- Os arquivos `provider.py` e `algorithms/__init__.py` não foram tocados, mantendo o provider e algoritmos de base intactos.
 
 ---
 
