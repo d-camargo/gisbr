@@ -2020,49 +2020,50 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/connectors
 
 ---
 
-## [T-015] Listar os dados do geobr no painel
+## [T-015] Listar TODAS as bases relevantes do geobr no painel
 
-- status: BLOQUEADA (em expansao — NAO executar a versao abaixo)
+- status: pronta
 - responsavel: junior (IMPLEMENTA; senior verifica)
 - fase: diagnostico — Fase B/C
 - branch: `feat/diagnostico-plano-diretor`
-- contexto: gap apontado pelo Diego — bases que ja temos via geobr nao apareciam
-  no painel.
-
-> ⚠️ **EM REPLANEJAMENTO (Diego, 2026-06-29):** o Diego quer **TODAS** as bases
-> relevantes do geobr funcionando, nao so as 3 que filtram por municipio. O
-> escopo abaixo (3 fontes de Demografia) sera SUBSTITUIDO por uma versao que
-> adiciona **recorte por bbox** para as geografias sem filtro por municipio
-> (schools, health, biomas, UCs, terras indigenas, etc.). NAO implementar a
-> versao abaixo — aguardar o senior reescrever.
+- contexto: Diego quer todas as bases relevantes do geobr funcionando no painel,
+  recortadas pelo municipio.
 
 > **Metodo:** motor vem PRONTO (substitui o arquivo inteiro — verbatim). Em
-> `sources.py` voce INSERE 3 fontes. Senior verifica depois.
+> `sources.py` voce INSERE o bloco de fontes geobr. No dock, troca um dict.
+> Senior verifica depois.
 
-### Decisao de escopo (importante)
+### Escopo (decidido com o Diego, 2026-06-29)
 
-So entram as geografias geobr que **filtram por municipio** (`apply_code_filter`
-com codigo de 7 digitos -> `code_muni`): `read_municipality`,
-`read_census_tract`, `read_weighting_area`. **`read_schools` /
-`read_health_facilities` / `read_neighborhood` ficam de FORA** (tem
-`SUPPORTS_CODE = False` -> despejariam dados nacionais). Esses viram tarefa
-futura (recorte por bbox).
+- **Recorte por municipio**: `code` (filtra por `code_muni` no algoritmo) para
+  Demografia; `bbox` (baixa e recorta pela bounding box do municipio via
+  `native:extractbyextent`) para o resto.
+- **Geografias FORA** (nao fazem sentido na escala municipal): country, region,
+  state, meso/micro/intermediate/immediate_region, metro_area,
+  urban_concentrations, pop_arrangements, health_region, amazon, semiarid.
+- **`read_statistical_grid` ficou de fora / pra depois** (nacional ~GB; caro
+  recortar). Registrado no backlog.
+- **3 fontes so-v2** (favela, polling_places, quilombola_land) entram **com
+  marca** `requer_parquet`: o motor as PULA com aviso se nao houver driver
+  Parquet/pyarrow (nao quebra o plugin).
 
 ### Arquivos permitidos
 
 - `core/diagnostico.py` (substituir o arquivo INTEIRO — Passo 1)
-- `core/sources.py` (INSERIR 3 fontes — Passo 2; nao remover nada)
+- `core/sources.py` (INSERIR o bloco geobr — Passo 2; nao remover nada)
+- `gui/diagnostico_dock.py` (trocar SO o dict `_EIXO_NOMES` — Passo 3)
 
 ### Arquivos proibidos / NAO FACA
 
 - NAO tocar em `core/connectors/**`, `provider.py`, `geobr_qgis_plugin.py`,
-  `gui/**`, `metadata.txt`, `CLAUDE.md`, `algorithms/**`.
+  `algorithms/**`, `metadata.txt`, `CLAUDE.md`.
+- No dock, mexer SO no dict `_EIXO_NOMES` (nada mais).
 
 ### Passo 1 — substituir `core/diagnostico.py` INTEIRO (verbatim)
 
 ```python
 # -*- coding: utf-8 -*-
-"""Motor do diagnostico (ARQUITETURA.md §3.3/§3.5). Protocolos: wfs, arcgis, geobr."""
+"""Motor do diagnostico. Protocolos: wfs, arcgis, geobr (code|bbox)."""
 import os
 
 from qgis.core import QgsProject, QgsVectorLayer, QgsVectorFileWriter
@@ -2123,20 +2124,52 @@ def _grava_gpkg(layer, gpkg_path, layer_name):
     return res[0] == QgsVectorFileWriter.NoError, res[1]
 
 
-def _carrega_geobr(s, code_muni, layer_name):
-    """Roda o algoritmo geobr (Fase 1/2) filtrado por municipio via CODE."""
+def _resolve_out(out, layer_name):
+    if isinstance(out, str):
+        return QgsProject.instance().mapLayer(out) or QgsVectorLayer(out, layer_name, "ogr")
+    return out
+
+
+def _invalida(layer_name, msg):
+    inv = QgsVectorLayer("", layer_name, "ogr")
+    inv.error_msg = msg
+    return inv
+
+
+def _carrega_geobr(s, code_muni, bbox, layer_name):
+    """Roda o algoritmo geobr (Fase 1/2). recorte 'code' filtra por code_muni;
+    recorte 'bbox' baixa e recorta pela bbox do municipio."""
     import processing
+    if s.get("requer_parquet"):
+        from . import capabilities
+        if capabilities.parquet_backend() is None:
+            return _invalida(layer_name, "requer driver Parquet ou pyarrow (fonte v2)")
+
+    algo = s["algo"]
+    recorte = s.get("recorte", "code")
+    code_param = str(code_muni) if recorte == "code" else "all"
     try:
-        out = processing.run("gisbr:{}".format(s["algo"]), {
-            "CODE": str(code_muni), "SIMPLIFIED": True,
-            "OUTPUT": "TEMPORARY_OUTPUT",
+        out = processing.run("gisbr:{}".format(algo), {
+            "CODE": code_param, "SIMPLIFIED": True, "OUTPUT": "TEMPORARY_OUTPUT",
         })["OUTPUT"]
     except Exception as exc:
-        inv = QgsVectorLayer("", layer_name, "ogr")
-        inv.error_msg = "geobr {}: {}".format(s.get("algo"), exc)
-        return inv
-    if isinstance(out, str):
-        out = QgsProject.instance().mapLayer(out) or QgsVectorLayer(out, layer_name, "ogr")
+        return _invalida(layer_name, "geobr {}: {}".format(algo, exc))
+    out = _resolve_out(out, layer_name)
+
+    if recorte == "bbox":
+        if bbox is None:
+            return _invalida(layer_name, "bbox do municipio necessario para esta fonte")
+        if out is None or not out.isValid():
+            return _invalida(layer_name, "geobr {} nao retornou camada".format(algo))
+        try:
+            extent = "{},{},{},{} [EPSG:4674]".format(bbox[0], bbox[2], bbox[1], bbox[3])
+            clip = processing.run("native:extractbyextent", {
+                "INPUT": out, "EXTENT": extent, "CLIP": True,
+                "OUTPUT": "TEMPORARY_OUTPUT",
+            })["OUTPUT"]
+            out = _resolve_out(clip, layer_name)
+        except Exception as exc:
+            return _invalida(layer_name, "recorte bbox: {}".format(exc))
     return out
 
 
@@ -2152,7 +2185,7 @@ def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni):
                                        srs=srs, where=cql,
                                        bbox=(bbox if usa_bbox else None))
     if proto == "geobr":
-        return _carrega_geobr(s, code_muni, layer_name)
+        return _carrega_geobr(s, code_muni, bbox, layer_name)
     return None
 
 
@@ -2210,40 +2243,79 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
     return res
 ```
 
-### Passo 2 — INSERIR 3 fontes geobr em `core/sources.py`
+### Passo 2 — INSERIR o bloco geobr em `core/sources.py`
 
 Inserir logo ANTES do comentario `# --- Contexto ---` (a entrada do basemap),
-sem remover nada. Fontes geobr usam `algo` (nao endpoint/type_name/layer_id):
+sem remover nada:
 
 ```python
-    # --- geobr (dados que ja temos; filtram por municipio via CODE) ---
-    {"id": "geobr_municipio", "eixo": "demografia",
-     "nome": "Limite municipal (IBGE/geobr)",
-     "protocolo": "geobr", "algo": "read_municipality"},
-    {"id": "geobr_setores", "eixo": "demografia",
-     "nome": "Setores censitarios (IBGE/geobr)",
-     "protocolo": "geobr", "algo": "read_census_tract"},
-    {"id": "geobr_ponderacao", "eixo": "demografia",
-     "nome": "Areas de ponderacao (IBGE/geobr)",
-     "protocolo": "geobr", "algo": "read_weighting_area"},
+    # --- geobr v1 (GPKG; sem dependencia externa) ---
+    {"id": "geobr_municipio", "eixo": "demografia", "nome": "Limite municipal (IBGE/geobr)",
+     "protocolo": "geobr", "algo": "read_municipality", "recorte": "code"},
+    {"id": "geobr_setores", "eixo": "demografia", "nome": "Setores censitarios (IBGE/geobr)",
+     "protocolo": "geobr", "algo": "read_census_tract", "recorte": "code"},
+    {"id": "geobr_ponderacao", "eixo": "demografia", "nome": "Areas de ponderacao (IBGE/geobr)",
+     "protocolo": "geobr", "algo": "read_weighting_area", "recorte": "code"},
+    {"id": "geobr_escolas", "eixo": "educacao", "nome": "Escolas (IBGE/geobr)",
+     "protocolo": "geobr", "algo": "read_schools", "recorte": "bbox"},
+    {"id": "geobr_saude", "eixo": "saude", "nome": "Estabelecimentos de saude (IBGE/geobr)",
+     "protocolo": "geobr", "algo": "read_health_facilities", "recorte": "bbox"},
+    {"id": "geobr_biomas", "eixo": "ambiental", "nome": "Biomas (IBGE/geobr)",
+     "protocolo": "geobr", "algo": "read_biomes", "recorte": "bbox"},
+    {"id": "geobr_ucs", "eixo": "ambiental", "nome": "Unidades de conservacao (geobr)",
+     "protocolo": "geobr", "algo": "read_conservation_units", "recorte": "bbox"},
+    {"id": "geobr_terras_indigenas", "eixo": "ambiental", "nome": "Terras indigenas (geobr)",
+     "protocolo": "geobr", "algo": "read_indigenous_land", "recorte": "bbox"},
+    {"id": "geobr_risco", "eixo": "ambiental", "nome": "Areas de risco de desastre (geobr)",
+     "protocolo": "geobr", "algo": "read_disaster_risk_area", "recorte": "bbox"},
+    {"id": "geobr_mancha_urbana", "eixo": "urbano", "nome": "Mancha urbana (IBGE/geobr)",
+     "protocolo": "geobr", "algo": "read_urban_area", "recorte": "bbox"},
+    {"id": "geobr_sede", "eixo": "pol-admin", "nome": "Sede municipal (IBGE/geobr)",
+     "protocolo": "geobr", "algo": "read_municipal_seat", "recorte": "bbox"},
+    {"id": "geobr_bairros", "eixo": "pol-admin", "nome": "Bairros (IBGE/geobr)",
+     "protocolo": "geobr", "algo": "read_neighborhood", "recorte": "bbox"},
+    # --- geobr v2 (so-v2; REQUEREM driver Parquet ou pyarrow; senao sao pulados) ---
+    {"id": "geobr_favelas", "eixo": "demografia", "nome": "Favelas/comunidades (geobr v2)",
+     "protocolo": "geobr", "algo": "read_favela_v2", "recorte": "code", "requer_parquet": True},
+    {"id": "geobr_locais_votacao", "eixo": "pol-admin", "nome": "Locais de votacao (geobr v2)",
+     "protocolo": "geobr", "algo": "read_polling_places_v2", "recorte": "code", "requer_parquet": True},
+    {"id": "geobr_quilombolas", "eixo": "ambiental", "nome": "Terras quilombolas (geobr v2)",
+     "protocolo": "geobr", "algo": "read_quilombola_land_v2", "recorte": "code", "requer_parquet": True},
+```
+
+### Passo 3 — atualizar `_EIXO_NOMES` em `gui/diagnostico_dock.py`
+
+Substituir o dict `_EIXO_NOMES` existente por:
+
+```python
+_EIXO_NOMES = {
+    "transportes": "1. Transportes",
+    "saneamento": "2. Drenagem e Saneamento",
+    "demografia": "3. Demografia",
+    "ambiental": "4. Ambiental",
+    "educacao": "5. Educacao",
+    "saude": "6. Saude",
+    "urbano": "7. Urbano",
+    "pol-admin": "8. Politico-administrativo",
+}
 ```
 
 ### Comandos de verificacao
 
 ```bash
 make test
-python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/diagnostico.py','core/sources.py']]; print('ok')"
+python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/diagnostico.py','core/sources.py','gui/diagnostico_dock.py']]; print('ok')"
 ```
 
-> Validacao funcional (no painel, eixo Demografia: marcar "Setores censitarios"
-> de BH -> deve cair os setores no GeoPackage) e do senior/Diego no QGIS.
+> Validacao funcional (no painel: marcar Setores (code) e Escolas/Biomas (bbox)
+> de BH; conferir recorte; as v2 pulam se nao houver Parquet) e do senior/Diego.
 
 ### Criterios de aceite
 
-- `core/diagnostico.py` = bloco do Passo 1 (com `_carrega_geobr`, protocolo
-  `geobr` no dispatch e em `_PROTOCOLOS`).
-- 3 fontes geobr (`geobr_municipio`, `geobr_setores`, `geobr_ponderacao`)
-  adicionadas; fontes WFS/ArcGIS existentes intactas.
+- `core/diagnostico.py` = Passo 1 (com `_carrega_geobr` recorte code|bbox e a
+  checagem `requer_parquet`).
+- 15 fontes geobr adicionadas (12 v1 + 3 v2 marcadas); WFS/ArcGIS intactas.
+- `_EIXO_NOMES` atualizado; resto do dock intacto.
 - `make test` passa; nenhum arquivo proibido tocado.
 
 ### Resultado
@@ -2361,3 +2433,13 @@ Complemento Plano Diretor (so apos T-001 + T-002 e a decisao de arquitetura):
   (pilha de rede do QGIS, fallback `/vsicurl/`, `data_extracao`) como base dos
   conectores dos eixos.
 - Avaliar reuso de `parecer.py` / `kpis_dock.py` para o relatorio de diagnostico.
+
+Diagnostico — geobr no painel (decisoes de 2026-06-29):
+- **`read_statistical_grid` ficou de FORA / pra depois**: a grade estatistica do
+  IBGE e nacional (~GB); baixar tudo para recortar por bbox e caro. Reavaliar
+  quando houver demanda (ex.: baixar so a folha da grade que cobre o municipio).
+- **Escolas/saude via geobr usam recorte por bbox** (read_schools/health tem
+  `SUPPORTS_CODE=False`): baixam nacional e recortam. Se ficar pesado, migrar
+  para uma fonte com filtro por municipio (ex.: INEP/CNES direto) no futuro.
+- **read_health_region, metro_area, etc.** ficaram de fora (recortes
+  multi-municipio); reabrir se quiserem "a regiao que contem o municipio".
