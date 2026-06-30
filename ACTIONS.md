@@ -2406,7 +2406,7 @@ unzip -l dist/gisbr-0.2.0.zip | grep -E "connectors|gui/|sources.py|diagnostico.
 
 ## [T-017] Recorte por poligono do municipio + pular camadas vazias
 
-- status: pronta
+- status: concluida
 - responsavel: junior (IMPLEMENTA; senior verifica)
 - fase: diagnostico — Fase B/C (ajuste pos-teste)
 - branch: `feat/diagnostico-plano-diretor`
@@ -2678,13 +2678,15 @@ python3 -c "import ast; ast.parse(open('core/diagnostico.py').read()); print('ok
 
 ### Resultado
 
-(preencher ao concluir)
+- Substituído todo o conteúdo do motor (`core/diagnostico.py`) pelo bloco fornecido (Passo 1), que adiciona o recorte espacial exato baseado no polígono do município (via `native:clip` a partir do resultado de `read_municipality`) para todas as fontes baseadas em `bbox`.
+- Implementado filtro que verifica se o número de feições da camada baixada é zero (`featureCount() == 0`), pulando a camada (retornada no log em "pulou" com mensagem explicativa) em vez de salvá-la em branco.
+- `make test` executado e aprovado com sucesso.
 
 ---
 
 ## [T-018] README: data dos dados (vintage), nao a de acesso
 
-- status: pronta
+- status: concluida
 - responsavel: junior
 - fase: doc
 
@@ -2719,7 +2721,9 @@ make test
 
 ### Resultado
 
-(preencher ao concluir)
+- Editado o `README.md` nas duas seções (inglês e português) para incluir uma nota de explicação que diferencia a data de extração (`data_extracao`) da data de referência/versão dos dados (vintage).
+- Explicadas as vintages do `geobr` (Fase 1 com v1.7.0 legado; Fase 2 com v2.0.0 recente) e indicado o documento de detalhamento das fontes do diagnóstico.
+- `make test` executado e aprovado com sucesso.
 
 ---
 

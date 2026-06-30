@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Motor do diagnostico. Protocolos: wfs, arcgis, geobr (code|bbox)."""
+"""Motor do diagnostico. Protocolos: wfs, arcgis, geobr (code|bbox).
+
+Fontes filtradas por bbox sao recortadas pelo POLIGONO do municipio (native:clip)
+para nao trazer feicoes de municipios vizinhos. Camadas sem feicoes sao puladas
+com aviso no Log.
+"""
 import os
 
 from qgis.core import QgsProject, QgsVectorLayer, QgsVectorFileWriter
@@ -31,6 +36,12 @@ def _filtro_para(s, code_muni, nome_muni):
         nome = (nome_muni or "").replace("'", "''")
         return "{} = '{}'".format(f["campo"], nome), False
     return None, True
+
+
+def _usou_bbox(s, usa_bbox):
+    if s.get("protocolo") == "geobr":
+        return s.get("recorte", "code") == "bbox"
+    return usa_bbox
 
 
 def _layers_existentes(gpkg_path):
@@ -72,41 +83,47 @@ def _invalida(layer_name, msg):
     return inv
 
 
-def _carrega_geobr(s, code_muni, bbox, layer_name):
-    """Roda o algoritmo geobr (Fase 1/2). recorte 'code' filtra por code_muni;
-    recorte 'bbox' baixa e recorta pela bbox do municipio."""
+def _municipio_poligono(code_muni):
+    """Poligono do municipio (read_municipality) p/ recorte. None se falhar."""
+    import processing
+    try:
+        out = processing.run("gisbr:read_municipality", {
+            "CODE": str(code_muni), "SIMPLIFIED": True, "OUTPUT": "TEMPORARY_OUTPUT",
+        })["OUTPUT"]
+    except Exception:
+        return None
+    out = _resolve_out(out, "municipio")
+    return out if (out is not None and out.isValid()) else None
+
+
+def _recorta_poligono(layer, poligono, layer_name):
+    import processing
+    try:
+        out = processing.run("native:clip", {
+            "INPUT": layer, "OVERLAY": poligono, "OUTPUT": "TEMPORARY_OUTPUT",
+        })["OUTPUT"]
+        return _resolve_out(out, layer_name)
+    except Exception as exc:
+        return _invalida(layer_name, "recorte por poligono: {}".format(exc))
+
+
+def _carrega_geobr(s, code_muni, layer_name):
+    """recorte 'code' filtra por code_muni; 'bbox' baixa nacional (sera recortado
+    pelo poligono no carregar_fontes)."""
     import processing
     if s.get("requer_parquet"):
         from . import capabilities
         if capabilities.parquet_backend() is None:
             return _invalida(layer_name, "requer driver Parquet ou pyarrow (fonte v2)")
-
     algo = s["algo"]
-    recorte = s.get("recorte", "code")
-    code_param = str(code_muni) if recorte == "code" else "all"
+    code_param = str(code_muni) if s.get("recorte", "code") == "code" else "all"
     try:
         out = processing.run("gisbr:{}".format(algo), {
             "CODE": code_param, "SIMPLIFIED": True, "OUTPUT": "TEMPORARY_OUTPUT",
         })["OUTPUT"]
     except Exception as exc:
         return _invalida(layer_name, "geobr {}: {}".format(algo, exc))
-    out = _resolve_out(out, layer_name)
-
-    if recorte == "bbox":
-        if bbox is None:
-            return _invalida(layer_name, "bbox do municipio necessario para esta fonte")
-        if out is None or not out.isValid():
-            return _invalida(layer_name, "geobr {} nao retornou camada".format(algo))
-        try:
-            extent = "{},{},{},{} [EPSG:4674]".format(bbox[0], bbox[2], bbox[1], bbox[3])
-            clip = processing.run("native:extractbyextent", {
-                "INPUT": out, "EXTENT": extent, "CLIP": True,
-                "OUTPUT": "TEMPORARY_OUTPUT",
-            })["OUTPUT"]
-            out = _resolve_out(clip, layer_name)
-        except Exception as exc:
-            return _invalida(layer_name, "recorte bbox: {}".format(exc))
-    return out
+    return _resolve_out(out, layer_name)
 
 
 def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni):
@@ -121,7 +138,7 @@ def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni):
                                        srs=srs, where=cql,
                                        bbox=(bbox if usa_bbox else None))
     if proto == "geobr":
-        return _carrega_geobr(s, code_muni, bbox, layer_name)
+        return _carrega_geobr(s, code_muni, layer_name)
     return None
 
 
@@ -134,6 +151,8 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
     uf = _UF_POR_CODIGO.get(str(code_muni)[:2], "").lower()
     res = {"ok": [], "falhou": [], "pulou": []}
     existentes = _layers_existentes(gpkg_path)
+    poligono = None
+    poligono_tentado = False
 
     for s in _por_id(source_ids):
         proto = s.get("protocolo")
@@ -154,6 +173,27 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             msg = getattr(layer, "error_msg", "camada invalida") if layer else "protocolo desconhecido"
             res["falhou"].append((s["id"], msg))
             continue
+
+        # base nao retornou nada (ex.: aterro sem feicao no municipio)
+        if layer.featureCount() == 0:
+            res["pulou"].append((s["id"], "sem feicoes para este municipio (base nao retornou nada)"))
+            continue
+
+        # fontes filtradas por bbox -> recorta pelo POLIGONO do municipio
+        if _usou_bbox(s, usa_bbox):
+            if not poligono_tentado:
+                poligono = _municipio_poligono(code_muni)
+                poligono_tentado = True
+            if poligono is None:
+                res["falhou"].append((s["id"], "nao obtive o poligono do municipio p/ recorte"))
+                continue
+            layer = _recorta_poligono(layer, poligono, layer_name)
+            if layer is None or not layer.isValid():
+                res["falhou"].append((s["id"], getattr(layer, "error_msg", "falha no recorte")))
+                continue
+            if layer.featureCount() == 0:
+                res["pulou"].append((s["id"], "sem feicoes dentro do municipio (apos recorte)"))
+                continue
 
         ok, msg = _grava_gpkg(layer, gpkg_path, layer_name)
         if not ok:
