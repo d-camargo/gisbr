@@ -2727,6 +2727,80 @@ make test
 
 ---
 
+## [T-019] Corrigir a ordem dos grupos (eixos) no painel
+
+- status: pronta
+- responsavel: junior (IMPLEMENTA; senior verifica)
+- fase: diagnostico — Fase B (ajuste de UI)
+- branch: `feat/diagnostico-plano-diretor`
+- contexto: no painel os grupos aparecem fora de ordem (1, 2, 4, 3, 5...). Os
+  rotulos estao certos; o problema e que a arvore cria os grupos na ordem em que
+  os eixos aparecem em `SOURCES`, nao na ordem de `_EIXO_NOMES`.
+
+> **Metodo:** edicao pontual no `_build_ui` do dock. So `gui/diagnostico_dock.py`.
+
+### Arquivos permitidos
+
+- `gui/diagnostico_dock.py` (substituir SO o trecho de montagem da arvore)
+
+### Arquivos proibidos / NAO FACA
+
+- NAO tocar em mais nada. NAO mexer em `_EIXO_NOMES` (ja esta certo).
+- Preservar o comportamento dos checkboxes e do `setData(0, Qt.UserRole, id)`.
+
+### Passo unico
+
+Em `gui/diagnostico_dock.py`, no `_build_ui`, SUBSTITUIR o trecho que vai do
+comentario `# Agrupar fontes por eixo` ate (inclusive) a linha
+`self.tree.expandAll()` por EXATAMENTE:
+
+```python
+        # Agrupar fontes por eixo, na ORDEM definida em _EIXO_NOMES (1..8)
+        sources_por_eixo = {}
+        for s in SOURCES:
+            if s.get("protocolo") == "basemap":
+                continue
+            sources_por_eixo.setdefault(s.get("eixo", "outros"), []).append(s)
+
+        ordem = list(_EIXO_NOMES) + [e for e in sources_por_eixo if e not in _EIXO_NOMES]
+        for eixo_id in ordem:
+            fontes = sources_por_eixo.get(eixo_id)
+            if not fontes:
+                continue
+            eixo_nome = _EIXO_NOMES.get(eixo_id, eixo_id.capitalize())
+            parent_item = QTreeWidgetItem(self.tree, [eixo_nome])
+            for s in fontes:
+                child_item = QTreeWidgetItem(parent_item, [s.get("nome", s["id"])])
+                child_item.setFlags(child_item.flags() | Qt.ItemIsUserCheckable)
+                child_item.setCheckState(0, Qt.Unchecked)
+                child_item.setData(0, Qt.UserRole, s["id"])
+
+        self.tree.expandAll()
+```
+
+### Comandos de verificacao
+
+```bash
+make test
+python3 -c "import ast; ast.parse(open('gui/diagnostico_dock.py').read()); print('ok')"
+```
+
+> Validacao funcional (abrir o painel: grupos em 1..8 na ordem certa) e do
+> senior/Diego no QGIS.
+
+### Criterios de aceite
+
+- Os grupos do painel aparecem na ordem de `_EIXO_NOMES` (1. Transportes,
+  2. Saneamento, 3. Demografia, 4. Ambiental, 5. Educacao, 6. Saude, 7. Urbano,
+  8. Pol-admin), independente da ordem em `SOURCES`.
+- Checkboxes e `UserRole` (id) preservados; `make test` passa; so o dock tocado.
+
+### Resultado
+
+(preencher ao concluir)
+
+---
+
 ### Backlog / ideias (ainda nao viram tarefa)
 
 Itens conhecidos do roadmap, mantidos como referencia (nao executar ate virarem
