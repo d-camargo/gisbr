@@ -2022,12 +2022,19 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/connectors
 
 ## [T-015] Listar os dados do geobr no painel
 
-- status: pronta
+- status: BLOQUEADA (em expansao — NAO executar a versao abaixo)
 - responsavel: junior (IMPLEMENTA; senior verifica)
 - fase: diagnostico — Fase B/C
 - branch: `feat/diagnostico-plano-diretor`
 - contexto: gap apontado pelo Diego — bases que ja temos via geobr nao apareciam
   no painel.
+
+> ⚠️ **EM REPLANEJAMENTO (Diego, 2026-06-29):** o Diego quer **TODAS** as bases
+> relevantes do geobr funcionando, nao so as 3 que filtram por municipio. O
+> escopo abaixo (3 fontes de Demografia) sera SUBSTITUIDO por uma versao que
+> adiciona **recorte por bbox** para as geografias sem filtro por municipio
+> (schools, health, biomas, UCs, terras indigenas, etc.). NAO implementar a
+> versao abaixo — aguardar o senior reescrever.
 
 > **Metodo:** motor vem PRONTO (substitui o arquivo inteiro — verbatim). Em
 > `sources.py` voce INSERE 3 fontes. Senior verifica depois.
