@@ -2404,6 +2404,325 @@ unzip -l dist/gisbr-0.2.0.zip | grep -E "connectors|gui/|sources.py|diagnostico.
 
 ---
 
+## [T-017] Recorte por poligono do municipio + pular camadas vazias
+
+- status: pronta
+- responsavel: junior (IMPLEMENTA; senior verifica)
+- fase: diagnostico — Fase B/C (ajuste pos-teste)
+- branch: `feat/diagnostico-plano-diretor`
+- contexto: teste real em Contagem (RMBH). Fontes filtradas por **bbox** traziam
+  feicoes de municipios vizinhos (escolas/saude/bairros) e a mancha urbana
+  transbordava; o Aterro (IBAMA) veio camada vazia/tabela.
+
+> **Metodo:** motor vem PRONTO (substitui o arquivo INTEIRO — verbatim). So
+> `core/diagnostico.py`. Senior verifica depois.
+
+### O que muda
+
+1. Fontes filtradas por **bbox** (geobr `recorte:bbox` e WFS/ArcGIS com filtro
+   bbox) passam a ser **recortadas pelo POLIGONO do municipio** (`native:clip`
+   com a geometria de `read_municipality`), nao mais pelo retangulo. Resolve
+   pontos/poligonos de municipios vizinhos e a mancha urbana transbordando.
+2. Camadas com **0 feicoes** sao **puladas** (entram em `pulou` com aviso no
+   Log: "sem feicoes para este municipio"), em vez de virar camada vazia/tabela.
+
+### Arquivos permitidos
+
+- `core/diagnostico.py` (substituir o arquivo INTEIRO pelo bloco abaixo)
+
+### Arquivos proibidos / NAO FACA
+
+- NAO tocar em mais nada (`core/sources.py`, `core/connectors/**`, `gui/**`,
+  `provider.py`, `metadata.txt`, `CLAUDE.md`).
+
+### Passo unico — substituir `core/diagnostico.py` INTEIRO (verbatim)
+
+```python
+# -*- coding: utf-8 -*-
+"""Motor do diagnostico. Protocolos: wfs, arcgis, geobr (code|bbox).
+
+Fontes filtradas por bbox sao recortadas pelo POLIGONO do municipio (native:clip)
+para nao trazer feicoes de municipios vizinhos. Camadas sem feicoes sao puladas
+com aviso no Log.
+"""
+import os
+
+from qgis.core import QgsProject, QgsVectorLayer, QgsVectorFileWriter
+
+from .connectors import wfs, basemap, arcgis_rest
+from .sources import SOURCES
+
+_UF_POR_CODIGO = {
+    "11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16": "AP",
+    "17": "TO", "21": "MA", "22": "PI", "23": "CE", "24": "RN", "25": "PB",
+    "26": "PE", "27": "AL", "28": "SE", "29": "BA", "31": "MG", "32": "ES",
+    "33": "RJ", "35": "SP", "41": "PR", "42": "SC", "43": "RS", "50": "MS",
+    "51": "MT", "52": "GO", "53": "DF",
+}
+
+_PROTOCOLOS = ("wfs", "arcgis", "geobr")
+
+
+def _por_id(ids):
+    return [s for s in SOURCES if s["id"] in ids]
+
+
+def _filtro_para(s, code_muni, nome_muni):
+    f = s.get("filtro") or {"tipo": "bbox"}
+    t = f.get("tipo")
+    if t == "cql_codigo":
+        return "{} = {}".format(f["campo"], int(code_muni)), False
+    if t == "cql_nome":
+        nome = (nome_muni or "").replace("'", "''")
+        return "{} = '{}'".format(f["campo"], nome), False
+    return None, True
+
+
+def _usou_bbox(s, usa_bbox):
+    if s.get("protocolo") == "geobr":
+        return s.get("recorte", "code") == "bbox"
+    return usa_bbox
+
+
+def _layers_existentes(gpkg_path):
+    if not os.path.exists(gpkg_path):
+        return set()
+    vl = QgsVectorLayer(gpkg_path, "probe", "ogr")
+    if not vl.isValid():
+        return set()
+    nomes = set()
+    for sub in vl.dataProvider().subLayers():
+        parts = sub.split("!!::!!")
+        if len(parts) > 1:
+            nomes.add(parts[1])
+    return nomes
+
+
+def _grava_gpkg(layer, gpkg_path, layer_name):
+    opts = QgsVectorFileWriter.SaveVectorOptions()
+    opts.driverName = "GPKG"
+    opts.layerName = layer_name
+    opts.actionOnExistingFile = (
+        QgsVectorFileWriter.CreateOrOverwriteLayer if os.path.exists(gpkg_path)
+        else QgsVectorFileWriter.CreateOrOverwriteFile
+    )
+    ctx = QgsProject.instance().transformContext()
+    res = QgsVectorFileWriter.writeAsVectorFormatV3(layer, gpkg_path, ctx, opts)
+    return res[0] == QgsVectorFileWriter.NoError, res[1]
+
+
+def _resolve_out(out, layer_name):
+    if isinstance(out, str):
+        return QgsProject.instance().mapLayer(out) or QgsVectorLayer(out, layer_name, "ogr")
+    return out
+
+
+def _invalida(layer_name, msg):
+    inv = QgsVectorLayer("", layer_name, "ogr")
+    inv.error_msg = msg
+    return inv
+
+
+def _municipio_poligono(code_muni):
+    """Poligono do municipio (read_municipality) p/ recorte. None se falhar."""
+    import processing
+    try:
+        out = processing.run("gisbr:read_municipality", {
+            "CODE": str(code_muni), "SIMPLIFIED": True, "OUTPUT": "TEMPORARY_OUTPUT",
+        })["OUTPUT"]
+    except Exception:
+        return None
+    out = _resolve_out(out, "municipio")
+    return out if (out is not None and out.isValid()) else None
+
+
+def _recorta_poligono(layer, poligono, layer_name):
+    import processing
+    try:
+        out = processing.run("native:clip", {
+            "INPUT": layer, "OVERLAY": poligono, "OUTPUT": "TEMPORARY_OUTPUT",
+        })["OUTPUT"]
+        return _resolve_out(out, layer_name)
+    except Exception as exc:
+        return _invalida(layer_name, "recorte por poligono: {}".format(exc))
+
+
+def _carrega_geobr(s, code_muni, layer_name):
+    """recorte 'code' filtra por code_muni; 'bbox' baixa nacional (sera recortado
+    pelo poligono no carregar_fontes)."""
+    import processing
+    if s.get("requer_parquet"):
+        from . import capabilities
+        if capabilities.parquet_backend() is None:
+            return _invalida(layer_name, "requer driver Parquet ou pyarrow (fonte v2)")
+    algo = s["algo"]
+    code_param = str(code_muni) if s.get("recorte", "code") == "code" else "all"
+    try:
+        out = processing.run("gisbr:{}".format(algo), {
+            "CODE": code_param, "SIMPLIFIED": True, "OUTPUT": "TEMPORARY_OUTPUT",
+        })["OUTPUT"]
+    except Exception as exc:
+        return _invalida(layer_name, "geobr {}: {}".format(algo, exc))
+    return _resolve_out(out, layer_name)
+
+
+def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni):
+    proto = s.get("protocolo")
+    srs = s.get("srs", "EPSG:4674")
+    if proto == "wfs":
+        type_name = s["type_name"].replace("{uf}", uf)
+        return wfs.fetch_layer(s["endpoint"], type_name, layer_name, srs=srs,
+                               cql_filter=cql, bbox=(bbox if usa_bbox else None))
+    if proto == "arcgis":
+        return arcgis_rest.fetch_layer(s["endpoint"], s["layer_id"], layer_name,
+                                       srs=srs, where=cql,
+                                       bbox=(bbox if usa_bbox else None))
+    if proto == "geobr":
+        return _carrega_geobr(s, code_muni, layer_name)
+    return None
+
+
+def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
+                    add_basemap=False, force=False, feedback=None):
+    def log(m):
+        if feedback is not None:
+            feedback.pushInfo(m)
+
+    uf = _UF_POR_CODIGO.get(str(code_muni)[:2], "").lower()
+    res = {"ok": [], "falhou": [], "pulou": []}
+    existentes = _layers_existentes(gpkg_path)
+    poligono = None
+    poligono_tentado = False
+
+    for s in _por_id(source_ids):
+        proto = s.get("protocolo")
+        if proto == "basemap":
+            continue
+        if proto not in _PROTOCOLOS:
+            res["pulou"].append((s["id"], "conector {} ainda nao implementado".format(proto)))
+            continue
+
+        layer_name = "{}_{}".format(s["id"], code_muni)
+        if (not force) and layer_name in existentes:
+            res["pulou"].append((s["id"], "ja existe no GeoPackage ({})".format(layer_name)))
+            continue
+
+        cql, usa_bbox = _filtro_para(s, code_muni, nome_muni)
+        layer = _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni)
+        if layer is None or not layer.isValid():
+            msg = getattr(layer, "error_msg", "camada invalida") if layer else "protocolo desconhecido"
+            res["falhou"].append((s["id"], msg))
+            continue
+
+        # base nao retornou nada (ex.: aterro sem feicao no municipio)
+        if layer.featureCount() == 0:
+            res["pulou"].append((s["id"], "sem feicoes para este municipio (base nao retornou nada)"))
+            continue
+
+        # fontes filtradas por bbox -> recorta pelo POLIGONO do municipio
+        if _usou_bbox(s, usa_bbox):
+            if not poligono_tentado:
+                poligono = _municipio_poligono(code_muni)
+                poligono_tentado = True
+            if poligono is None:
+                res["falhou"].append((s["id"], "nao obtive o poligono do municipio p/ recorte"))
+                continue
+            layer = _recorta_poligono(layer, poligono, layer_name)
+            if layer is None or not layer.isValid():
+                res["falhou"].append((s["id"], getattr(layer, "error_msg", "falha no recorte")))
+                continue
+            if layer.featureCount() == 0:
+                res["pulou"].append((s["id"], "sem feicoes dentro do municipio (apos recorte)"))
+                continue
+
+        ok, msg = _grava_gpkg(layer, gpkg_path, layer_name)
+        if not ok:
+            res["falhou"].append((s["id"], "gravar GeoPackage: {}".format(msg)))
+            continue
+        existentes.add(layer_name)
+
+        nome_proj = "{} - {}".format(s.get("nome", s["id"]), nome_muni or code_muni)
+        gl = QgsVectorLayer("{}|layername={}".format(gpkg_path, layer_name), nome_proj, "ogr")
+        if gl.isValid():
+            QgsProject.instance().addMapLayer(gl)
+            res["ok"].append(s["id"])
+            log("OK: {}".format(layer_name))
+        else:
+            res["falhou"].append((s["id"], "camada do GeoPackage invalida"))
+
+    if add_basemap:
+        bl = basemap.satellite_layer()
+        if bl.isValid():
+            QgsProject.instance().addMapLayer(bl)
+            log("basemap de satelite adicionado")
+
+    return res
+```
+
+### Comandos de verificacao
+
+```bash
+make test
+python3 -c "import ast; ast.parse(open('core/diagnostico.py').read()); print('ok')"
+```
+
+> Validacao funcional (Contagem: escolas/saude/bairros so DENTRO do municipio;
+> mancha urbana cortada no limite; aterro -> "pulou: sem feicoes") e do
+> senior/Diego no QGIS.
+
+### Criterios de aceite
+
+- `core/diagnostico.py` = bloco acima (com `_municipio_poligono`,
+  `_recorta_poligono`, `_usou_bbox` e os dois checks de `featureCount() == 0`).
+- `make test` passa; nenhum outro arquivo tocado.
+
+### Resultado
+
+(preencher ao concluir)
+
+---
+
+## [T-018] README: data dos dados (vintage), nao a de acesso
+
+- status: pronta
+- responsavel: junior
+- fase: doc
+
+### Objetivo
+
+No `README.md`, acrescentar (nas DUAS secoes, EN e PT) uma nota curta com a
+**data/versao dos DADOS** (vintage), distinta da data de extracao. Ex.: geobr
+**v1.7.0** (anos do IBGE ate ~2020) e **v2.0.0** (ate 2022/2025); para as fontes
+do diagnostico, citar que cada base traz sua vintage (ver
+`docs/diagnostico-plano-diretor/fontes-detalhe.md`, ex.: DNIT `snv_202507a` =
+jul/2025). Deixar claro: a camada tambem grava `data_extracao` (quando foi
+baixada), que e DIFERENTE da data dos dados.
+
+### Arquivos permitidos
+
+- `README.md`
+
+### Arquivos proibidos
+
+- qualquer `.py`, `metadata.txt`, `CLAUDE.md`.
+
+### Comandos de verificacao
+
+```bash
+make test
+```
+
+### Criterios de aceite
+
+- README (EN e PT) com uma nota de "data dos dados / data vintage" distinta da
+  data de extracao.
+
+### Resultado
+
+(preencher ao concluir)
+
+---
+
 ### Backlog / ideias (ainda nao viram tarefa)
 
 Itens conhecidos do roadmap, mantidos como referencia (nao executar ate virarem
