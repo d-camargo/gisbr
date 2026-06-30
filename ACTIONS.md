@@ -2729,7 +2729,7 @@ make test
 
 ## [T-019] Corrigir a ordem dos grupos (eixos) no painel
 
-- status: pronta
+- status: concluida
 - responsavel: junior (IMPLEMENTA; senior verifica)
 - fase: diagnostico — Fase B (ajuste de UI)
 - branch: `feat/diagnostico-plano-diretor`
@@ -2797,7 +2797,8 @@ python3 -c "import ast; ast.parse(open('gui/diagnostico_dock.py').read()); print
 
 ### Resultado
 
-(preencher ao concluir)
+- Editado o `gui/diagnostico_dock.py` no método `_build_ui` para agrupar e ordenar as fontes da árvore de acordo com a definição estrita de `_EIXO_NOMES` (1. Transportes a 8. Pol-admin), mantendo as propriedades dos checkboxes e IDs originais.
+- `make test` executado e aprovado com sucesso.
 
 ---
 

@@ -80,22 +80,25 @@ class DiagnosticoDock(QgsDockWidget):
         self.tree = QTreeWidget()
         self.tree.setHeaderLabel("Eixos e Camadas")
         
-        # Agrupar fontes por eixo
-        eixos_items = {}
+        # Agrupar fontes por eixo, na ORDEM definida em _EIXO_NOMES (1..8)
+        sources_por_eixo = {}
         for s in SOURCES:
             if s.get("protocolo") == "basemap":
                 continue
-            eixo_id = s.get("eixo", "outros")
-            if eixo_id not in eixos_items:
-                eixo_nome = _EIXO_NOMES.get(eixo_id, eixo_id.capitalize())
-                parent_item = QTreeWidgetItem(self.tree, [eixo_nome])
-                eixos_items[eixo_id] = parent_item
-            
-            parent_item = eixos_items[eixo_id]
-            child_item = QTreeWidgetItem(parent_item, [s.get("nome", s["id"])])
-            child_item.setFlags(child_item.flags() | Qt.ItemIsUserCheckable)
-            child_item.setCheckState(0, Qt.Unchecked)
-            child_item.setData(0, Qt.UserRole, s["id"])
+            sources_por_eixo.setdefault(s.get("eixo", "outros"), []).append(s)
+
+        ordem = list(_EIXO_NOMES) + [e for e in sources_por_eixo if e not in _EIXO_NOMES]
+        for eixo_id in ordem:
+            fontes = sources_por_eixo.get(eixo_id)
+            if not fontes:
+                continue
+            eixo_nome = _EIXO_NOMES.get(eixo_id, eixo_id.capitalize())
+            parent_item = QTreeWidgetItem(self.tree, [eixo_nome])
+            for s in fontes:
+                child_item = QTreeWidgetItem(parent_item, [s.get("nome", s["id"])])
+                child_item.setFlags(child_item.flags() | Qt.ItemIsUserCheckable)
+                child_item.setCheckState(0, Qt.Unchecked)
+                child_item.setData(0, Qt.UserRole, s["id"])
 
         self.tree.expandAll()
         layout.addWidget(self.tree)
