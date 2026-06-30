@@ -2245,13 +2245,22 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/diagnostic
 
 ---
 
-## [T-016] Gerar o .zip de publicacao (a partir da MAIN)
+## [T-016] Gerar o .zip de publicacao
 
-- status: pronta
+- status: BLOQUEADA (replanejada — ver nota)
+- libera quando: (1) diagnostico validado no QGIS pelo Diego; (2) senior
+  atualizar `metadata.txt` (descricao do diagnostico + versao 0.3.0).
 - responsavel: junior
 - fase: release
-- contexto: publicar o **espelho geobr** (Fases 1+2, GisBR 0.2.0) no repositorio
-  oficial do QGIS. O **diagnostico (branch feat) NAO entra** nesta publicacao.
+
+> ⚠️ **MUDANCA DE PLANO (Diego, 2026-06-29):** a publicacao passa a incluir o
+> **diagnostico completo** (painel + conectores + T-015), nao so o espelho geobr.
+> Logo o zip sai da branch **`feat/diagnostico-plano-diretor`** (que tem tudo),
+> NAO mais da `main`. O texto antigo abaixo (zip da `main`) esta **obsoleto** e
+> sera reescrito pelo senior quando a validacao + o metadata estiverem prontos.
+> NAO executar esta tarefa ainda.
+
+- contexto (obsoleto): publicar o espelho geobr a partir da `main`.
 
 > Usa a skill **`build-qgis-zip`** (NAO montar o zip a mao). A submissao no
 > plugins.qgis.org e passo MANUAL do Diego — esta tarefa so gera o arquivo.
