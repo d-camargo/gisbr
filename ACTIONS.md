@@ -1727,6 +1727,323 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/diagnostic
 
 ---
 
+## [T-012] Conector ArcGIS REST + fontes ANA/IBAMA (Fase C)
+
+- status: pronta
+- responsavel: junior (IMPLEMENTA; senior verifica)
+- fase: diagnostico — Fase C
+- branch: `feat/diagnostico-plano-diretor`
+- contexto: `ARQUITETURA.md` §3.2 ; fontes em `fontes-detalhe.md` (T-007).
+  Hoje o motor "pula" protocolo `arcgis`; esta tarefa habilita.
+
+> **Metodo:** conector e motor vem PRONTOS (verbatim). Em `sources.py` voce
+> INSERE os blocos indicados. Senior verifica depois.
+
+### Arquivos permitidos
+
+- `core/connectors/arcgis_rest.py` (criar — Passo 1)
+- `core/diagnostico.py` (substituir o arquivo INTEIRO — Passo 2)
+- `core/sources.py` (INSERIR as 5 fontes do Passo 3; nao remover nada)
+
+### Arquivos proibidos / NAO FACA
+
+- NAO tocar em `core/connectors/wfs.py`, `core/connectors/basemap.py`,
+  `provider.py`, `geobr_qgis_plugin.py`, `gui/**`, `metadata.txt`, `CLAUDE.md`.
+- NAO remover fontes existentes do `sources.py` (so adicionar).
+
+### Passo 1 — criar `core/connectors/arcgis_rest.py` (verbatim)
+
+```python
+# -*- coding: utf-8 -*-
+"""Conector ArcGIS REST (FeatureServer/MapServer) do diagnostico.
+
+Consulta a operacao /query da layer (f=geojson) pela pilha de rede do QGIS;
+filtro por `where` (campo municipal) OU por bbox (esriGeometryEnvelope).
+Retorna QgsVectorLayer (so MONTA; gravar/adicionar e do motor).
+"""
+from datetime import datetime
+import tempfile
+import urllib.parse
+
+from qgis.core import QgsVectorLayer, QgsBlockingNetworkRequest
+from qgis.PyQt.QtCore import QUrl
+from qgis.PyQt.QtNetwork import QNetworkRequest
+
+_UA = "GisBR-QGIS/0.2 (diagnostico Plano Diretor)"
+
+
+def _stamp(layer, fonte):
+    layer.setCustomProperty("data_extracao", datetime.now().strftime("%Y-%m-%d"))
+    layer.setCustomProperty("fonte", fonte)
+    return layer
+
+
+def _invalid(layer_name, msg):
+    layer = QgsVectorLayer("", layer_name, "ogr")
+    layer.error_msg = msg
+    return layer
+
+
+def _layer_from_geojson_bytes(data, layer_name):
+    tmp = tempfile.NamedTemporaryFile(suffix=".geojson", delete=False)
+    tmp.write(data)
+    tmp.close()
+    return QgsVectorLayer(tmp.name, layer_name, "ogr")
+
+
+def build_url(endpoint, layer_id, srs="EPSG:4674", where=None, bbox=None):
+    wkid = srs.split(":")[-1]
+    params = {"outFields": "*", "f": "geojson", "outSR": wkid,
+              "where": where or "1=1"}
+    if bbox is not None:
+        minx, miny, maxx, maxy = bbox
+        params["geometry"] = "{},{},{},{}".format(minx, miny, maxx, maxy)
+        params["geometryType"] = "esriGeometryEnvelope"
+        params["inSR"] = wkid
+        params["spatialRel"] = "esriSpatialRelIntersects"
+    base = "{}/{}/query".format(endpoint.rstrip("/"), layer_id)
+    return base + "?" + urllib.parse.urlencode(params)
+
+
+def fetch_layer(endpoint, layer_id, layer_name, srs="EPSG:4674", where=None, bbox=None):
+    url = build_url(endpoint, layer_id, srs=srs, where=where, bbox=bbox)
+    erro = None
+    try:
+        req = QNetworkRequest(QUrl(url))
+        req.setRawHeader(b"User-Agent", _UA.encode("utf-8"))
+        blocking = QgsBlockingNetworkRequest()
+        blocking.get(req, True)
+        reply = blocking.reply()
+        data = bytes(reply.content())
+        if data:
+            layer = _layer_from_geojson_bytes(data, layer_name)
+            if layer.isValid():
+                return _stamp(layer, "ArcGIS REST (GeoJSON)")
+            erro = "GeoJSON recebido, mas o GDAL nao abriu a camada."
+        else:
+            erro = reply.errorString() or "resposta vazia"
+    except Exception as exc:
+        erro = "{}: {}".format(type(exc).__name__, exc)
+    layer = QgsVectorLayer("/vsicurl/" + url, layer_name, "ogr")
+    if layer.isValid():
+        return _stamp(layer, "ArcGIS REST (GeoJSON/vsicurl)")
+    return _invalid(layer_name, "Falha ArcGIS ({}/{}). {}".format(endpoint, layer_id, erro or ""))
+```
+
+### Passo 2 — substituir `core/diagnostico.py` INTEIRO (verbatim)
+
+```python
+# -*- coding: utf-8 -*-
+"""Motor do diagnostico (ARQUITETURA.md §3.3/§3.5). Protocolos: wfs, arcgis."""
+import os
+
+from qgis.core import QgsProject, QgsVectorLayer, QgsVectorFileWriter
+
+from .connectors import wfs, basemap, arcgis_rest
+from .sources import SOURCES
+
+_UF_POR_CODIGO = {
+    "11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16": "AP",
+    "17": "TO", "21": "MA", "22": "PI", "23": "CE", "24": "RN", "25": "PB",
+    "26": "PE", "27": "AL", "28": "SE", "29": "BA", "31": "MG", "32": "ES",
+    "33": "RJ", "35": "SP", "41": "PR", "42": "SC", "43": "RS", "50": "MS",
+    "51": "MT", "52": "GO", "53": "DF",
+}
+
+
+def _por_id(ids):
+    return [s for s in SOURCES if s["id"] in ids]
+
+
+def _filtro_para(s, code_muni, nome_muni):
+    f = s.get("filtro") or {"tipo": "bbox"}
+    t = f.get("tipo")
+    if t == "cql_codigo":
+        return "{} = {}".format(f["campo"], int(code_muni)), False
+    if t == "cql_nome":
+        nome = (nome_muni or "").replace("'", "''")
+        return "{} = '{}'".format(f["campo"], nome), False
+    return None, True
+
+
+def _layers_existentes(gpkg_path):
+    if not os.path.exists(gpkg_path):
+        return set()
+    vl = QgsVectorLayer(gpkg_path, "probe", "ogr")
+    if not vl.isValid():
+        return set()
+    nomes = set()
+    for sub in vl.dataProvider().subLayers():
+        parts = sub.split("!!::!!")
+        if len(parts) > 1:
+            nomes.add(parts[1])
+    return nomes
+
+
+def _grava_gpkg(layer, gpkg_path, layer_name):
+    opts = QgsVectorFileWriter.SaveVectorOptions()
+    opts.driverName = "GPKG"
+    opts.layerName = layer_name
+    opts.actionOnExistingFile = (
+        QgsVectorFileWriter.CreateOrOverwriteLayer if os.path.exists(gpkg_path)
+        else QgsVectorFileWriter.CreateOrOverwriteFile
+    )
+    ctx = QgsProject.instance().transformContext()
+    res = QgsVectorFileWriter.writeAsVectorFormatV3(layer, gpkg_path, ctx, opts)
+    return res[0] == QgsVectorFileWriter.NoError, res[1]
+
+
+def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox):
+    proto = s.get("protocolo")
+    srs = s.get("srs", "EPSG:4674")
+    if proto == "wfs":
+        type_name = s["type_name"].replace("{uf}", uf)
+        return wfs.fetch_layer(s["endpoint"], type_name, layer_name, srs=srs,
+                               cql_filter=cql, bbox=(bbox if usa_bbox else None))
+    if proto == "arcgis":
+        return arcgis_rest.fetch_layer(s["endpoint"], s["layer_id"], layer_name,
+                                       srs=srs, where=cql,
+                                       bbox=(bbox if usa_bbox else None))
+    return None
+
+
+def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
+                    add_basemap=False, force=False, feedback=None):
+    def log(m):
+        if feedback is not None:
+            feedback.pushInfo(m)
+
+    uf = _UF_POR_CODIGO.get(str(code_muni)[:2], "").lower()
+    res = {"ok": [], "falhou": [], "pulou": []}
+    existentes = _layers_existentes(gpkg_path)
+
+    for s in _por_id(source_ids):
+        proto = s.get("protocolo")
+        if proto == "basemap":
+            continue
+        if proto not in ("wfs", "arcgis"):
+            res["pulou"].append((s["id"], "conector {} ainda nao implementado".format(proto)))
+            continue
+
+        layer_name = "{}_{}".format(s["id"], code_muni)
+        if (not force) and layer_name in existentes:
+            res["pulou"].append((s["id"], "ja existe no GeoPackage ({})".format(layer_name)))
+            continue
+
+        cql, usa_bbox = _filtro_para(s, code_muni, nome_muni)
+        layer = _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox)
+        if layer is None or not layer.isValid():
+            msg = getattr(layer, "error_msg", "camada invalida") if layer else "protocolo desconhecido"
+            res["falhou"].append((s["id"], msg))
+            continue
+
+        ok, msg = _grava_gpkg(layer, gpkg_path, layer_name)
+        if not ok:
+            res["falhou"].append((s["id"], "gravar GeoPackage: {}".format(msg)))
+            continue
+        existentes.add(layer_name)
+
+        nome_proj = "{} - {}".format(s.get("nome", s["id"]), nome_muni or code_muni)
+        gl = QgsVectorLayer("{}|layername={}".format(gpkg_path, layer_name), nome_proj, "ogr")
+        if gl.isValid():
+            QgsProject.instance().addMapLayer(gl)
+            res["ok"].append(s["id"])
+            log("OK: {}".format(layer_name))
+        else:
+            res["falhou"].append((s["id"], "camada do GeoPackage invalida"))
+
+    if add_basemap:
+        bl = basemap.satellite_layer()
+        if bl.isValid():
+            QgsProject.instance().addMapLayer(bl)
+            log("basemap de satelite adicionado")
+
+    return res
+```
+
+### Passo 3 — INSERIR estas 5 fontes em `core/sources.py`
+
+Inserir logo ANTES do comentario `# --- Contexto ---` (a entrada do basemap),
+sem remover nada. Fontes ArcGIS usam `layer_id` (nao `type_name`):
+
+```python
+    # --- ArcGIS REST (Fase C) ---
+    {"id": "ana_hidrografia", "eixo": "saneamento", "nome": "ANA — Hidrografia",
+     "protocolo": "arcgis",
+     "endpoint": "https://www.snirh.gov.br/arcgis/rest/services/DADOSABERTOS/Hidrografia/MapServer",
+     "layer_id": "0", "srs": "EPSG:4674",
+     "filtro": {"tipo": "bbox"}, "licenca": "Publica"},
+    {"id": "ibama_autos", "eixo": "ambiental", "nome": "IBAMA — Autos de infracao/embargos",
+     "protocolo": "arcgis",
+     "endpoint": "https://pamgia.ibama.gov.br/server/rest/services/app_dadosabertos/adm_auto_infracao_p/MapServer",
+     "layer_id": "0", "srs": "EPSG:4674",
+     "filtro": {"tipo": "cql_codigo", "campo": "cod_municipio"}, "licenca": "Publica"},
+    {"id": "ibama_esgoto", "eixo": "saneamento", "nome": "IBAMA — Esgotamento sanitario",
+     "protocolo": "arcgis",
+     "endpoint": "https://pamgia.ibama.gov.br/server/rest/services/SIGAGEO/Sistema_de_Esgotamento_Sanit%C3%A1rio/MapServer",
+     "layer_id": "6", "srs": "EPSG:4674",
+     "filtro": {"tipo": "bbox"}, "licenca": "Publica"},
+    {"id": "ibama_agua", "eixo": "saneamento", "nome": "IBAMA — Abastecimento de agua",
+     "protocolo": "arcgis",
+     "endpoint": "https://pamgia.ibama.gov.br/server/rest/services/SIGAGEO/Sistema_de_Abastecimento_de_%C3%81gua/MapServer",
+     "layer_id": "5", "srs": "EPSG:4674",
+     "filtro": {"tipo": "bbox"}, "licenca": "Publica"},
+    {"id": "ibama_aterro", "eixo": "saneamento", "nome": "IBAMA — Aterro sanitario",
+     "protocolo": "arcgis",
+     "endpoint": "https://pamgia.ibama.gov.br/server/rest/services/SIGAGEO/Aterro_Sanit%C3%A1rio/MapServer",
+     "layer_id": "8", "srs": "EPSG:4674",
+     "filtro": {"tipo": "bbox"}, "licenca": "Publica"},
+```
+
+### Comandos de verificacao
+
+```bash
+make test
+python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/connectors/arcgis_rest.py','core/diagnostico.py','core/sources.py']]; print('ok')"
+```
+
+> Validacao funcional (carregar `ibama_autos` por codigo e `ana_hidrografia` por
+> bbox num municipio) e do senior/Diego no QGIS.
+
+### Criterios de aceite
+
+- `arcgis_rest.py` = Passo 1; `diagnostico.py` = Passo 2 (com `_busca_camada`
+  e `arcgis_rest` no import); 5 fontes ArcGIS adicionadas (com `layer_id`).
+- `make test` passa; fontes WFS existentes intactas; nenhum arquivo proibido tocado.
+
+### Resultado
+
+(preencher ao concluir)
+
+---
+
+## [T-015] Listar os dados do geobr no painel
+
+- status: bloqueada
+- libera quando: T-012 concluida (as duas mexem em `core/diagnostico.py`)
+- responsavel: junior (com codigo do senior)
+- fase: diagnostico — Fase B/C
+
+### Objetivo (a detalhar pelo senior quando liberar)
+
+Surgir no painel as bases **que ja temos via geobr** (gap apontado pelo Diego):
+adicionar ao `core/sources.py` fontes com `protocolo: "geobr"` (campo `algo`,
+ex.: `read_census_tract`, `read_weighting_area`, `read_municipality`,
+`read_schools`, `read_health_facilities`) e um ramo no motor que, para essas,
+roda `processing.run("gisbr:<algo>", {"CODE": code_muni, "SIMPLIFIED": True,
+"OUTPUT": "TEMPORARY_OUTPUT"})`, grava no GeoPackage e adiciona ao projeto —
+reusando a Fase 1/2 ja validadas. Filtro por municipio via `CODE` (verificar
+quais geografias filtram por `code_muni`).
+
+> Senior escreve o diff exato (motor + sources) apos a T-012 entrar, para nao
+> colidir no `core/diagnostico.py`.
+
+### Resultado
+
+(preencher ao concluir)
+
+---
+
 ### Backlog / ideias (ainda nao viram tarefa)
 
 Itens conhecidos do roadmap, mantidos como referencia (nao executar ate virarem
