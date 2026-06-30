@@ -2802,6 +2802,75 @@ python3 -c "import ast; ast.parse(open('gui/diagnostico_dock.py').read()); print
 
 ---
 
+## [T-020] Garantir a extensao .gpkg no destino (corrige "tudo falhou")
+
+- status: pronta
+- responsavel: junior (IMPLEMENTA; senior verifica)
+- fase: diagnostico — Fase B (bugfix)
+- branch: `feat/diagnostico-plano-diretor`
+- contexto: o `QFileDialog.getSaveFileName` (Linux) NAO anexa `.gpkg` quando o
+  arquivo nao existe. O destino sem extensao faz a gravacao "ok" mas o reabrir
+  `caminho|layername=...` falha -> TODAS as fontes davam "camada do GeoPackage
+  invalida". Diego diagnosticou.
+
+> **Metodo:** dois edits pontuais e exatos. Senior verifica depois.
+
+### Arquivos permitidos
+
+- `core/diagnostico.py` (1 linha — defesa no motor)
+- `gui/diagnostico_dock.py` (`_on_choose_gpkg` — UX)
+
+### Arquivos proibidos / NAO FACA
+
+- Nao tocar em mais nada.
+
+### Passo 1 — normalizar no motor (`core/diagnostico.py`)
+
+No corpo de `carregar_fontes`, logo APOS a funcao interna `log` e ANTES da linha
+`uf = _UF_POR_CODIGO...`, inserir:
+
+```python
+    if gpkg_path and not gpkg_path.lower().endswith(".gpkg"):
+        gpkg_path = gpkg_path + ".gpkg"
+```
+
+### Passo 2 — anexar a extensao no seletor (`gui/diagnostico_dock.py`)
+
+Substituir o metodo `_on_choose_gpkg` inteiro por:
+
+```python
+    def _on_choose_gpkg(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Selecionar GeoPackage", "", "GeoPackage (*.gpkg)"
+        )
+        if path:
+            if not path.lower().endswith(".gpkg"):
+                path += ".gpkg"
+            self.ed_gpkg.setText(path)
+```
+
+### Comandos de verificacao
+
+```bash
+make test
+python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/diagnostico.py','gui/diagnostico_dock.py']]; print('ok')"
+```
+
+> Validacao funcional (escolher um destino SEM digitar a extensao -> o campo
+> mostra `.gpkg` e o carregamento funciona) e do senior/Diego no QGIS.
+
+### Criterios de aceite
+
+- Motor: `carregar_fontes` normaliza `gpkg_path` para terminar em `.gpkg`.
+- Painel: `_on_choose_gpkg` anexa `.gpkg` quando faltar.
+- `make test` passa; nenhum outro arquivo tocado.
+
+### Resultado
+
+(preencher ao concluir)
+
+---
+
 ### Backlog / ideias (ainda nao viram tarefa)
 
 Itens conhecidos do roadmap, mantidos como referencia (nao executar ate virarem
