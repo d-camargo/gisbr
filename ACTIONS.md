@@ -2022,7 +2022,7 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/connectors
 
 ## [T-015] Listar TODAS as bases relevantes do geobr no painel
 
-- status: pronta
+- status: concluida
 - responsavel: junior (IMPLEMENTA; senior verifica)
 - fase: diagnostico — Fase B/C
 - branch: `feat/diagnostico-plano-diretor`
@@ -2320,7 +2320,10 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/diagnostic
 
 ### Resultado
 
-(preencher ao concluir)
+- Substituído todo o conteúdo de `core/diagnostico.py` com o motor completo (Passo 1), que adiciona o protocolo `geobr`, implementa a execução de algoritmos nativos do `geobr` via `processing.run` e suporta dois modos de recorte: `code` (filtro direto por código de município no parâmetro CODE) e `bbox` (download completo da camada e recorte espacial automático do município via `native:extractbyextent`). Também foi adicionado suporte à marcação `requer_parquet` para checagem ativa de driver Parquet/pyarrow nas fontes v2.
+- Adicionadas as 15 fontes baseadas no `geobr` (12 v1 + 3 v2) ao catálogo `SOURCES` em `core/sources.py`, logo antes do basemap satélite.
+- Atualizado o dicionário `_EIXO_NOMES` no arquivo `gui/diagnostico_dock.py` com todos os 8 eixos temáticos do diagnóstico urbano e ambiental.
+- `make test` executado e aprovado com sucesso (*sintaxe OK*). Nenhum arquivo proibido foi tocado.
 
 ---
 

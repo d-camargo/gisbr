@@ -16,7 +16,12 @@ from ..core import diagnostico
 _EIXO_NOMES = {
     "transportes": "1. Transportes",
     "saneamento": "2. Drenagem e Saneamento",
-    "ambiental": "4. Ambiental"
+    "demografia": "3. Demografia",
+    "ambiental": "4. Ambiental",
+    "educacao": "5. Educacao",
+    "saude": "6. Saude",
+    "urbano": "7. Urbano",
+    "pol-admin": "8. Politico-administrativo",
 }
 
 _UFS = [

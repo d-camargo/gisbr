@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Motor do diagnostico (ARQUITETURA.md §3.3/§3.5). Protocolos: wfs, arcgis."""
+"""Motor do diagnostico. Protocolos: wfs, arcgis, geobr (code|bbox)."""
 import os
 
 from qgis.core import QgsProject, QgsVectorLayer, QgsVectorFileWriter
@@ -14,6 +14,8 @@ _UF_POR_CODIGO = {
     "33": "RJ", "35": "SP", "41": "PR", "42": "SC", "43": "RS", "50": "MS",
     "51": "MT", "52": "GO", "53": "DF",
 }
+
+_PROTOCOLOS = ("wfs", "arcgis", "geobr")
 
 
 def _por_id(ids):
@@ -58,7 +60,56 @@ def _grava_gpkg(layer, gpkg_path, layer_name):
     return res[0] == QgsVectorFileWriter.NoError, res[1]
 
 
-def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox):
+def _resolve_out(out, layer_name):
+    if isinstance(out, str):
+        return QgsProject.instance().mapLayer(out) or QgsVectorLayer(out, layer_name, "ogr")
+    return out
+
+
+def _invalida(layer_name, msg):
+    inv = QgsVectorLayer("", layer_name, "ogr")
+    inv.error_msg = msg
+    return inv
+
+
+def _carrega_geobr(s, code_muni, bbox, layer_name):
+    """Roda o algoritmo geobr (Fase 1/2). recorte 'code' filtra por code_muni;
+    recorte 'bbox' baixa e recorta pela bbox do municipio."""
+    import processing
+    if s.get("requer_parquet"):
+        from . import capabilities
+        if capabilities.parquet_backend() is None:
+            return _invalida(layer_name, "requer driver Parquet ou pyarrow (fonte v2)")
+
+    algo = s["algo"]
+    recorte = s.get("recorte", "code")
+    code_param = str(code_muni) if recorte == "code" else "all"
+    try:
+        out = processing.run("gisbr:{}".format(algo), {
+            "CODE": code_param, "SIMPLIFIED": True, "OUTPUT": "TEMPORARY_OUTPUT",
+        })["OUTPUT"]
+    except Exception as exc:
+        return _invalida(layer_name, "geobr {}: {}".format(algo, exc))
+    out = _resolve_out(out, layer_name)
+
+    if recorte == "bbox":
+        if bbox is None:
+            return _invalida(layer_name, "bbox do municipio necessario para esta fonte")
+        if out is None or not out.isValid():
+            return _invalida(layer_name, "geobr {} nao retornou camada".format(algo))
+        try:
+            extent = "{},{},{},{} [EPSG:4674]".format(bbox[0], bbox[2], bbox[1], bbox[3])
+            clip = processing.run("native:extractbyextent", {
+                "INPUT": out, "EXTENT": extent, "CLIP": True,
+                "OUTPUT": "TEMPORARY_OUTPUT",
+            })["OUTPUT"]
+            out = _resolve_out(clip, layer_name)
+        except Exception as exc:
+            return _invalida(layer_name, "recorte bbox: {}".format(exc))
+    return out
+
+
+def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni):
     proto = s.get("protocolo")
     srs = s.get("srs", "EPSG:4674")
     if proto == "wfs":
@@ -69,6 +120,8 @@ def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox):
         return arcgis_rest.fetch_layer(s["endpoint"], s["layer_id"], layer_name,
                                        srs=srs, where=cql,
                                        bbox=(bbox if usa_bbox else None))
+    if proto == "geobr":
+        return _carrega_geobr(s, code_muni, bbox, layer_name)
     return None
 
 
@@ -86,7 +139,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
         proto = s.get("protocolo")
         if proto == "basemap":
             continue
-        if proto not in ("wfs", "arcgis"):
+        if proto not in _PROTOCOLOS:
             res["pulou"].append((s["id"], "conector {} ainda nao implementado".format(proto)))
             continue
 
@@ -96,7 +149,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             continue
 
         cql, usa_bbox = _filtro_para(s, code_muni, nome_muni)
-        layer = _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox)
+        layer = _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni)
         if layer is None or not layer.isValid():
             msg = getattr(layer, "error_msg", "camada invalida") if layer else "protocolo desconhecido"
             res["falhou"].append((s["id"], msg))
