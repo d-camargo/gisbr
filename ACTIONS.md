@@ -1729,7 +1729,7 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/diagnostic
 
 ## [T-012] Conector ArcGIS REST + fontes ANA/IBAMA (Fase C)
 
-- status: pronta
+- status: concluida
 - responsavel: junior (IMPLEMENTA; senior verifica)
 - fase: diagnostico — Fase C
 - branch: `feat/diagnostico-plano-diretor`
@@ -2013,7 +2013,10 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/connectors
 
 ### Resultado
 
-(preencher ao concluir)
+- Criado o arquivo `core/connectors/arcgis_rest.py` contendo o conector ArcGIS REST para consulta no endpoint `/query` das camadas de MapServer/FeatureServer e formatação de saída em GeoJSON.
+- Substituído todo o conteúdo de `core/diagnostico.py` para incluir o conector `arcgis_rest` no escopo, delegando requisições do protocolo `arcgis` para o novo conector e integrando-o ao fluxo de download e gravação de GeoPackage.
+- Adicionadas as 5 fontes ArcGIS REST declaradas (ANA Hidrografia, IBAMA Autos, IBAMA Esgotamento, IBAMA Abastecimento e IBAMA Aterro) ao catálogo `SOURCES` no arquivo `core/sources.py`.
+- Executado `make test` com sucesso (*sintaxe OK*). Nenhum arquivo proibido tocado.
 
 ---
 
@@ -2037,6 +2040,74 @@ quais geografias filtram por `code_muni`).
 
 > Senior escreve o diff exato (motor + sources) apos a T-012 entrar, para nao
 > colidir no `core/diagnostico.py`.
+
+### Resultado
+
+(preencher ao concluir)
+
+---
+
+## [T-016] Gerar o .zip de publicacao (a partir da MAIN)
+
+- status: pronta
+- responsavel: junior
+- fase: release
+- contexto: publicar o **espelho geobr** (Fases 1+2, GisBR 0.2.0) no repositorio
+  oficial do QGIS. O **diagnostico (branch feat) NAO entra** nesta publicacao.
+
+> Usa a skill **`build-qgis-zip`** (NAO montar o zip a mao). A submissao no
+> plugins.qgis.org e passo MANUAL do Diego — esta tarefa so gera o arquivo.
+
+### PRE-REQUISITO DURO
+
+- O working tree precisa estar **LIMPO**. Se a **T-012 (ou outra) estiver em
+  andamento, COMMITE antes**. **Nunca** troque de branch com mudancas nao
+  commitadas (perderia/embaralharia o trabalho).
+
+### Arquivos permitidos
+
+- nenhum arquivo do repo e editado; a tarefa so gera `dist/gisbr-0.2.0.zip`
+  (pasta `dist/` e gitignored).
+
+### Passos
+
+1. `git status --short` → tem que sair **vazio**. Se nao, PARE e commite/avise.
+2. `git switch main`
+3. `bash .claude/skills/build-qgis-zip/package.sh`
+   (a skill em `.claude/` persiste entre branches por ser gitignored)
+4. Conferir o conteudo:
+   ```bash
+   unzip -l dist/gisbr-0.2.0.zip
+   ```
+   - **DEVE** conter: `gisbr/metadata.txt`, `gisbr/LICENSE`, `gisbr/README.md`,
+     `gisbr/provider.py`, `gisbr/__init__.py`, `gisbr/geobr_qgis_plugin.py`,
+     `gisbr/core/...`, `gisbr/algorithms/...`, `gisbr/icon.*`.
+   - **NAO pode** conter NADA do diagnostico nem de processo:
+     `core/connectors`, `gui/`, `core/sources.py`, `core/diagnostico.py`,
+     `docs/`, `desafio-2-port/`, `STRUCTURE.md`, `ACTIONS.md`, `AGENTS.md`,
+     `INSTRUCTIONS.md`, `CLAUDE.md`, `Makefile`, `*.pdf`.
+5. `git switch feat/diagnostico-plano-diretor` (voltar para a branch de trabalho).
+6. Reportar o caminho do `.zip` e a listagem do `unzip -l`.
+
+### NAO FACA
+
+- NAO gerar o zip a partir da `feat` (empacotaria o diagnostico incompleto).
+- NAO submeter ao site (passo manual do Diego).
+- NAO commitar nada (a tarefa nao altera arquivos versionados).
+
+### Comandos de verificacao
+
+```bash
+unzip -l dist/gisbr-0.2.0.zip | grep -E "metadata.txt|LICENSE" && \
+unzip -l dist/gisbr-0.2.0.zip | grep -E "connectors|gui/|sources.py|diagnostico.py|docs/|ACTIONS" \
+  && echo "ERRO: intruso no zip" || echo "OK: sem intrusos"
+```
+
+### Criterios de aceite
+
+- `dist/gisbr-0.2.0.zip` gerado a partir da `main`, com a estrutura acima.
+- **Zero** arquivos de diagnostico/docs/processo no zip.
+- Voltou para a branch `feat/diagnostico-plano-diretor` ao final.
 
 ### Resultado
 

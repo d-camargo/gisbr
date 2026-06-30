@@ -1,15 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Motor do diagnostico (ARQUITETURA.md §3.3/§3.5).
-
-carregar_fontes(): para cada fonte WFS selecionada, busca filtrada por municipio,
-grava no GeoPackage (1 camada/fonte, nome inclui o code do municipio) e adiciona
-ao projeto. Pula fontes ja existentes no GeoPackage (a nao ser force=True).
-"""
+"""Motor do diagnostico (ARQUITETURA.md §3.3/§3.5). Protocolos: wfs, arcgis."""
 import os
 
 from qgis.core import QgsProject, QgsVectorLayer, QgsVectorFileWriter
 
-from .connectors import wfs, basemap
+from .connectors import wfs, basemap, arcgis_rest
 from .sources import SOURCES
 
 _UF_POR_CODIGO = {
@@ -37,7 +32,6 @@ def _filtro_para(s, code_muni, nome_muni):
 
 
 def _layers_existentes(gpkg_path):
-    """Nomes de camadas ja presentes no GeoPackage (set). Vazio se nao existe."""
     if not os.path.exists(gpkg_path):
         return set()
     vl = QgsVectorLayer(gpkg_path, "probe", "ogr")
@@ -52,8 +46,6 @@ def _layers_existentes(gpkg_path):
 
 
 def _grava_gpkg(layer, gpkg_path, layer_name):
-    """Grava 1 camada no GeoPackage. Cria o arquivo se nao existir; senao
-    adiciona/sobrescreve so essa camada (preserva as demais)."""
     opts = QgsVectorFileWriter.SaveVectorOptions()
     opts.driverName = "GPKG"
     opts.layerName = layer_name
@@ -64,6 +56,20 @@ def _grava_gpkg(layer, gpkg_path, layer_name):
     ctx = QgsProject.instance().transformContext()
     res = QgsVectorFileWriter.writeAsVectorFormatV3(layer, gpkg_path, ctx, opts)
     return res[0] == QgsVectorFileWriter.NoError, res[1]
+
+
+def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox):
+    proto = s.get("protocolo")
+    srs = s.get("srs", "EPSG:4674")
+    if proto == "wfs":
+        type_name = s["type_name"].replace("{uf}", uf)
+        return wfs.fetch_layer(s["endpoint"], type_name, layer_name, srs=srs,
+                               cql_filter=cql, bbox=(bbox if usa_bbox else None))
+    if proto == "arcgis":
+        return arcgis_rest.fetch_layer(s["endpoint"], s["layer_id"], layer_name,
+                                       srs=srs, where=cql,
+                                       bbox=(bbox if usa_bbox else None))
+    return None
 
 
 def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
@@ -80,7 +86,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
         proto = s.get("protocolo")
         if proto == "basemap":
             continue
-        if proto != "wfs":
+        if proto not in ("wfs", "arcgis"):
             res["pulou"].append((s["id"], "conector {} ainda nao implementado".format(proto)))
             continue
 
@@ -89,14 +95,11 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             res["pulou"].append((s["id"], "ja existe no GeoPackage ({})".format(layer_name)))
             continue
 
-        type_name = s["type_name"].replace("{uf}", uf)
         cql, usa_bbox = _filtro_para(s, code_muni, nome_muni)
-        layer = wfs.fetch_layer(
-            s["endpoint"], type_name, layer_name, srs=s.get("srs", "EPSG:4674"),
-            cql_filter=cql, bbox=(bbox if usa_bbox else None),
-        )
-        if not layer.isValid():
-            res["falhou"].append((s["id"], getattr(layer, "error_msg", "camada invalida")))
+        layer = _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox)
+        if layer is None or not layer.isValid():
+            msg = getattr(layer, "error_msg", "camada invalida") if layer else "protocolo desconhecido"
+            res["falhou"].append((s["id"], msg))
             continue
 
         ok, msg = _grava_gpkg(layer, gpkg_path, layer_name)
