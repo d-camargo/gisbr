@@ -1,8 +1,11 @@
 # Arquitetura — GisBR: Diagnóstico para Plano Diretor
 
-> Documento de desenho. A partir daqui desmembramos as ACTIONS para o Junior.
-> Status: **rascunho para revisão do Diego** — itens marcados _(a confirmar)_ são
-> decisões dele. Fonte de dados: pesquisa em `docs/diagnostico-plano-diretor/`
+> Documento de desenho. As decisões foram tomadas e a Fase A/B está
+> **implementada** na branch `feat/diagnostico-plano-diretor` (T-008…T-019).
+> O estado implementado (módulos, motor, painel, 29 fontes, regras de recorte)
+> está resumido em `CLAUDE.md` §1.2; o detalhe de cada tarefa em `ACTIONS.md`.
+> Este doc mantém o desenho/decisões que guiaram a implementação.
+> Fonte de dados: pesquisa em `docs/diagnostico-plano-diretor/`
 > (taxonomia, panorama, e os 6 eixos com endpoints `GetCapabilities` verificados).
 
 ## 1. Objetivo

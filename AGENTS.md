@@ -169,12 +169,16 @@ Se existir uma forma errada provavel, escreva explicitamente:
 
 ## Regras tecnicas do repositorio
 
-Estrutura (ver `CLAUDE.md` secao 5):
+Estrutura (ver `CLAUDE.md` secoes 5 e 1.2):
 
 - `provider.py`: `GeobrProvider(QgsProcessingProvider)` — registra os algoritmos;
-- `core/`: `constants`, `downloader`, `catalog`, `loader` (Fase 1) +
-  `capabilities`, `catalog_v2`, `loader_v2`, `catalog_censo` (Fase 2);
+- `core/`: espelho geobr — `constants`, `downloader`, `catalog`, `loader` (Fase 1)
+  + `capabilities`, `catalog_v2`, `loader_v2`, `catalog_censo` (Fase 2);
 - `algorithms/`: um arquivo por geografia + bases + `v2_factory` + `join_censo`;
+- **Diagnostico (branch `feat`):** `core/sources.py` (registry de 29 fontes),
+  `core/diagnostico.py` (motor `carregar_fontes`), `core/connectors/`
+  (`wfs`/`arcgis_rest`/`basemap`), `gui/diagnostico_dock.py` (painel);
+  fiacao do dock em `geobr_qgis_plugin.py` (`initGui`);
 - `metadata.txt`, `__init__.py`, `geobr_qgis_plugin.py`, `Makefile`.
 
 Arquivos e caminhos sensiveis / protegidos:

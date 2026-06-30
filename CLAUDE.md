@@ -43,6 +43,33 @@
 
 ---
 
+## 1.2. Estado implementado do diagnóstico (branch `feat/diagnostico-plano-diretor`, 2026-06-30)
+
+> A `main` segue sendo só o espelho geobr (Fases 1+2). Tudo abaixo vive na branch `feat/diagnostico-plano-diretor` e **ainda não foi publicado**. Detalhe de cada tarefa (T-003…T-019) em `ACTIONS.md`; desenho em `docs/diagnostico-plano-diretor/ARQUITETURA.md`.
+
+**Arquitetura (declarativa, município-cêntrica):**
+- `core/sources.py` — catálogo declarativo `SOURCES` (**29 fontes**): 8 WFS + 5 ArcGIS REST + 15 geobr + 1 basemap. Cada fonte é um dict (`id, eixo, nome, protocolo, …`). Filtro: `{"tipo":"cql_codigo"|"cql_nome"|"bbox", ...}` (WFS/ArcGIS) ou `recorte: "code"|"bbox"` + `algo` (geobr). v2-only (`favela`/`polling_places`/`quilombola_land`) marcadas `requer_parquet`.
+- `core/connectors/` — um por protocolo: `wfs.py` (GeoJSON via `QgsBlockingNetworkRequest` + fallback `/vsicurl/`, `CQL_FILTER`/bbox, portado do `desafio-2`), `arcgis_rest.py` (query `f=geojson`, `where=`/`geometry=`), `basemap.py` (XYZ Esri World Imagery via `QgsRasterLayer(..., "wms")`).
+- `core/diagnostico.py` — **motor** `carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path, add_basemap, force, feedback)`: para cada fonte, busca filtrada pelo município → grava no **GeoPackage** (1 camada/fonte, nome `id_codemuni`; display "<fonte> - <cidade>") → adiciona ao projeto. Protocolos `wfs|arcgis|geobr`.
+- `gui/diagnostico_dock.py` — **painel (dock)**, UX principal: combos **UF → Município** (busca por nome, `QCompleter`), árvore de fontes com **checkbox por eixo** (grupos ordenados 1..8 por `_EIXO_NOMES`), caminho do GeoPackage, opção satélite, checkbox "Atualizar bases já baixadas", log. Ligado em `geobr_qgis_plugin.py` (`initGui` adiciona ação na barra/menu "GisBR"; `initProcessing` intacto).
+
+**Regras de recorte / robustez (decisões empíricas do teste em Contagem/RMBH):**
+- **Recorte por código** (`code_muni`) para Demografia (municipality/census_tract/weighting_area).
+- **Recorte pelo POLÍGONO do município** (`native:clip`, não a bbox-retângulo) para todas as fontes filtradas por bbox — senão traz vizinhos (BH/Betim) e a mancha urbana transborda.
+- **Pula camadas com 0 feições** (entram em `pulou` com aviso no log) — não cria camada-tabela vazia.
+- **Skip-exists**: fonte já no GeoPackage é pulada (salvo checkbox "Atualizar"); gravação por existência do arquivo (não recria o `.gpkg`).
+- **`requer_parquet`**: as 3 fontes v2 pulam com aviso se não houver driver GDAL Parquet/`pyarrow`.
+
+**6 eixos no painel:** 1. Transportes · 2. Drenagem e Saneamento · 3. Demografia · 4. Ambiental · 5. Educação · 6. Saúde · 7. Urbano · 8. Político-administrativo.
+
+**Validado no QGIS (Diego):** SICAR (WFS por código), painel + combos UF/Município, GeoPackage, recorte por polígono (Contagem), ordem dos grupos. **A validar:** endpoints ArcGIS (ANA/IBAMA), v2 com `pyarrow`, performance do download nacional de escolas/saúde (geobr v1, sem filtro por município → baixa nacional e recorta).
+
+**Fora do escopo (registrado):** `read_statistical_grid` (nacional ~GB; pra depois), `read_health_region`/`read_metro_area`/etc. (multi-município), parecer/KPIs (painel do haCARthon não entra agora).
+
+**Publicação:** **deferida** (Diego quer o plugin funcional com todo o geobr antes). Quando for, o `.zip` sai da **`feat`** (plugin completo), não da `main`, e o `metadata.txt` precisa ser atualizado (descrição do diagnóstico + versão 0.3.0). A T-016 está bloqueada por isso.
+
+---
+
 ## 2. Como o geobr funciona por baixo (arquitetura de referência)
 
 O geobr **não faz geoprocessamento** — é um **catálogo + downloader + loader**. Toda a lógica é:
