@@ -7,7 +7,7 @@ definir o caminho de destino do GeoPackage e carregar os dados.
 from qgis.gui import QgsDockWidget
 from qgis.PyQt.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QTreeWidget, QTreeWidgetItem, QCheckBox, QPushButton, QFileDialog,
-    QLabel, QPlainTextEdit, QComboBox)
+    QLabel, QPlainTextEdit, QComboBox, QCompleter)
 from qgis.PyQt.QtCore import Qt
 from qgis.core import QgsProject
 from ..core.sources import SOURCES
@@ -56,6 +56,12 @@ class DiagnosticoDock(QgsDockWidget):
         layout.addWidget(QLabel("Municipio:"))
         self.cmb_muni = QComboBox()
         self.cmb_muni.currentIndexChanged.connect(self._on_muni_changed)
+        self.cmb_muni.setEditable(True)
+        self.cmb_muni.setInsertPolicy(QComboBox.NoInsert)
+        _comp = self.cmb_muni.completer()
+        _comp.setCompletionMode(QCompleter.PopupCompletion)
+        _comp.setFilterMode(Qt.MatchContains)
+        _comp.setCaseSensitivity(Qt.CaseInsensitive)
         layout.addWidget(self.cmb_muni)
 
         # 1.3) Codigo do Municipio (IBGE 7 digitos)
@@ -103,6 +109,9 @@ class DiagnosticoDock(QgsDockWidget):
         # 4) Basemap satelite
         self.chk_satelite = QCheckBox("Adicionar imagem de satelite ao fundo")
         layout.addWidget(self.chk_satelite)
+
+        self.chk_atualizar = QCheckBox("Atualizar bases ja baixadas (rebaixar)")
+        layout.addWidget(self.chk_atualizar)
 
         # 5) Botao Carregar
         self.btn_carregar = QPushButton("Carregar selecionadas")
@@ -157,17 +166,22 @@ class DiagnosticoDock(QgsDockWidget):
 
     def _on_uf_changed(self):
         uf = self.cmb_uf.currentData()
+        self.cmb_muni.blockSignals(True)
         self.cmb_muni.clear()
         if not uf:
+            self.cmb_muni.blockSignals(False)
             return
         self.txt_log.appendPlainText("Carregando municipios de {}...".format(uf))
         try:
             self._munis = self._listar_municipios(uf)
         except Exception as exc:
             self.txt_log.appendPlainText("Falha ao listar municipios: {}".format(exc))
+            self.cmb_muni.blockSignals(False)
             return
         for code in sorted(self._munis, key=lambda c: self._munis[c][0]):
             self.cmb_muni.addItem(self._munis[code][0], code)
+        self.cmb_muni.setCurrentIndex(-1)
+        self.cmb_muni.blockSignals(False)
         self.txt_log.appendPlainText("{} municipios carregados.".format(len(self._munis)))
 
     def _on_muni_changed(self):
@@ -212,7 +226,8 @@ class DiagnosticoDock(QgsDockWidget):
         self.txt_log.appendPlainText("Municipio: {} ({})".format(nome, code))
         res = diagnostico.carregar_fontes(
             ids, code_muni=code, nome_muni=nome, bbox=bbox, gpkg_path=gpkg,
-            add_basemap=self.chk_satelite.isChecked(), feedback=None)
+            add_basemap=self.chk_satelite.isChecked(),
+            force=self.chk_atualizar.isChecked(), feedback=None)
         self.txt_log.appendPlainText("OK: {}".format(", ".join(res["ok"]) or "-"))
         for sid, msg in res["falhou"]:
             self.txt_log.appendPlainText("FALHOU {}: {}".format(sid, msg))

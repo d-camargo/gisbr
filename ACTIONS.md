@@ -1496,7 +1496,7 @@ python3 -c "import ast; ast.parse(open('gui/diagnostico_dock.py').read()); print
 
 ## [T-014] Ajustes de uso: combo buscavel, skip-exists e nome da cidade na camada
 
-- status: pronta
+- status: concluida
 - responsavel: junior (IMPLEMENTA; senior verifica)
 - fase: diagnostico — Fase B (ajustes pos-teste)
 - branch: `feat/diagnostico-plano-diretor`
@@ -1718,7 +1718,12 @@ python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/diagnostic
 
 ### Resultado
 
-(preencher ao concluir)
+- Substituído `core/diagnostico.py` com a nova lógica verbatim que implementa a checagem de camadas já presentes no GeoPackage (`_layers_existentes`), pulando o download se a camada já existir e `force=False` (economizando chamadas de rede lentas). A gravação agora usa o parâmetro do município no nome da camada e do projeto (ex.: "SICAR - Imóveis (CAR) - Belo Horizonte").
+- Atualizado `gui/diagnostico_dock.py` para incluir `QCompleter` nos imports.
+- Combo de município (`self.cmb_muni`) configurado para ser editável/buscável com autocompletar sem que segure o mouse do usuário.
+- Adicionado checkbox `self.chk_atualizar` ("Atualizar bases ja baixadas (rebaixar)") no dock para forçar o re-download das camadas no GPKG (passando `force=self.chk_atualizar.isChecked()` na chamada ao motor).
+- O método `_on_uf_changed` foi corrigido para envelopar o povoamento com `blockSignals(True/False)` para evitar disparos colaterais e definir o índice inicial como -1.
+- Executado `make test` com sucesso (*sintaxe OK*). Nenhum arquivo proibido tocado.
 
 ---
 
