@@ -1494,6 +1494,234 @@ python3 -c "import ast; ast.parse(open('gui/diagnostico_dock.py').read()); print
 
 ---
 
+## [T-014] Ajustes de uso: combo buscavel, skip-exists e nome da cidade na camada
+
+- status: pronta
+- responsavel: junior (IMPLEMENTA; senior verifica)
+- fase: diagnostico — Fase B (ajustes pos-teste)
+- branch: `feat/diagnostico-plano-diretor`
+- contexto: feedback do teste real no QGIS (Diego). Tres ajustes:
+  (1) combo de municipio "segura o mouse"; (2) re-download de bases ja baixadas;
+  (3) identificar a cidade na camada.
+
+> **Metodo:** o motor (core) vem PRONTO abaixo (e delicado — copie verbatim). No
+> dock voce faz edicoes pontuais com os snippets prontos. Senior verifica depois.
+
+### Arquivos permitidos
+
+- `core/diagnostico.py` (substituir TODO o conteudo pelo bloco do Passo 1)
+- `gui/diagnostico_dock.py` (edicoes pontuais dos Passos 2 a 5)
+
+### Arquivos proibidos / NAO FACA
+
+- NAO tocar em `core/sources.py`, `core/connectors/**`, `provider.py`,
+  `geobr_qgis_plugin.py`, `metadata.txt`, `CLAUDE.md`.
+- NAO mudar a ordem dos parametros existentes de `carregar_fontes` (so foi
+  ADICIONADO `force=False` antes de `feedback`).
+
+### Passo 1 — `core/diagnostico.py` (substituir o arquivo INTEIRO por isto)
+
+```python
+# -*- coding: utf-8 -*-
+"""Motor do diagnostico (ARQUITETURA.md §3.3/§3.5).
+
+carregar_fontes(): para cada fonte WFS selecionada, busca filtrada por municipio,
+grava no GeoPackage (1 camada/fonte, nome inclui o code do municipio) e adiciona
+ao projeto. Pula fontes ja existentes no GeoPackage (a nao ser force=True).
+"""
+import os
+
+from qgis.core import QgsProject, QgsVectorLayer, QgsVectorFileWriter
+
+from .connectors import wfs, basemap
+from .sources import SOURCES
+
+_UF_POR_CODIGO = {
+    "11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16": "AP",
+    "17": "TO", "21": "MA", "22": "PI", "23": "CE", "24": "RN", "25": "PB",
+    "26": "PE", "27": "AL", "28": "SE", "29": "BA", "31": "MG", "32": "ES",
+    "33": "RJ", "35": "SP", "41": "PR", "42": "SC", "43": "RS", "50": "MS",
+    "51": "MT", "52": "GO", "53": "DF",
+}
+
+
+def _por_id(ids):
+    return [s for s in SOURCES if s["id"] in ids]
+
+
+def _filtro_para(s, code_muni, nome_muni):
+    f = s.get("filtro") or {"tipo": "bbox"}
+    t = f.get("tipo")
+    if t == "cql_codigo":
+        return "{} = {}".format(f["campo"], int(code_muni)), False
+    if t == "cql_nome":
+        nome = (nome_muni or "").replace("'", "''")
+        return "{} = '{}'".format(f["campo"], nome), False
+    return None, True
+
+
+def _layers_existentes(gpkg_path):
+    """Nomes de camadas ja presentes no GeoPackage (set). Vazio se nao existe."""
+    if not os.path.exists(gpkg_path):
+        return set()
+    vl = QgsVectorLayer(gpkg_path, "probe", "ogr")
+    if not vl.isValid():
+        return set()
+    nomes = set()
+    for sub in vl.dataProvider().subLayers():
+        parts = sub.split("!!::!!")
+        if len(parts) > 1:
+            nomes.add(parts[1])
+    return nomes
+
+
+def _grava_gpkg(layer, gpkg_path, layer_name):
+    """Grava 1 camada no GeoPackage. Cria o arquivo se nao existir; senao
+    adiciona/sobrescreve so essa camada (preserva as demais)."""
+    opts = QgsVectorFileWriter.SaveVectorOptions()
+    opts.driverName = "GPKG"
+    opts.layerName = layer_name
+    opts.actionOnExistingFile = (
+        QgsVectorFileWriter.CreateOrOverwriteLayer if os.path.exists(gpkg_path)
+        else QgsVectorFileWriter.CreateOrOverwriteFile
+    )
+    ctx = QgsProject.instance().transformContext()
+    res = QgsVectorFileWriter.writeAsVectorFormatV3(layer, gpkg_path, ctx, opts)
+    return res[0] == QgsVectorFileWriter.NoError, res[1]
+
+
+def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
+                    add_basemap=False, force=False, feedback=None):
+    def log(m):
+        if feedback is not None:
+            feedback.pushInfo(m)
+
+    uf = _UF_POR_CODIGO.get(str(code_muni)[:2], "").lower()
+    res = {"ok": [], "falhou": [], "pulou": []}
+    existentes = _layers_existentes(gpkg_path)
+
+    for s in _por_id(source_ids):
+        proto = s.get("protocolo")
+        if proto == "basemap":
+            continue
+        if proto != "wfs":
+            res["pulou"].append((s["id"], "conector {} ainda nao implementado".format(proto)))
+            continue
+
+        layer_name = "{}_{}".format(s["id"], code_muni)
+        if (not force) and layer_name in existentes:
+            res["pulou"].append((s["id"], "ja existe no GeoPackage ({})".format(layer_name)))
+            continue
+
+        type_name = s["type_name"].replace("{uf}", uf)
+        cql, usa_bbox = _filtro_para(s, code_muni, nome_muni)
+        layer = wfs.fetch_layer(
+            s["endpoint"], type_name, layer_name, srs=s.get("srs", "EPSG:4674"),
+            cql_filter=cql, bbox=(bbox if usa_bbox else None),
+        )
+        if not layer.isValid():
+            res["falhou"].append((s["id"], getattr(layer, "error_msg", "camada invalida")))
+            continue
+
+        ok, msg = _grava_gpkg(layer, gpkg_path, layer_name)
+        if not ok:
+            res["falhou"].append((s["id"], "gravar GeoPackage: {}".format(msg)))
+            continue
+        existentes.add(layer_name)
+
+        nome_proj = "{} - {}".format(s.get("nome", s["id"]), nome_muni or code_muni)
+        gl = QgsVectorLayer("{}|layername={}".format(gpkg_path, layer_name), nome_proj, "ogr")
+        if gl.isValid():
+            QgsProject.instance().addMapLayer(gl)
+            res["ok"].append(s["id"])
+            log("OK: {}".format(layer_name))
+        else:
+            res["falhou"].append((s["id"], "camada do GeoPackage invalida"))
+
+    if add_basemap:
+        bl = basemap.satellite_layer()
+        if bl.isValid():
+            QgsProject.instance().addMapLayer(bl)
+            log("basemap de satelite adicionado")
+
+    return res
+```
+
+### Passo 2 — imports do dock (`gui/diagnostico_dock.py`)
+
+No import de `qgis.PyQt.QtWidgets`, ADICIONAR `QCompleter` (alem do `QComboBox`
+ja la). Ex.: a linha de import passa a terminar com `..., QComboBox, QCompleter)`.
+
+### Passo 3 — combo de municipio BUSCAVEL (resolve o "segura o mouse")
+
+No `_build_ui`, logo APOS criar `self.cmb_muni = QComboBox()` e conectar o sinal,
+acrescentar:
+```python
+        self.cmb_muni.setEditable(True)
+        self.cmb_muni.setInsertPolicy(QComboBox.NoInsert)
+        _comp = self.cmb_muni.completer()
+        _comp.setCompletionMode(QCompleter.PopupCompletion)
+        _comp.setFilterMode(Qt.MatchContains)
+        _comp.setCaseSensitivity(Qt.CaseInsensitive)
+```
+
+### Passo 4 — checkbox "atualizar" + bloquear sinais ao popular
+
+(a) No `_build_ui`, logo APOS o `self.chk_satelite`, adicionar:
+```python
+        self.chk_atualizar = QCheckBox("Atualizar bases ja baixadas (rebaixar)")
+        layout.addWidget(self.chk_atualizar)
+```
+(b) Em `_on_uf_changed`, ENVOLVER o `clear()` + o loop de `addItem` com
+`blockSignals` (evita disparar `_on_muni_changed` durante a populacao) e nao
+pre-selecionar nada. O corpo de povoamento fica:
+```python
+        self.cmb_muni.blockSignals(True)
+        self.cmb_muni.clear()
+        for code in sorted(self._munis, key=lambda c: self._munis[c][0]):
+            self.cmb_muni.addItem(self._munis[code][0], code)
+        self.cmb_muni.setCurrentIndex(-1)
+        self.cmb_muni.blockSignals(False)
+```
+(mantenha as mensagens de log e o tratamento de erro que ja existem).
+
+### Passo 5 — passar `force` no `_on_carregar`
+
+Na chamada de `diagnostico.carregar_fontes(...)`, acrescentar o argumento
+`force=self.chk_atualizar.isChecked()`:
+```python
+        res = diagnostico.carregar_fontes(
+            ids, code_muni=code, nome_muni=nome, bbox=bbox, gpkg_path=gpkg,
+            add_basemap=self.chk_satelite.isChecked(),
+            force=self.chk_atualizar.isChecked(), feedback=None)
+```
+
+### Comandos de verificacao
+
+```bash
+make test
+python3 -c "import ast; [ast.parse(open(f).read(), f) for f in ['core/diagnostico.py','gui/diagnostico_dock.py']]; print('ok')"
+```
+
+> Validacao funcional (combo busca digitando; recarregar SICAR ja baixado ->
+> "pulou"; marcar "atualizar" -> rebaixa; camadas no projeto com a cidade no
+> nome) e do senior/Diego no QGIS.
+
+### Criterios de aceite
+
+- `core/diagnostico.py` = bloco do Passo 1 (verbatim): nome de camada
+  `id_codemuni`, skip se ja existe (salvo `force`), grava por existencia do
+  arquivo (NAO recria o .gpkg), nome de projeto "<fonte> - <cidade>".
+- Combo de municipio editavel/buscavel; checkbox "Atualizar..."; `_on_uf_changed`
+  com `blockSignals`; `_on_carregar` passando `force`.
+- `make test` passa; nenhum arquivo proibido tocado.
+
+### Resultado
+
+(preencher ao concluir)
+
+---
+
 ### Backlog / ideias (ainda nao viram tarefa)
 
 Itens conhecidos do roadmap, mantidos como referencia (nao executar ate virarem
