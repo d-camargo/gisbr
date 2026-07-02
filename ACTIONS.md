@@ -3536,7 +3536,7 @@ grep "<name>" i18n/gisbr_pt.ts | sort -u   # GisBR, BaseReadAlgorithm, BaseReadV
 
 ## [T-028] Basemap de satelite deve entrar por baixo das demais camadas
 
-- status: pronta
+- status: concluida
 - responsavel: junior (IMPLEMENTA; senior verifica)
 - fase: diagnostico (UX)
 - branch: `feat/diagnostico-plano-diretor`
@@ -3589,6 +3589,7 @@ grep -n "layerTreeRoot().addLayer" core/diagnostico.py   # deve achar
 
 ### Resultado
 
-(preencher ao concluir)
+- Alterado o bloco `if add_basemap:` em `core/diagnostico.py` para carregar a camada de basemap no projeto sem adicioná-la imediatamente à árvore de camadas (`proj.addMapLayer(bl, False)`), e então anexá-la manualmente como o último filho no nó raiz da árvore utilizando `proj.layerTreeRoot().addLayer(bl)`. Isso garante que a camada de satélite renderize por baixo das camadas vetoriais.
+- Validado com `make test` e `grep`.
 
 ---

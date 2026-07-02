@@ -216,7 +216,9 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
     if add_basemap:
         bl = basemap.satellite_layer()
         if bl.isValid():
-            QgsProject.instance().addMapLayer(bl)
-            log("basemap de satelite adicionado")
+            proj = QgsProject.instance()
+            proj.addMapLayer(bl, False)            # nao adiciona a arvore ainda
+            proj.layerTreeRoot().addLayer(bl)      # anexa como ULTIMO filho = fundo
+            log("basemap de satelite adicionado (ao fundo)")
 
     return res
