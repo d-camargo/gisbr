@@ -17,7 +17,7 @@ class GeobrPlugin:
 
     def tr(self, s):
         from qgis.PyQt.QtCore import QCoreApplication
-        return QCoreApplication.translate("GisBR", s)
+        return QCoreApplication.translate("GeobrPlugin", s)
 
     def initGui(self):
         self.initProcessing()

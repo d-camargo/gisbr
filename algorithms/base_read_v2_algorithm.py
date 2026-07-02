@@ -32,7 +32,7 @@ from .base_read_algorithm import _DISPLAY_NAMES, _HELPS
 class BaseReadV2Algorithm(QgsProcessingAlgorithm):
     def tr(self, string):
         from qgis.PyQt.QtCore import QCoreApplication
-        return QCoreApplication.translate("GisBR", string)
+        return QCoreApplication.translate("BaseReadV2Algorithm", string)
 
     YEAR = "YEAR"
     CODE = "CODE"

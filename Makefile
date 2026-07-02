@@ -57,7 +57,7 @@ clean:
 
 transup:
 	@mkdir -p i18n
-	@lupdate provider.py geobr_qgis_plugin.py gui/diagnostico_dock.py algorithms/*.py -ts i18n/gisbr_pt.ts
+	@pylupdate5 provider.py geobr_qgis_plugin.py gui/diagnostico_dock.py algorithms/*.py -ts i18n/gisbr_pt.ts
 
 transcompile:
 	@lrelease i18n/gisbr_pt.ts

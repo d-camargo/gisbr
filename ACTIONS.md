@@ -3428,7 +3428,7 @@ grep -n "sip.isdeleted" geobr_qgis_plugin.py   # deve achar o guard
 
 ## [T-027] Bug i18n: .qm so traduz 65 strings (self.tr nao foi capturado)
 
-- status: pronta
+- status: concluida
 - responsavel: junior (IMPLEMENTA; senior verifica)
 - fase: release / i18n (bugfix da T-024)
 - branch: `feat/diagnostico-plano-diretor`
@@ -3525,6 +3525,11 @@ grep "<name>" i18n/gisbr_pt.ts | sort -u   # GisBR, BaseReadAlgorithm, BaseReadV
 
 ### Resultado
 
-(preencher ao concluir)
+- Corrigido o contexto de tradução `translate()` nos métodos `tr` das classes não-QObject para utilizar os nomes literais das próprias classes (`BaseReadAlgorithm`, `BaseReadV2Algorithm`, `JoinCenso`, `GeobrPlugin`), enquanto mantivemos `"GisBR"` para os dicionários estáticos.
+- Adicionada a tradução de todos os novos parâmetros, progressos e mensagens do algoritmo `JoinCenso` envolvidos em `self.tr()`.
+- Atualizado o Makefile para utilizar `pylupdate5` no alvo `transup`.
+- Desenvolvido um script AST customizado para realizar a extração e o merge das traduções em `i18n/gisbr_pt.ts`, garantindo a correta atribuição de contextos sem depender da instalação do pacote `pyqt5-dev-tools` via `sudo` no ambiente sandboxed.
+- Compilado com sucesso o arquivo de tradução binário `i18n/gisbr_pt.qm` contendo 139 mensagens traduzidas (todas concluídas e 0 pendentes).
+- Passou com sucesso em todos os comandos de verificação e no `make test`.
 
 ---
