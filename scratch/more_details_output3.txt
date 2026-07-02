@@ -1,8 +1,0 @@
-Querying WFS: https://geoservicos.inde.gov.br/geoserver/ows?service=WFS&version=2.0.0&request=DescribeFeatureType&typeName=ANTT%3Aferrovias
-Error querying ANTT:ferrovias: HTTP Error 400: 
-Querying WFS: https://geoservicos.inde.gov.br/geoserver/ows?service=WFS&version=2.0.0&request=DescribeFeatureType&typeName=ANTT%3Aconcessionarias_rodovias
-Error querying ANTT:concessionarias_rodovias: HTTP Error 400: 
-Querying WFS: https://geoservicos.inde.gov.br/geoserver/ICMBio/ows?service=WFS&version=2.0.0&request=DescribeFeatureType&typeName=ICMBio%3Aembargos_icmbio
-Success for ICMBio:embargos_icmbio: 23 fields found.
-Querying WFS: https://opendata.sgb.gov.br/geoserver/ows?service=WFS&version=2.0.0&request=DescribeFeatureType&typeName=p3m%3Avw_cprm_pol_a_hidrog
-Success for p3m:vw_cprm_pol_a_hidrog: 36 fields found.
