@@ -3533,3 +3533,62 @@ grep "<name>" i18n/gisbr_pt.ts | sort -u   # GisBR, BaseReadAlgorithm, BaseReadV
 - Passou com sucesso em todos os comandos de verificação e no `make test`.
 
 ---
+
+## [T-028] Basemap de satelite deve entrar por baixo das demais camadas
+
+- status: pronta
+- responsavel: junior (IMPLEMENTA; senior verifica)
+- fase: diagnostico (UX)
+- branch: `feat/diagnostico-plano-diretor`
+
+### Objetivo
+
+A imagem de satelite entra sempre **no topo** da arvore de camadas, tampando as
+demais. Deve entrar **no fundo** (ultima camada) por padrao. Causa: em
+`core/diagnostico.py`, `QgsProject.addMapLayer(bl)` insere no topo.
+
+### Arquivos permitidos
+
+- `core/diagnostico.py`
+
+### Arquivos proibidos
+
+- qualquer outro.
+
+### Passos
+
+1. Em `core/diagnostico.py`, no bloco `if add_basemap:` (~linha 216), trocar:
+   - DE:
+     ```python
+     if bl.isValid():
+         QgsProject.instance().addMapLayer(bl)
+         log("basemap de satelite adicionado")
+     ```
+   - PARA:
+     ```python
+     if bl.isValid():
+         proj = QgsProject.instance()
+         proj.addMapLayer(bl, False)            # nao adiciona a arvore ainda
+         proj.layerTreeRoot().addLayer(bl)      # anexa como ULTIMO filho = fundo
+         log("basemap de satelite adicionado (ao fundo)")
+     ```
+   > `addLayer` anexa como ultimo filho do root; na arvore do QGIS o ultimo filho
+   > e o **de baixo**. `QgsProject` ja esta importado no arquivo.
+
+### Comandos de verificacao
+
+```bash
+make test
+grep -n "layerTreeRoot().addLayer" core/diagnostico.py   # deve achar
+```
+
+### Criterios de aceite
+
+- **No QGIS (Diego/senior):** com "adicionar satelite" marcado, a imagem entra
+  como **ultima** camada (fundo); as camadas vetoriais ficam visiveis por cima.
+
+### Resultado
+
+(preencher ao concluir)
+
+---
