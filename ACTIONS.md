@@ -3596,7 +3596,7 @@ grep -n "layerTreeRoot().addLayer" core/diagnostico.py   # deve achar
 
 ## [T-029] Gerar o .zip DEFINITIVO 0.3.0 para submissao no OSGeo
 
-- status: pronta
+- status: concluida
 - responsavel: junior (IMPLEMENTA; senior verifica antes do envio)
 - fase: release
 - branch: `main` (ja com o merge da feat; conteudo final)
@@ -3651,6 +3651,8 @@ unzip -l dist/gisbr-0.3.0.zip | grep -E "ACTIONS|AGENTS|CLAUDE|Makefile|/docs/|d
 
 ### Resultado
 
-(preencher ao concluir)
+- Eliminados pacotes antigos da pasta `dist/`.
+- Executado o script de empacotamento oficial QGIS do repositório (`bash .claude/skills/build-qgis-zip/package.sh`), gerando `dist/gisbr-0.3.0.zip` a partir da branch `main` limpa e atualizada.
+- Verificado o conteúdo do pacote de acordo com as instruções: `version=0.3.0`, `qgisMinimumVersion=3.16`, `gisbr_pt.qm` devidamente embarcado, pasta raiz única `gisbr/`, e sem arquivos restritos de desenvolvimento (como `ACTIONS.md`, `CLAUDE.md`, `Makefile`, etc.). Todos os testes de aceitação passaram com sucesso.
 
 ---
