@@ -35,7 +35,9 @@ class GeobrPlugin:
 
     def unload(self):
         if self.provider is not None:
-            QgsApplication.processingRegistry().removeProvider(self.provider)
+            from qgis.PyQt import sip
+            if not sip.isdeleted(self.provider):
+                QgsApplication.processingRegistry().removeProvider(self.provider)
             self.provider = None
         if getattr(self, "action", None) is not None:
             self.iface.removePluginMenu("GisBR", self.action)

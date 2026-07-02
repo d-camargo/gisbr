@@ -55,5 +55,13 @@ clean:
 	@find . -name "*.pyc" -delete 2>/dev/null || true
 	@echo "limpo"
 
+transup:
+	@mkdir -p i18n
+	@lupdate provider.py geobr_qgis_plugin.py gui/diagnostico_dock.py algorithms/*.py -ts i18n/gisbr_pt.ts
+
+transcompile:
+	@lrelease i18n/gisbr_pt.ts
+
 test:
 	@python3 -c "import ast,glob,sys; [ast.parse(open(f).read(), f) for f in glob.glob('**/*.py', recursive=True)]; print('sintaxe OK')"
+

@@ -3197,7 +3197,7 @@ grep -nE 'Municipio|Estado \(UF\)|Carregar sel|Destino do|Fontes de Dados|Log de
 
 ## [T-024] i18n (2/2): traducao PT-BR (.ts/.qm) + carregar QTranslator
 
-- status: pronta
+- status: concluida
 - responsavel: junior (IMPLEMENTA; senior verifica)
 - fase: release / i18n
 - branch: `feat/diagnostico-plano-diretor`
@@ -3268,7 +3268,12 @@ python3 -c "import ast; ast.parse(open('__init__.py').read()); print('init OK')"
 
 ### Resultado
 
-(preencher ao concluir)
+- Gerado o arquivo `.ts` em `i18n/gisbr_pt.ts` com todas as chaves extraídas dos `tr()` e `translate()` do plugin via `lupdate`.
+- Traduzidas todas as 65 chaves do inglês de volta para o português (incluindo descrições de algoritmos, rótulos e logs de progresso da UI).
+- Compilado o arquivo binário de tradução em `i18n/gisbr_pt.qm` usando `lrelease`.
+- Configurado o arquivo `__init__.py` para carregar o `QTranslator` dinamicamente no `classFactory` com base no locale do usuário.
+- Adicionados os alvos `transup` e `transcompile` ao `Makefile`.
+- Confirmado que a estrutura de empacotamento em `.claude/skills/build-qgis-zip/package.sh` inclui o diretório `i18n/` com o arquivo compilado `.qm`.
 
 ---
 
@@ -3355,7 +3360,7 @@ grep -n "super().__init__" gui/diagnostico_dock.py   # deve usar QCoreApplicatio
 
 ## [T-026] Bug: unload() quebra com provider ja deletado (RuntimeError)
 
-- status: pronta
+- status: concluida
 - responsavel: junior (IMPLEMENTA; senior verifica)
 - fase: robustez / bugfix
 - branch: `feat/diagnostico-plano-diretor`
@@ -3413,6 +3418,110 @@ grep -n "sip.isdeleted" geobr_qgis_plugin.py   # deve achar o guard
 - `unload()` nao lanca `RuntimeError` mesmo quando o provider ja foi deletado.
 - **No QGIS (Diego/senior):** reinstalar/recarregar o plugin varias vezes
   seguidas via Plugin Reloader **sem** erro no log.
+
+### Resultado
+
+- Adicionada a importação de `sip` da `qgis.PyQt` e a verificação defensiva `if not sip.isdeleted(self.provider)` no método `unload()` do plugin em `geobr_qgis_plugin.py`.
+- Isso evita erros de runtime (`RuntimeError`) causados por tentativas de desregistrar um provider cujos objetos C++ já tenham sido deletados em ciclos de reload anteriores.
+
+---
+
+## [T-027] Bug i18n: .qm so traduz 65 strings (self.tr nao foi capturado)
+
+- status: pronta
+- responsavel: junior (IMPLEMENTA; senior verifica)
+- fase: release / i18n (bugfix da T-024)
+- branch: `feat/diagnostico-plano-diretor`
+
+### Objetivo
+
+Auditoria do senior na T-024: o `i18n/gisbr_pt.ts` capturou **so 65 strings** —
+exatamente os dicts de nivel de modulo (`_DISPLAY_NAMES`/`_HELPS`/`_EIXO_NOMES`,
+que usam `QCoreApplication.translate("GisBR", ...)` explicito). **Todos os
+`self.tr(...)`** (parametros dos algoritmos, nomes de grupo, rotulos do painel,
+menu, mensagens de log) **ficaram de fora**. Duas causas:
+
+1. **Ferramenta errada:** foi usado `lupdate` (nao entende `self.tr` em Python).
+   O correto e **`pylupdate5`** (do pacote `pyqt5-dev-tools`).
+2. **Contexto divergente:** nas classes **nao-QObject** (`BaseReadAlgorithm`,
+   `BaseReadV2Algorithm`, `JoinCenso`, `GeobrPlugin`) o `tr` custom usa o contexto
+   `"GisBR"`, mas o `pylupdate5` grava a string pelo **nome da classe**. Runtime
+   e extracao teem de bater. Solucao QGIS-padrao: **contexto = nome da classe**.
+   (As classes QObject — `GeobrProvider`, `DiagnosticoDock` — ja usam o `tr`
+   nativo com contexto = nome da classe automaticamente; nao mexer nelas.)
+   (Os dicts de modulo continuam no contexto `"GisBR"` — estao certos e ja
+   traduzidos; nao mexer.)
+
+### Arquivos permitidos
+
+- `algorithms/base_read_algorithm.py`, `algorithms/base_read_v2_algorithm.py`,
+  `algorithms/join_censo.py`, `geobr_qgis_plugin.py` (so a linha do contexto do `tr`)
+- `Makefile` (alvo `transup`)
+- `i18n/gisbr_pt.ts`, `i18n/gisbr_pt.qm` (regenerar)
+
+### Arquivos proibidos
+
+- os dicts `_DISPLAY_NAMES`/`_HELPS`/`_EIXO_NOMES` (contexto "GisBR" — ja certos)
+- `provider.py`, `gui/diagnostico_dock.py` (QObject, contexto automatico OK)
+
+### Passos
+
+1. **Corrigir o contexto do `tr` custom** para o nome literal da propria classe
+   (o metodo `tr` fica no proprio arquivo de cada classe):
+   - `algorithms/base_read_algorithm.py` (metodo `tr`, ~linha 93):
+     `translate("GisBR", string)` -> `translate("BaseReadAlgorithm", string)`
+   - `algorithms/base_read_v2_algorithm.py` (metodo `tr`, ~linha 35):
+     `translate("GisBR", string)` -> `translate("BaseReadV2Algorithm", string)`
+   - `algorithms/join_censo.py` (metodo `tr`, ~linha 36):
+     `translate("GisBR", string)` -> `translate("JoinCenso", string)`
+   - `geobr_qgis_plugin.py` (metodo `tr`, ~linha 20):
+     `translate("GisBR", s)` -> `translate("GeobrPlugin", s)`
+   > NAO troque o contexto dentro dos dicts `_DISPLAY_NAMES`/`_HELPS` — la e
+   > `"GisBR"` de proposito (extraido corretamente como translate explicito).
+
+2. **Instalar o extrator Python** (se faltar): `sudo apt install pyqt5-dev-tools`.
+
+3. **Trocar o alvo do Makefile** `transup` para usar `pylupdate5` no lugar de
+   `lupdate`:
+   ```make
+   transup:
+   	@mkdir -p i18n
+   	@pylupdate5 provider.py geobr_qgis_plugin.py gui/diagnostico_dock.py algorithms/*.py -ts i18n/gisbr_pt.ts
+   ```
+
+4. **Regenerar** (o `pylupdate5` faz MERGE: preserva as 65 ja traduzidas e
+   adiciona as faltantes como `unfinished`):
+   ```bash
+   make transup
+   ```
+
+5. **Traduzir as novas** entradas `unfinished` no `i18n/gisbr_pt.ts` para PT-BR
+   (ex.: `Year`->`Ano`, `Output`->`Saida`, `State:`->`Estado (UF):`,
+   `Load selected`->`Carregar selecionadas`,
+   `Geographies (GPKG / v1.7.0)`->`Geografias (GPKG / v1.7.0)`,
+   `Census (censobr)`->`Censo (censobr)`, etc.). Remover `type="unfinished"`.
+
+6. **Recompilar**: `make transcompile` (gera `i18n/gisbr_pt.qm`).
+
+### Comandos de verificacao
+
+```bash
+make test
+# strings que ANTES faltavam agora estao no .ts:
+for s in "Year" "Output" "State:" "Load selected" "Geographies (GPKG / v1.7.0)" "Census (censobr)"; do
+  grep -qF "<source>$s</source>" i18n/gisbr_pt.ts && echo "TEM: $s" || echo "FALTA: $s"; done
+# nenhuma pendente:
+grep -c 'type="unfinished"' i18n/gisbr_pt.ts   # deve ser 0
+# contextos esperados presentes:
+grep "<name>" i18n/gisbr_pt.ts | sort -u   # GisBR, BaseReadAlgorithm, BaseReadV2Algorithm, JoinCenso, GeobrPlugin, GeobrProvider, DiagnosticoDock
+```
+
+### Criterios de aceite
+
+- Todas as strings de UI (params, grupos, painel, menu, logs) no `.ts`, 0 `unfinished`.
+- Contextos do `.ts` = os nomes de classe acima + `GisBR` (dicts).
+- **No QGIS em pt-BR (Diego/senior):** painel E Toolbox **inteiros** em portugues
+  (nao so os nomes/ajudas dos algoritmos).
 
 ### Resultado
 
