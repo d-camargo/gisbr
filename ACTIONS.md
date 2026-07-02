@@ -3352,3 +3352,70 @@ grep -n "super().__init__" gui/diagnostico_dock.py   # deve usar QCoreApplicatio
 - Rodados os testes com sucesso (`make test`).
 
 ---
+
+## [T-026] Bug: unload() quebra com provider ja deletado (RuntimeError)
+
+- status: pronta
+- responsavel: junior (IMPLEMENTA; senior verifica)
+- fase: robustez / bugfix
+- branch: `feat/diagnostico-plano-diretor`
+
+### Objetivo
+
+No reload do plugin, o QGIS lanca:
+`RuntimeError: wrapped C/C++ object of type GeobrProvider has been deleted`
+em `geobr_qgis_plugin.py::unload` na linha `removeProvider(self.provider)`.
+
+Causa (auditada pelo senior): o registry do Processing **assume a posse** do
+provider no `addProvider`; quando o objeto C++ ja foi deletado (ex.: ciclo de
+reload anterior), o wrapper Python `self.provider` fica pendurado num objeto
+morto e `removeProvider(self.provider)` estoura. Blindar o unload verificando
+`sip.isdeleted` antes de chamar `removeProvider`.
+
+### Arquivos permitidos
+
+- `geobr_qgis_plugin.py`
+
+### Arquivos proibidos
+
+- qualquer outro.
+
+### Passos
+
+1. Em `geobr_qgis_plugin.py`, no metodo `unload`, trocar o bloco do provider:
+   - DE:
+     ```python
+     if self.provider is not None:
+         QgsApplication.processingRegistry().removeProvider(self.provider)
+         self.provider = None
+     ```
+   - PARA:
+     ```python
+     if self.provider is not None:
+         from qgis.PyQt import sip
+         if not sip.isdeleted(self.provider):
+             QgsApplication.processingRegistry().removeProvider(self.provider)
+         self.provider = None
+     ```
+   > Se o objeto C++ ja foi deletado, apenas nao chamamos `removeProvider`
+   > (a entrada no registry ja se foi junto com o objeto). O resto do unload
+   > (action/dock) fica igual.
+
+### Comandos de verificacao
+
+```bash
+make test
+grep -n "sip.isdeleted" geobr_qgis_plugin.py   # deve achar o guard
+```
+
+### Criterios de aceite
+
+- `unload()` nao lanca `RuntimeError` mesmo quando o provider ja foi deletado.
+- **No QGIS (Diego/senior):** reinstalar/recarregar o plugin varias vezes
+  seguidas via Plugin Reloader **sem** erro no log.
+
+### Resultado
+
+(preencher ao concluir)
+
+---
