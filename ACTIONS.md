@@ -3593,3 +3593,64 @@ grep -n "layerTreeRoot().addLayer" core/diagnostico.py   # deve achar
 - Validado com `make test` e `grep`.
 
 ---
+
+## [T-029] Gerar o .zip DEFINITIVO 0.3.0 para submissao no OSGeo
+
+- status: pronta
+- responsavel: junior (IMPLEMENTA; senior verifica antes do envio)
+- fase: release
+- branch: `main` (ja com o merge da feat; conteudo final)
+
+### Objetivo
+
+Gerar o pacote final `dist/gisbr-0.3.0.zip` a partir do estado **atual da `main`**
+(pos-merge: diagnostico + i18n + `qgisMinimumVersion=3.16`), para o Diego enviar
+em plugins.qgis.org. Descartar qualquer zip antigo (gerado antes do fix de
+metadata).
+
+### Arquivos permitidos
+
+- `dist/` (gerar/remover zip)
+
+### Arquivos proibidos
+
+- qualquer arquivo de codigo/metadata (o conteudo ja esta final; so empacotar).
+
+### Passos
+
+1. Garantir que esta na `main` atualizada:
+   ```bash
+   git checkout main && git pull
+   ```
+2. Remover zips antigos e gerar pela skill:
+   ```bash
+   rm -f dist/gisbr-*.zip
+   bash .claude/skills/build-qgis-zip/package.sh
+   ```
+
+### Comandos de verificacao
+
+```bash
+# metadata correto dentro do pacote:
+unzip -p dist/gisbr-0.3.0.zip gisbr/metadata.txt | grep -E "^version=|^qgisMinimumVersion="
+# -> version=0.3.0 e qgisMinimumVersion=3.16
+# traducao PT-BR embarcada:
+unzip -l dist/gisbr-0.3.0.zip | grep "i18n/gisbr_pt.qm"
+# estrutura de pasta-topo unica:
+unzip -l dist/gisbr-0.3.0.zip | grep "gisbr/metadata.txt"
+# higiene (deve dar "OK"):
+unzip -l dist/gisbr-0.3.0.zip | grep -E "ACTIONS|AGENTS|CLAUDE|Makefile|/docs/|desafio-2-port" && echo "ERRO: lixo" || echo "OK: limpo"
+```
+
+### Criterios de aceite
+
+- `dist/gisbr-0.3.0.zip` gerado do estado final da `main`.
+- Dentro: `metadata.txt` com `version=0.3.0` e `qgisMinimumVersion=3.16`,
+  `i18n/gisbr_pt.qm` presente, pasta-topo unica `gisbr/`, sem arquivos de processo.
+- Senior confere antes do Diego enviar.
+
+### Resultado
+
+(preencher ao concluir)
+
+---
