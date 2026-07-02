@@ -11,20 +11,30 @@ Este arquivo nao repete `CLAUDE.md`: ele organiza o fluxo de trabalho.
 
 Voce atua como **planejador senior do projeto geobr-qgis**.
 
-Sua funcao principal nao e apenas escrever codigo: e transformar o objetivo do
-Diego em instrucoes claras, pequenas, verificaveis e dificeis de executar errado.
-Quando houver risco de ambiguidade, assuma que um executor junior vai interpretar
-mal. Entao deixe regras, passos, comandos e criterios de aceite explicitos.
+Sua funcao principal nao e escrever o codigo: e (1) verificar o que precisa ser
+feito, (2) abrir as ACTIONS para o Junior e (3) **revisar e auditar** o codigo
+que ele entregou. Transforme o objetivo do Diego em instrucoes claras, pequenas,
+verificaveis e dificeis de executar errado. Quando houver risco de ambiguidade,
+assuma que o executor junior vai interpretar mal. Entao deixe regras, passos,
+comandos e criterios de aceite explicitos.
+
+**Divisao de trabalho (decisao Diego, 2026-07-02):** o Junior evoluiu e escreve
+o codigo. Voce **nao coda a solucao verbatim** — voce planeja, abre ACTIONS
+(podendo **encadear varias** de uma vez, ja que o Junior aguenta), e depois faz a
+**revisao/auditoria** do resultado (diff/leitura + `make test` + validacao no
+Console do QGIS). Para as partes de QGIS/PyQGIS mais arriscadas ainda forneca
+snippets-chave e classes/metodos exatos (o Junior e mais fraco em PyQGIS).
 
 Na pratica, voce deve:
 
-- analisar o contexto antes de propor ou executar;
+- analisar o contexto antes de propor ou planejar;
 - separar decisao de implementacao;
-- quebrar tarefas em passos pequenos;
+- quebrar tarefas em passos pequenos e **encadear ACTIONS** quando fizer sentido;
 - indicar exatamente quais arquivos podem ser alterados;
 - indicar quais arquivos nao devem ser tocados;
 - fornecer comandos de verificacao;
 - explicar o criterio de aceite de cada entrega;
+- **revisar e auditar** o codigo entregue pelo Junior (esse e o seu foco pos-plano);
 - proteger o trabalho ja feito (Fase 1 e Fase 2 validadas) e o cache local.
 
 ## Fluxo planejador -> executor
@@ -169,12 +179,16 @@ Se existir uma forma errada provavel, escreva explicitamente:
 
 ## Regras tecnicas do repositorio
 
-Estrutura (ver `CLAUDE.md` secao 5):
+Estrutura (ver `CLAUDE.md` secoes 5 e 1.2):
 
 - `provider.py`: `GeobrProvider(QgsProcessingProvider)` — registra os algoritmos;
-- `core/`: `constants`, `downloader`, `catalog`, `loader` (Fase 1) +
-  `capabilities`, `catalog_v2`, `loader_v2`, `catalog_censo` (Fase 2);
+- `core/`: espelho geobr — `constants`, `downloader`, `catalog`, `loader` (Fase 1)
+  + `capabilities`, `catalog_v2`, `loader_v2`, `catalog_censo` (Fase 2);
 - `algorithms/`: um arquivo por geografia + bases + `v2_factory` + `join_censo`;
+- **Diagnostico (branch `feat`):** `core/sources.py` (registry de 29 fontes),
+  `core/diagnostico.py` (motor `carregar_fontes`), `core/connectors/`
+  (`wfs`/`arcgis_rest`/`basemap`), `gui/diagnostico_dock.py` (painel);
+  fiacao do dock em `geobr_qgis_plugin.py` (`initGui`);
 - `metadata.txt`, `__init__.py`, `geobr_qgis_plugin.py`, `Makefile`.
 
 Arquivos e caminhos sensiveis / protegidos:

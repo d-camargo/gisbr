@@ -21,7 +21,7 @@ class GeobrProvider(QgsProcessingProvider):
         return "GisBR"
 
     def longName(self):
-        return "GisBR — dados espaciais oficiais do Brasil (IBGE/IPEA)"
+        return self.tr("GisBR — official Brazilian spatial data (IBGE/IPEA)")
 
     def icon(self):
         here = os.path.dirname(__file__)

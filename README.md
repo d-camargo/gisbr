@@ -36,7 +36,13 @@ The plugin provides 55 algorithms, including:
 | `SIMPLIFIED` | bool | Default `True` for faster rendering. |
 | `OUTPUT` | sink | Output layer. |
 
-> **Note**: Geographies split by state (e.g., `municipality`, `census_tract`) will only download the specific state when `CODE` is provided, avoiding a full country download.
+## Data Vintage (Reference Year)
+
+It is important to distinguish the **reference year of the data** (vintage) from the **extraction date** (when the download was performed):
+- **geobr**: Phase 1 algorithms load from the v1.7.0 legacy catalog (referencing IBGE data up to ~2020). Phase 2 algorithms load from the v2.0.0 catalog (referencing data up to 2022/2025).
+- **Plano Diretor Diagnostic**: Each theme/source has its own distinct reference year (e.g., DNIT SNV is `snv_202507a` from July 2025). See [docs/diagnostico-plano-diretor/fontes-detalhe.md](file:///home/diegocamargo/Drive/02_Projetos_Tecnicos/GISBR/docs/diagnostico-plano-diretor/fontes-detalhe.md) for details on each source.
+
+Downloaded layers will store the download date in a custom property called `data_extracao`, which is different from the actual reference year (vintage) of the dataset.
 
 ## Requirements
 
@@ -113,6 +119,14 @@ O plugin possui 55 algoritmos, incluindo:
 | `OUTPUT` | sink | Camada de saída. |
 
 > **Nota**: Geografias particionadas por UF (ex: `municipality`, `census_tract`) baixarão **apenas o estado** quando `CODE` for fornecido, evitando o download do Brasil inteiro.
+
+## Vintage dos Dados (Ano de Referência)
+
+É importante distinguir o **ano de referência dos dados** (vintage) da **data de extração** (quando o download foi realizado):
+- **geobr**: Os algoritmos da Fase 1 carregam do catálogo legado v1.7.0 (referenciando anos do IBGE até ~2020). Os algoritmos da Fase 2 carregam do catálogo v2.0.0 (referenciando anos até 2022/2025).
+- **Diagnóstico Plano Diretor**: Cada fonte possui sua própria vintage de referência (ex: a malha rodoviária do DNIT é `snv_202507a` de Julho/2025). Consulte [docs/diagnostico-plano-diretor/fontes-detalhe.md](file:///home/diegocamargo/Drive/02_Projetos_Tecnicos/GISBR/docs/diagnostico-plano-diretor/fontes-detalhe.md) para detalhes de cada base.
+
+As camadas baixadas gravam a data do download na propriedade personalizada `data_extracao`, a qual é diferente do ano de referência original (vintage) do conjunto de dados.
 
 ## Requisitos
 
