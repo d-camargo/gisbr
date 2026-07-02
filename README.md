@@ -5,8 +5,8 @@ Acesso **"1 linha → 1 camada"** aos dados espaciais oficiais do Brasil do paco
 **apenas PyQGIS + a stdlib do Python** — sem `geopandas`, `requests`, `pandas`
 ou `duckdb`.
 
-> Estado atual: **Fase 1** — backend **GeoPackage legacy (v1.7.0)**.
-> Fase 2 (Parquet v2.0.0 + integração com `censobr`) é roadmap — ver `CLAUDE.md`.
+> Estado atual: suporte a **Fase 1** (GeoPackage legacy v1.7.0) e **Fase 2**
+> (Parquet v2.0.0 + integração com `censobr`/`join_censo`).
 
 ## Como funciona
 
@@ -31,9 +31,9 @@ algoritmo `read_*`, que:
 | Ambiental / territorial | `read_biomes`, `read_amazon`, `read_semiarid`, `read_conservation_units`, `read_indigenous_land`, `read_disaster_risk_area` |
 | Setorial | `read_health_region`, `read_health_facilities`, `read_schools` |
 
-> Fora da Fase 1: `read_comparable_areas` (assinatura `start_year`/`end_year`) e
-> as geografias só-v2 (`read_favela`, `read_polling_places`,
-> `read_quilombola_land`) — ficam para a Fase 2.
+> Fora da Fase 1: `read_comparable_areas` (assinatura `start_year`/`end_year`).
+> A Fase 2 adiciona as geografias só-v2 (`read_favela`, `read_polling_places`,
+> `read_quilombola_land`) e o `join_censo` para dados do `censobr`.
 >
 > ⚠️ `read_statistical_grid` é fatiado em ~56 arquivos de grade e, sem filtro,
 > baixa o Brasil inteiro (vários GB). Use com cautela.
