@@ -148,6 +148,9 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
         if feedback is not None:
             feedback.pushInfo(m)
 
+    if gpkg_path and not gpkg_path.lower().endswith(".gpkg"):
+        gpkg_path = gpkg_path + ".gpkg"
+
     uf = _UF_POR_CODIGO.get(str(code_muni)[:2], "").lower()
     res = {"ok": [], "falhou": [], "pulou": []}
     existentes = _layers_existentes(gpkg_path)

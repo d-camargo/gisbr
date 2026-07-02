@@ -139,6 +139,8 @@ class DiagnosticoDock(QgsDockWidget):
             self, "Selecionar GeoPackage", "", "GeoPackage (*.gpkg)"
         )
         if path:
+            if not path.lower().endswith(".gpkg"):
+                path += ".gpkg"
             self.ed_gpkg.setText(path)
 
     def _selected_source_ids(self):
