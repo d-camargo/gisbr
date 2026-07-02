@@ -2,7 +2,7 @@
 
 [general]
 name=GisBR
-qgisMinimumVersion=3.0
+qgisMinimumVersion=3.16
 description=Load official Brazilian spatial data (IBGE/IPEA geobr + censobr) and run a municipal Master Plan diagnostic in QGIS, using only the native QGIS API.
 version=0.3.0
 author=Diego Camargo
