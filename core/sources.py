@@ -106,7 +106,7 @@ SOURCES = [
     {"id": "geobr_locais_votacao", "eixo": "pol-admin", "nome": "Locais de votacao (geobr v2)",
      "protocolo": "geobr", "algo": "read_polling_places_v2", "recorte": "code", "requer_parquet": True},
     {"id": "geobr_quilombolas", "eixo": "ambiental", "nome": "Terras quilombolas (geobr v2)",
-     "protocolo": "geobr", "algo": "read_quilombola_land_v2", "recorte": "code", "requer_parquet": True},
+     "protocolo": "geobr", "algo": "read_quilombola_land_v2", "recorte": "bbox", "requer_parquet": True},
     # --- Contexto ---
     {"id": "basemap_satelite", "eixo": "contexto", "nome": "Imagem de satelite (Esri)",
      "protocolo": "basemap"},

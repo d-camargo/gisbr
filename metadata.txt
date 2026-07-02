@@ -3,12 +3,12 @@
 [general]
 name=GisBR
 qgisMinimumVersion=3.0
-description=Load official Brazilian spatial data (IBGE/IPEA geobr + censobr) into QGIS with one click, using only the native QGIS API.
-version=0.2.0
+description=Load official Brazilian spatial data (IBGE/IPEA geobr + censobr) and run a municipal Master Plan diagnostic in QGIS, using only the native QGIS API.
+version=0.3.0
 author=Diego Camargo
 email=dg.camargo@proton.me
 
-about=GisBR brings the "one line -> one layer" access of the geobr/censobr packages (IPEA) into QGIS as a Processing provider, using only the native QGIS/Qt API and the Python standard library (no geopandas/requests/pandas). Phase 1: legacy GeoPackage backend (geobr v1.7.0), 100% native. Phase 2: Parquet backend (geobr v2.0.0) read via the GDAL Parquet driver or a pyarrow fallback, plus a join with census tables from censobr. Each read_* algorithm (states, municipalities, census tracts, weighting areas, metropolitan areas, biomes, schools, health facilities and more) works in the Processing Toolbox, in graphical models, in batch and via processing.run(). Data in SIRGAS 2000 / EPSG:4674. Licensed under GPL-3.0.
+about=GisBR brings the "one line -> one layer" access of the geobr/censobr packages (IPEA) into QGIS as a Processing provider, using only the native QGIS/Qt API and the Python standard library (no geopandas/requests/pandas). Phase 1: legacy GeoPackage backend (geobr v1.7.0), 100% native. Phase 2: Parquet backend (geobr v2.0.0) read via the GDAL Parquet driver or a pyarrow fallback, plus a join with census tables from censobr. On top of the geobr mirror, GisBR adds a municipal Master Plan diagnostic: a dock panel (state -> municipality) that loads official layers organized in 8 axes (transport, sanitation, demography, environment, education, health, urban, administrative) from WFS and ArcGIS REST services, clipped to the municipality polygon and saved to a local GeoPackage, with an optional Esri World Imagery satellite basemap. Data in SIRGAS 2000 / EPSG:4674. Licensed under GPL-3.0.
 
 tracker=https://github.com/d-camargo/gisbr/issues
 repository=https://github.com/d-camargo/gisbr
@@ -17,6 +17,13 @@ homepage=https://github.com/d-camargo/gisbr
 hasProcessingProvider=yes
 
 changelog=
+    0.3.0
+    - Master Plan diagnostic: dock panel (state -> municipality) that loads
+      official layers by axis into a local GeoPackage.
+    - New connectors: WFS (CQL_FILTER) and ArcGIS REST (where=), plus an Esri
+      World Imagery satellite basemap.
+    - 29-source declarative catalog across 8 axes; server-side filter by
+      municipality with client-side clip to the municipality polygon.
     0.2.0
     - Phase 2: Parquet backend (geobr v2.0.0) with 28 read_*_v2 algorithms.
     - censobr integration: join_censo joins geobr census tracts with census tables.

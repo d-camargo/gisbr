@@ -2915,3 +2915,354 @@ Diagnostico — geobr no painel (decisoes de 2026-06-29):
   para uma fonte com filtro por municipio (ex.: INEP/CNES direto) no futuro.
 - **read_health_region, metro_area, etc.** ficaram de fora (recortes
   multi-municipio); reabrir se quiserem "a regiao que contem o municipio".
+
+---
+
+## [T-021] Reconciliar metadata.txt para 0.3.0 e regerar o .zip
+
+- status: concluida
+- responsavel: junior (IMPLEMENTA; senior verifica/audita)
+- fase: release
+- branch: `feat/diagnostico-plano-diretor`
+
+### Objetivo
+
+O `metadata.txt` ainda descreve so o espelho geobr (versao 0.2.0). Atualizar para
+**0.3.0** incluindo o sistema de Diagnostico de Plano Diretor (painel, conectores
+WFS/ArcGIS, 8 eixos, GeoPackage, basemap) e **regerar o pacote de publicacao**
+(`dist/gisbr-0.3.0.zip`), descartando o `dist/gisbr-0.2.0.zip` (pacote errado —
+so-geobr, gerado na T-016).
+
+### Contexto (por que)
+
+- `CLAUDE.md §1.2`: a publicacao sai da branch `feat` (plugin completo) e exige
+  `metadata.txt` com descricao do diagnostico + **versao 0.3.0**.
+- A skill `build-qgis-zip` le `version=` do `metadata.txt` — apos o bump, o zip
+  gerado ja sai como `dist/gisbr-0.3.0.zip` automaticamente.
+
+### Arquivos permitidos
+
+- `metadata.txt` (edicao AUTORIZADA pelo senior nesta ACTION)
+- `dist/` (gerar novo zip; remover o 0.2.0)
+
+### Arquivos proibidos
+
+- qualquer `.py`, `core/`, `gui/`, `algorithms/` (nao mexer em codigo)
+- `CLAUDE.md`, `AGENTS.md`, `README.md`
+- `~/.cache/geobr-qgis/**`
+
+### Passos
+
+1. Em `metadata.txt`, trocar **exatamente** estas 3 linhas/blocos:
+
+   1a. `version`:
+   - DE: `version=0.2.0`
+   - PARA: `version=0.3.0`
+
+   1b. `description` (linha unica):
+   - DE:
+     `description=Load official Brazilian spatial data (IBGE/IPEA geobr + censobr) into QGIS with one click, using only the native QGIS API.`
+   - PARA:
+     `description=Load official Brazilian spatial data (IBGE/IPEA geobr + censobr) and run a municipal Master Plan diagnostic in QGIS, using only the native QGIS API.`
+
+   1c. `about` (linha unica) — substituir por:
+     `about=GisBR brings the "one line -> one layer" access of the geobr/censobr packages (IPEA) into QGIS as a Processing provider, using only the native QGIS/Qt API and the Python standard library (no geopandas/requests/pandas). Phase 1: legacy GeoPackage backend (geobr v1.7.0), 100% native. Phase 2: Parquet backend (geobr v2.0.0) read via the GDAL Parquet driver or a pyarrow fallback, plus a join with census tables from censobr. On top of the geobr mirror, GisBR adds a municipal Master Plan diagnostic: a dock panel (state -> municipality) that loads official layers organized in 8 axes (transport, sanitation, demography, environment, education, health, urban, administrative) from WFS and ArcGIS REST services, clipped to the municipality polygon and saved to a local GeoPackage, with an optional Esri World Imagery satellite basemap. Data in SIRGAS 2000 / EPSG:4674. Licensed under GPL-3.0.`
+
+2. No bloco `changelog=`, **inserir a entrada 0.3.0 no topo** (logo apos a linha
+   `changelog=`, antes de `    0.2.0`), com esta indentacao (4 espacos):
+
+   ```
+       0.3.0
+       - Master Plan diagnostic: dock panel (state -> municipality) that loads
+         official layers by axis into a local GeoPackage.
+       - New connectors: WFS (CQL_FILTER) and ArcGIS REST (where=), plus an Esri
+         World Imagery satellite basemap.
+       - 29-source declarative catalog across 8 axes; server-side filter by
+         municipality with client-side clip to the municipality polygon.
+   ```
+
+3. **Nao** alterar `experimental=True` (segue experimental) nem os campos de
+   repo/email/tags.
+
+4. Remover o pacote errado e regerar pela skill:
+   ```bash
+   rm -f dist/gisbr-0.2.0.zip
+   bash .claude/skills/build-qgis-zip/package.sh
+   ```
+
+### Comandos de verificacao
+
+```bash
+# versao bumpada
+grep -n '^version=' metadata.txt          # deve mostrar 0.3.0
+# zip novo gerado com o nome certo, e o antigo sumiu
+ls -la dist/                              # gisbr-0.3.0.zip presente; 0.2.0 ausente
+# estrutura exigida pelo QGIS: pasta de topo unica com metadata.txt na raiz
+unzip -l dist/gisbr-0.3.0.zip | grep -E 'gisbr/metadata.txt|gisbr/sources.py|gisbr/connectors|gisbr/gui/'
+# higiene: process files NAO entram no pacote
+unzip -l dist/gisbr-0.3.0.zip | grep -E 'ACTIONS.md|AGENTS.md|CLAUDE.md|Makefile|/docs/|desafio-2-port' && echo "ERRO: lixo no pacote" || echo "OK: sem arquivos de processo"
+```
+
+### Criterios de aceite
+
+- `metadata.txt`: `version=0.3.0`, `description`/`about` mencionam o diagnostico,
+  changelog com entrada `0.3.0` no topo.
+- `dist/gisbr-0.3.0.zip` existe; `dist/gisbr-0.2.0.zip` foi removido.
+- O zip tem **uma unica pasta de topo `gisbr/`** com `metadata.txt` na raiz e
+  inclui `sources.py`, `connectors/`, `gui/`, `diagnostico.py`.
+- O zip **nao** contem `ACTIONS.md`/`AGENTS.md`/`CLAUDE.md`/`Makefile`/`docs/`/
+  `desafio-2-port/`.
+
+### Resultado
+
+- Atualizado `metadata.txt` com versão `0.3.0`, nova descrição e resumo mencionando o Diagnóstico do Plano Diretor Municipal, e changelog contendo a respectiva nota sobre a nova funcionalidade.
+- Removido o arquivo compactado `dist/gisbr-0.2.0.zip`.
+- Executado o script de empacotamento (`package.sh`) da skill de build para gerar o novo pacote `dist/gisbr-0.3.0.zip`.
+- Verificado a integridade do pacote gerado (contém apenas os arquivos e subpastas de produção sob o namespace de topo `gisbr/` e nenhum arquivo de processo).
+- `make test` executado e aprovado com sucesso.
+
+---
+
+## [T-022] Bug: quilombola sai com o Brasil inteiro (recorte errado)
+
+- status: pronta
+- responsavel: junior (IMPLEMENTA; senior verifica)
+- fase: diagnostico (bugfix)
+- branch: `feat/diagnostico-plano-diretor`
+
+### Objetivo
+
+`Terras quilombolas (geobr v2)` veio com **433 feicoes (Brasil inteiro)** ao
+diagnosticar BH. Causa (auditada pelo senior): a fonte esta com `recorte: "code"`,
+mas `read_quilombola_land_v2` **nao tem coluna `code_muni`** — o filtro por codigo
+nao casa nada e devolve tudo; e como nao e `bbox`, o motor **nao aplica o recorte
+por poligono**. Corrigir para `bbox` (baixa nacional e recorta pelo poligono do
+municipio, como escolas/saude/biomas).
+
+### Arquivos permitidos
+
+- `core/sources.py` (uma linha)
+
+### Arquivos proibidos
+
+- qualquer outro arquivo (`.py` do motor, gui, algorithms), `CLAUDE.md`, etc.
+
+### Passos
+
+1. Em `core/sources.py`, na fonte `id="geobr_quilombolas"` (linha ~109), trocar:
+   - DE: `"recorte": "code"`
+   - PARA: `"recorte": "bbox"`
+   - **Manter** `"requer_parquet": True` e todo o resto igual.
+2. **Nao** mexer em `geobr_favelas` nem `geobr_polling_places` — esses tem
+   `code_muni` (o `code` deve funcionar); ficam para o Diego validar no QGIS.
+
+### Comandos de verificacao
+
+```bash
+python3 -c "import ast; ast.parse(open('core/sources.py').read()); print('sintaxe OK')"
+grep -n 'geobr_quilombolas' core/sources.py   # deve mostrar recorte: bbox
+```
+
+### Criterios de aceite
+
+- `geobr_quilombolas` com `"recorte": "bbox"`.
+- (validacao no QGIS, Diego) diagnostico de BH traz so os territorios
+  quilombolas que **intersectam BH** (nao os 433 do Brasil).
+
+### Resultado
+
+(preencher ao concluir)
+
+---
+
+## [T-023] i18n (1/2): textos da UI em INGLES via tr()
+
+- status: pronta
+- responsavel: junior (IMPLEMENTA; senior verifica)
+- fase: release / i18n
+- branch: `feat/diagnostico-plano-diretor`
+- encadeia com: **T-024** (traducao PT-BR); faca T-023 antes.
+
+### Objetivo
+
+O repo oficial do QGIS espera o plugin em **ingles**. Hoje os nomes/grupos dos
+algoritmos e todo o painel estao em PT-BR. Tornar o **ingles o idioma-fonte**,
+envolvendo cada texto visivel ao usuario em `tr(...)`. O PT-BR volta como
+**traducao** na T-024 (nao apague o portugues do usuario — ele reaparece via .qm).
+
+### Regra de ouro (idioma-fonte = ingles)
+
+- Todo literal exibido ao usuario vira **ingles** dentro de `self.tr("...")`.
+- Classes envolvidas sao subclasses de `QObject` (algoritmos, provider, dock),
+  entao **use `self.tr(...)`** — o `pylupdate5` extrai isso de forma confiavel
+  (contexto = nome da classe).
+- Para literais **fora de classe** (constantes de modulo, ex.: nomes dos eixos),
+  use `QCoreApplication.translate("GisBR", "...")` (import
+  `from qgis.PyQt.QtCore import QCoreApplication`).
+- **NAO** traduzir: nomes de UF/estados (dado, nao chrome), ids internos,
+  `code_muni`, nomes de campos, caminhos.
+
+### Arquivos permitidos
+
+- `algorithms/base_read_algorithm.py`, `algorithms/base_read_v2_algorithm.py`,
+  `algorithms/join_censo.py`, e demais `algorithms/**` com `group()/displayName()`
+- `provider.py`
+- `gui/diagnostico_dock.py`
+- `geobr_qgis_plugin.py` (rotulo do menu/acao)
+
+### Arquivos proibidos
+
+- `core/**` (motor/sources — nao tem UI), `metadata.txt` (ja esta em ingles),
+  `CLAUDE.md`, `AGENTS.md`.
+
+### Passos
+
+1. **Grupos dos algoritmos** (retornos hardcoded) — traduzir o texto e envolver
+   em `self.tr(...)`:
+   - `"Geografias (GPKG / v1.7.0)"` -> `self.tr("Geographies (GPKG / v1.7.0)")`
+   - `"Geografias (Parquet / v2.0.0)"` -> `self.tr("Geographies (Parquet / v2.0.0)")`
+   - `"Censo (censobr)"` -> `self.tr("Census (censobr)")`
+   - grupos dos eixos do diagnostico (se houver algoritmo) -> ingles (ver mapa §4).
+   - `displayName()`, `shortHelpString()` idem (help pode ficar para depois se for
+     grande; **prioridade: name/group/displayName**).
+2. **provider.py**: `longName()` -> `self.tr("GisBR — official Brazilian spatial data (IBGE/IPEA)")`.
+3. **geobr_qgis_plugin.py**: `QAction("Diagnostico Plano Diretor (GisBR)", ...)`
+   -> `QAction(self.tr("Master Plan Diagnostic (GisBR)"), ...)` e o menu
+   `"GisBR"` pode ficar (nome proprio). Adicionar helper `tr` na classe do plugin:
+   ```python
+   from qgis.PyQt.QtCore import QCoreApplication
+   def tr(self, s):
+       return QCoreApplication.translate("GisBR", s)
+   ```
+4. **gui/diagnostico_dock.py**: envolver TODO literal visivel em `self.tr(...)`
+   e traduzir para ingles. Exemplos (nao exaustivo — troque todos):
+   - `"GisBR — Diagnostico"` -> `self.tr("GisBR — Diagnostic")` (titulo)
+   - `"Estado (UF):"` -> `self.tr("State:")`
+   - `"Municipio:"` -> `self.tr("Municipality:")`
+   - `"Codigo IBGE (opcional / preenchido pela selecao):"` -> `self.tr("IBGE code (optional / filled by selection):")`
+   - `"Fontes de Dados:"` -> `self.tr("Data sources:")`
+   - `"Eixos e Camadas"` -> `self.tr("Axes and layers")`
+   - `"Destino do GeoPackage:"` -> `self.tr("GeoPackage destination:")`
+   - `"Adicionar imagem de satelite ao fundo"` -> `self.tr("Add satellite basemap")`
+   - `"Atualizar bases ja baixadas (rebaixar)"` -> `self.tr("Update already-downloaded layers (re-download)")`
+   - `"Carregar selecionadas"` -> `self.tr("Load selected")`
+   - `"Log de Execucao:"` -> `self.tr("Execution log:")`
+   - placeholders, titulos de dialogo (`"Selecionar GeoPackage"` ->
+     `self.tr("Select GeoPackage")`), e **as mensagens de log** que o usuario le.
+   - **Nomes dos eixos** (`_EIXO_NOMES`, usados como grupos na arvore): mapa §4.
+
+### 4. Mapa de nomes dos eixos (PT-BR -> EN)
+
+| PT-BR | EN |
+|---|---|
+| Transportes | Transport |
+| Drenagem e Saneamento | Drainage & Sanitation |
+| Demografia | Demography |
+| Ambiental | Environment |
+| Educacao | Education |
+| Saude | Health |
+| Urbano | Urban |
+| Politico-administrativo | Administrative |
+| Contexto | Context |
+
+> Se `_EIXO_NOMES` for constante de modulo, envolva cada valor com
+> `QCoreApplication.translate("GisBR", "...")` (nao `self.tr`, que so existe em
+> instancia).
+
+### Comandos de verificacao
+
+```bash
+make test    # sintaxe OK
+# nao deve sobrar rotulo PT-BR obvio nos arquivos de UI:
+grep -nE 'Municipio|Estado \(UF\)|Carregar sel|Destino do|Fontes de Dados|Log de Execucao' gui/diagnostico_dock.py && echo "AINDA HA PT-BR" || echo "OK ingles"
+```
+
+### Criterios de aceite
+
+- Todos os grupos/nomes de algoritmo e todos os rotulos do painel em **ingles**,
+  cada um dentro de `self.tr(...)` (ou `QCoreApplication.translate("GisBR", ...)`
+  para literais de modulo).
+- `make test` passa. (Validacao visual no QGIS: painel e Toolbox em ingles.)
+
+### Resultado
+
+(preencher ao concluir)
+
+---
+
+## [T-024] i18n (2/2): traducao PT-BR (.ts/.qm) + carregar QTranslator
+
+- status: bloqueada (libera quando **T-023** estiver concluida)
+- responsavel: junior (IMPLEMENTA; senior verifica)
+- fase: release / i18n
+- branch: `feat/diagnostico-plano-diretor`
+
+### Objetivo
+
+Com o codigo ja em ingles (T-023), gerar a **traducao PT-BR** e carrega-la
+automaticamente quando o QGIS estiver em portugues. Sem isso, usuarios PT-BR
+veem o ingles (aceitavel, mas queremos o PT de volta).
+
+### Arquivos permitidos
+
+- `i18n/` (novo dir: `gisbr_pt.ts`, `gisbr_pt.qm`)
+- `__init__.py` (carregar QTranslator no `classFactory`)
+- `Makefile` (alvo opcional `transup`/`transcompile`)
+
+### Passos
+
+1. Criar o dir `i18n/` e gerar o `.ts` varrendo os `tr()`:
+   ```bash
+   mkdir -p i18n
+   pylupdate5 provider.py geobr_qgis_plugin.py gui/diagnostico_dock.py \
+       algorithms/*.py -ts i18n/gisbr_pt.ts
+   ```
+   > Se `pylupdate5` nao existir: `sudo apt install pyqt5-dev-tools`. `lrelease`
+   > vem em `qttools5-dev-tools` (ou use o `lrelease` que acompanha o QGIS).
+2. Editar `i18n/gisbr_pt.ts`: preencher cada `<translation>` com o **PT-BR**
+   correspondente (ex.: source `State:` -> translation `Estado (UF):`). Remover
+   `type="unfinished"` ao traduzir.
+3. Compilar:
+   ```bash
+   lrelease i18n/gisbr_pt.ts     # gera i18n/gisbr_pt.qm
+   ```
+4. Carregar o tradutor no `__init__.py::classFactory` **antes** de instanciar o
+   plugin (e **guardar referencia** para nao ser coletado):
+   ```python
+   def classFactory(iface):  # noqa: N802
+       import os
+       from qgis.PyQt.QtCore import QCoreApplication, QTranslator, QSettings
+       locale = (QSettings().value("locale/userLocale") or "en")[:2]
+       qm = os.path.join(os.path.dirname(__file__), "i18n", f"gisbr_{locale}.qm")
+       if os.path.exists(qm):
+           translator = QTranslator()
+           if translator.load(qm):
+               QCoreApplication.installTranslator(translator)
+               classFactory._translator = translator  # manter viva a ref
+       from .geobr_qgis_plugin import GeobrPlugin
+       return GeobrPlugin(iface)
+   ```
+5. **Higiene de pacote:** o `.ts` e fonte; o `.qm` **precisa** ir no zip. Conferir
+   se a skill `build-qgis-zip` inclui `i18n/*.qm` (senao, ajustar — mas isso e
+   tarefa do senior; so **sinalize** no Resultado se o .qm nao entrar no pacote).
+
+### Comandos de verificacao
+
+```bash
+ls i18n/gisbr_pt.qm            # existe
+make test
+python3 -c "import ast; ast.parse(open('__init__.py').read()); print('init OK')"
+```
+
+### Criterios de aceite
+
+- `i18n/gisbr_pt.qm` gerado a partir de `gisbr_pt.ts` traduzido.
+- Com o QGIS em pt-BR, painel/algoritmos aparecem em **portugues**; em outro
+  locale, em **ingles**. (Validacao no QGIS: Diego/senior.)
+- `classFactory` carrega o `.qm` sem quebrar quando ele nao existe.
+
+### Resultado
+
+(preencher ao concluir)
+
+---
