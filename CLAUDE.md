@@ -45,7 +45,7 @@
 
 ## 1.2. Estado implementado do diagnóstico (branch `feat/diagnostico-plano-diretor`, 2026-06-30)
 
-> A `main` segue sendo só o espelho geobr (Fases 1+2). Tudo abaixo vive na branch `feat/diagnostico-plano-diretor` e **ainda não foi publicado**. Detalhe de cada tarefa (T-003…T-019) em `ACTIONS.md`; desenho em `docs/diagnostico-plano-diretor/ARQUITETURA.md`.
+> **ATUALIZADO 2026-07-02:** a `feat/diagnostico-plano-diretor` foi **mergeada na `main`** (merge commit; árvore da main = feat) e a **v0.3.0 foi publicada no repositório oficial do QGIS** (plugins.qgis.org). A `main` agora **é** o plugin completo (diagnóstico + i18n), não mais só o espelho geobr. A branch `feat` segue no remoto como backup. Detalhe de cada tarefa (T-003…T-029) em `ACTIONS.md`; desenho em `docs/diagnostico-plano-diretor/ARQUITETURA.md`.
 
 **Arquitetura (declarativa, município-cêntrica):**
 - `core/sources.py` — catálogo declarativo `SOURCES` (**29 fontes**): 8 WFS + 5 ArcGIS REST + 15 geobr + 1 basemap. Cada fonte é um dict (`id, eixo, nome, protocolo, …`). Filtro: `{"tipo":"cql_codigo"|"cql_nome"|"bbox", ...}` (WFS/ArcGIS) ou `recorte: "code"|"bbox"` + `algo` (geobr). v2-only (`favela`/`polling_places`/`quilombola_land`) marcadas `requer_parquet`.
@@ -66,7 +66,7 @@
 
 **Fora do escopo (registrado):** `read_statistical_grid` (nacional ~GB; pra depois), `read_health_region`/`read_metro_area`/etc. (multi-município), parecer/KPIs (painel do haCARthon não entra agora).
 
-**Publicação:** **deferida** (Diego quer o plugin funcional com todo o geobr antes). Quando for, o `.zip` sai da **`feat`** (plugin completo), não da `main`, e o `metadata.txt` precisa ser atualizado (descrição do diagnóstico + versão 0.3.0). A T-016 está bloqueada por isso.
+**Publicação:** **FEITA (2026-07-02) — v0.3.0 publicada** no plugins.qgis.org (ainda `experimental=True`). O `.zip` saiu da `main` pós-merge via skill `build-qgis-zip` (`dist/gisbr-0.3.0.zip`), com i18n EN/PT-BR embarcado (`i18n/gisbr_pt.qm`) e `qgisMinimumVersion=3.16` (usa `QgsBlockingNetworkRequest`, 3.6+). Próximas versões: regerar da `main`. **A validar no QGIS pelo Diego** (não bloqueou o upload): satélite ao fundo, quilombola só-BH, reload sem erro, endpoints ArcGIS, v2 com pyarrow — antes de tirar o `experimental`.
 
 ---
 
@@ -377,6 +377,8 @@ Geografias **só-v2** (não existem no metadado v1.7.0, ficam para a Fase 2): `r
 - **Nomes de `geo` divergentes entre v1.7.0 e v2.0.0:** manter mapeamentos separados.
 - **Parquet via driver instalável:** a Fase 2 depende do driver GDAL Parquet (`libgdal-arrow-parquet` / `gdal-plugins`). Builds oficiais do QGIS costumam trazer; apt do Ubuntu pode não. **Detectar e, se faltar, orientar a instalação** (comandos em §6) — a versão do driver deve casar com a do GDAL do QGIS.
 - **censobr é Parquet/Arrow:** com o driver instalado, abre direto como tabela no QGIS e o join com a geometria roda via `native:joinattributestable` — sem conversão intermediária.
+- **`%` literal no `metadata.txt` quebra o upload (plugins.qgis.org):** o validador do repo oficial usa `configparser` com interpolação, então `%` é lido como início de token e falha com `'%' must be followed by '%' or '('`. Aconteceu com "100% native"/"100% PyQGIS" no `about`/`changelog` (v0.3.0). **Regra: evitar `%` no `metadata.txt`** (reescrever, ex.: "fully native"); se for inevitável, escapar como `%%`. Validar antes de subir: `python3 -c "import configparser as c; p=c.ConfigParser(); p.read('metadata.txt'); [p.get('general',k) for k in ('about','description','changelog')]"` — não pode lançar erro.
+- **i18n (Qt tr) — contexto tem de casar entre runtime e extração:** classes `QgsProcessingAlgorithm`/`QgsProcessingProvider` **não** têm `tr` nativo do QObject por padrão (o provider tem; o **algoritmo não** — precisa `def tr` próprio). O `pylupdate5` grava a string pelo **nome da classe**; então o `tr` custom deve usar `QCoreApplication.translate("<NomeDaClasse>", ...)`, não um contexto genérico, senão a tradução não é encontrada. Usar **`pylupdate5`** (não `lupdate`) para capturar `self.tr` em Python. Ver T-023/T-025/T-027.
 
 ---
 

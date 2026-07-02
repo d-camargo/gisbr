@@ -76,6 +76,10 @@ Estado atual (ver detalhes em `CLAUDE.md`):
 - **Fase 2 (backend Parquet / v2.0.0 + integracao censobr):** implementada e
   validada com dados reais. 28 algoritmos `read_*_v2` + `join_censo`.
 - Total: 55 algoritmos registrados.
+- **Diagnostico de Plano Diretor + i18n (2026-07-02):** mergeado na `main` e
+  **publicado como v0.3.0** no plugins.qgis.org (`experimental=True`). Painel
+  dock (UF->municipio), conectores WFS/ArcGIS/basemap, 8 eixos, GeoPackage; UI
+  bilingue EN/PT-BR. Detalhe em `CLAUDE.md` §1.2.
 
 ## Principio inegociavel do projeto
 
