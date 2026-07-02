@@ -12,9 +12,9 @@
 
 Evoluir o GisBR de "espelho do geobr" para um **sistema de diagnóstico
 municipal** voltado ao Plano Diretor: dado **um município** (`code_muni`, IBGE 7
-dígitos), subir no QGIS as camadas oficiais dos **6 eixos** (transportes,
-saneamento, demografia, ambiental, educação, saúde), reaproveitando o que já
-existe e adicionando conectores para fontes externas.
+dígitos), subir no QGIS as camadas oficiais dos **8 eixos** (transportes,
+saneamento, demografia, ambiental, educação, saúde, urbano, político-administrativo),
+reaproveitando o que já existe e adicionando conectores para fontes externas.
 
 ## 2. Princípios (herdados + novos)
 
@@ -46,7 +46,7 @@ existe e adicionando conectores para fontes externas.
    NOVO         │  Grupos novos (Diagnóstico), 1 por eixo:     │
    ───────────► │   • Diagnóstico — Transportes               │
                 │   • Diagnóstico — Saneamento                │
-                │   • ... (6 eixos)                            │
+                │   • ... (8 eixos)                            │
                 └───────────────┬──────────────────────────────┘
                                 │ algoritmos gerados por factory
                                 ▼
@@ -57,7 +57,7 @@ existe e adicionando conectores para fontes externas.
    core/connectors/ ── 1 conector por PROTOCOLO:
         wfs.py        (vetor; GeoJSON via rede do QGIS + CQL_FILTER; /vsicurl fallback)
         arcgis_rest.py(vetor; FeatureServer query where=; ou GDAL)
-        wms.py        (raster; QgsRasterLayer provider "wms" — overlay/base)
+        basemap.py    (raster; QgsRasterLayer provider "wms" — XYZ Esri World Imagery)
         geobr (já existe via catalog/loader) — para eixos já cobertos
 ```
 
@@ -106,10 +106,12 @@ SOURCES = [
 Função central reutilizada pelo painel **e** por qualquer algoritmo de Processing:
 
 ```python
-def carregar_fontes(selecionadas, code_muni, gpkg_path, add_basemap, feedback):
-    # para cada fonte selecionada: conector busca (filtrado por code_muni)
-    #   -> grava a camada no GeoPackage (uma camada por fonte)
-    #   -> adiciona ao projeto a partir do .gpkg
+def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
+                    add_basemap=False, force=False, feedback=None):
+    # para cada fonte selecionada: conector busca (filtrado por code_muni/bbox)
+    #   -> recorta pelo POLIGONO do municipio (native:clip), pula se 0 feicoes
+    #   -> grava a camada no GeoPackage (uma camada por fonte; skip se ja existe,
+    #      salvo force=True) -> adiciona ao projeto a partir do .gpkg
     # eixos ja cobertos pelo geobr (demografia/educacao/saude) usam os read_* atuais
     # opcional: adiciona o basemap de satelite ao fundo
 ```
@@ -164,8 +166,11 @@ está IN.) Por ora o diagnóstico só **carrega e persiste** as camadas por eixo
 | basemap (satélite) | não filtra (raster XYZ) | fundo global; usuário dá zoom no município |
 | geobr (já) | pós-download (`setSubsetString`) ou fatiado por UF | como hoje |
 
-Quando a fonte **não** tiver campo municipal, cair para **bbox do município**
-(obtido do `read_municipality` do próprio GisBR) como filtro espacial.
+Quando a fonte **não** tiver campo municipal, filtrar por **bbox do município**
+no servidor e, no cliente, **recortar pelo POLÍGONO do município** (`native:clip`,
+não a bbox-retângulo) — senão vêm vizinhos (BH/Betim) e a mancha urbana transborda
+(decisão empírica em Contagem/RMBH). Camadas com **0 feições** após o recorte são
+**puladas** (não vira camada-tabela vazia).
 
 ## 5. Fases de implementação _(proposta)_
 
@@ -176,7 +181,8 @@ Quando a fonte **não** tiver campo municipal, cair para **bbox do município**
 - **Fase B — Painel (dock).** `gui/diagnostico_dock.py`: município + seleção por
   checkbox (por eixo) + caminho do GeoPackage + botão "Carregar". Ligado em
   `initGui`. **É a UX principal** (decisão Diego).
-- **Fase C — ArcGIS REST.** ANA (BHO), IBAMA — novas fontes no mesmo motor/painel.
+- **Fase C — ArcGIS REST.** ✅ **feita** — `core/connectors/arcgis_rest.py` +
+  5 fontes `arcgis` no `SOURCES` (ANA/BHO, IBAMA), no mesmo motor/painel.
 - ~~Parecer/KPIs~~ — **fora do escopo atual** (decisão Diego).
 
 > Nota: o painel subiu para a Fase B (logo após o motor) porque é a interface que
@@ -218,7 +224,8 @@ Quando a fonte **não** tiver campo municipal, cair para **bbox do município**
 - **T-011 — Painel (dock)** (Fase B): `gui/diagnostico_dock.py` + ligação no
   `initGui` (botão/menu). Município + checkboxes por eixo + caminho do GeoPackage
   + "Carregar". (Senior fornece o esqueleto Qt.)
-- **T-012 — ArcGIS REST (Fase C):** ANA (BHO), IBAMA.
+- **T-012 — ArcGIS REST (Fase C):** ✅ **feita** — `arcgis_rest.py` + fontes
+  `arcgis` no `SOURCES` (ANA/BHO, IBAMA).
 - ~~Parecer/KPIs~~ — fora do escopo atual (§6.6).
 
 > **Tarefa que o Junior pode fazer JÁ, em paralelo:** **T-007** (acima). É
