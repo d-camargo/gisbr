@@ -8,20 +8,20 @@ from qgis.gui import QgsDockWidget
 from qgis.PyQt.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QTreeWidget, QTreeWidgetItem, QCheckBox, QPushButton, QFileDialog,
     QLabel, QPlainTextEdit, QComboBox, QCompleter)
-from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtCore import Qt, QCoreApplication
 from qgis.core import QgsProject
 from ..core.sources import SOURCES
 from ..core import diagnostico
 
 _EIXO_NOMES = {
-    "transportes": "1. Transportes",
-    "saneamento": "2. Drenagem e Saneamento",
-    "demografia": "3. Demografia",
-    "ambiental": "4. Ambiental",
-    "educacao": "5. Educacao",
-    "saude": "6. Saude",
-    "urbano": "7. Urbano",
-    "pol-admin": "8. Politico-administrativo",
+    "transportes": QCoreApplication.translate("GisBR", "1. Transport"),
+    "saneamento": QCoreApplication.translate("GisBR", "2. Drainage & Sanitation"),
+    "demografia": QCoreApplication.translate("GisBR", "3. Demography"),
+    "ambiental": QCoreApplication.translate("GisBR", "4. Environment"),
+    "educacao": QCoreApplication.translate("GisBR", "5. Education"),
+    "saude": QCoreApplication.translate("GisBR", "6. Health"),
+    "urbano": QCoreApplication.translate("GisBR", "7. Urban"),
+    "pol-admin": QCoreApplication.translate("GisBR", "8. Administrative"),
 }
 
 _UFS = [
@@ -39,7 +39,7 @@ _UFS = [
 
 class DiagnosticoDock(QgsDockWidget):
     def __init__(self, iface, parent=None):
-        super().__init__("GisBR — Diagnostico", parent)
+        super().__init__(QCoreApplication.translate("GisBR", "GisBR — Diagnostic"), parent)
         self.iface = iface
         self._munis = {}
         self._build_ui()
@@ -49,16 +49,16 @@ class DiagnosticoDock(QgsDockWidget):
         layout = QVBoxLayout(central)
 
         # 1.1) Estado (UF)
-        layout.addWidget(QLabel("Estado (UF):"))
+        layout.addWidget(QLabel(self.tr("State:")))
         self.cmb_uf = QComboBox()
-        self.cmb_uf.addItem("— selecione —", "")
+        self.cmb_uf.addItem(self.tr("— select —"), "")
         for sig, nom in _UFS:
             self.cmb_uf.addItem("{} - {}".format(sig, nom), sig)
         self.cmb_uf.currentIndexChanged.connect(self._on_uf_changed)
         layout.addWidget(self.cmb_uf)
 
         # 1.2) Municipio
-        layout.addWidget(QLabel("Municipio:"))
+        layout.addWidget(QLabel(self.tr("Municipality:")))
         self.cmb_muni = QComboBox()
         self.cmb_muni.currentIndexChanged.connect(self._on_muni_changed)
         self.cmb_muni.setEditable(True)
@@ -70,15 +70,15 @@ class DiagnosticoDock(QgsDockWidget):
         layout.addWidget(self.cmb_muni)
 
         # 1.3) Codigo do Municipio (IBGE 7 digitos)
-        layout.addWidget(QLabel("Codigo IBGE (opcional / preenchido pela selecao):"))
+        layout.addWidget(QLabel(self.tr("IBGE code (optional / filled by selection):")))
         self.ed_muni = QLineEdit()
-        self.ed_muni.setPlaceholderText("Ex: 3106200")
+        self.ed_muni.setPlaceholderText(self.tr("Ex: 3106200"))
         layout.addWidget(self.ed_muni)
 
         # 2) Arvore de fontes
-        layout.addWidget(QLabel("Fontes de Dados:"))
+        layout.addWidget(QLabel(self.tr("Data sources:")))
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabel("Eixos e Camadas")
+        self.tree.setHeaderLabel(self.tr("Axes and layers"))
         
         # Agrupar fontes por eixo, na ORDEM definida em _EIXO_NOMES (1..8)
         sources_por_eixo = {}
@@ -104,10 +104,10 @@ class DiagnosticoDock(QgsDockWidget):
         layout.addWidget(self.tree)
 
         # 3) Destino GeoPackage
-        layout.addWidget(QLabel("Destino do GeoPackage:"))
+        layout.addWidget(QLabel(self.tr("GeoPackage destination:")))
         gpkg_layout = QHBoxLayout()
         self.ed_gpkg = QLineEdit()
-        self.ed_gpkg.setPlaceholderText("Caminho para arquivo .gpkg")
+        self.ed_gpkg.setPlaceholderText(self.tr("Path to .gpkg file"))
         gpkg_layout.addWidget(self.ed_gpkg)
         btn_gpkg = QPushButton("...")
         btn_gpkg.clicked.connect(self._on_choose_gpkg)
@@ -115,19 +115,19 @@ class DiagnosticoDock(QgsDockWidget):
         layout.addLayout(gpkg_layout)
 
         # 4) Basemap satelite
-        self.chk_satelite = QCheckBox("Adicionar imagem de satelite ao fundo")
+        self.chk_satelite = QCheckBox(self.tr("Add satellite basemap"))
         layout.addWidget(self.chk_satelite)
 
-        self.chk_atualizar = QCheckBox("Atualizar bases ja baixadas (rebaixar)")
+        self.chk_atualizar = QCheckBox(self.tr("Update already-downloaded layers (re-download)"))
         layout.addWidget(self.chk_atualizar)
 
         # 5) Botao Carregar
-        self.btn_carregar = QPushButton("Carregar selecionadas")
+        self.btn_carregar = QPushButton(self.tr("Load selected"))
         self.btn_carregar.clicked.connect(self._on_carregar)
         layout.addWidget(self.btn_carregar)
 
         # 6) PlainTextEdit para log
-        layout.addWidget(QLabel("Log de Execucao:"))
+        layout.addWidget(QLabel(self.tr("Execution log:")))
         self.txt_log = QPlainTextEdit()
         self.txt_log.setReadOnly(True)
         layout.addWidget(self.txt_log)
@@ -136,7 +136,7 @@ class DiagnosticoDock(QgsDockWidget):
 
     def _on_choose_gpkg(self):
         path, _ = QFileDialog.getSaveFileName(
-            self, "Selecionar GeoPackage", "", "GeoPackage (*.gpkg)"
+            self, self.tr("Select GeoPackage"), "", "GeoPackage (*.gpkg)"
         )
         if path:
             if not path.lower().endswith(".gpkg"):
@@ -181,18 +181,18 @@ class DiagnosticoDock(QgsDockWidget):
         if not uf:
             self.cmb_muni.blockSignals(False)
             return
-        self.txt_log.appendPlainText("Carregando municipios de {}...".format(uf))
+        self.txt_log.appendPlainText(self.tr("Loading municipalities of {uf}...").format(uf=uf))
         try:
             self._munis = self._listar_municipios(uf)
         except Exception as exc:
-            self.txt_log.appendPlainText("Falha ao listar municipios: {}".format(exc))
+            self.txt_log.appendPlainText(self.tr("Failed to list municipalities: {error}").format(error=exc))
             self.cmb_muni.blockSignals(False)
             return
         for code in sorted(self._munis, key=lambda c: self._munis[c][0]):
             self.cmb_muni.addItem(self._munis[code][0], code)
         self.cmb_muni.setCurrentIndex(-1)
         self.cmb_muni.blockSignals(False)
-        self.txt_log.appendPlainText("{} municipios carregados.".format(len(self._munis)))
+        self.txt_log.appendPlainText(self.tr("{count} municipalities loaded.").format(count=len(self._munis)))
 
     def _on_muni_changed(self):
         code = self.cmb_muni.currentData()
@@ -212,7 +212,7 @@ class DiagnosticoDock(QgsDockWidget):
             layer = QgsProject.instance().mapLayer(layer) or QgsVectorLayer(layer, "muni", "ogr")
         feats = list(layer.getFeatures())
         if not feats:
-            raise ValueError("Municipio {} nao encontrado no geobr.".format(code_muni))
+            raise ValueError(self.tr("Municipality {code} not found in geobr.").format(code=code_muni))
         nome = feats[0]["name_muni"]
         ext = layer.extent()
         return nome, (ext.xMinimum(), ext.yMinimum(), ext.xMaximum(), ext.yMaximum())
@@ -223,7 +223,7 @@ class DiagnosticoDock(QgsDockWidget):
         gpkg = self.ed_gpkg.text().strip()
         ids = self._selected_source_ids()
         if not code or not gpkg or not ids:
-            self.txt_log.appendPlainText("Informe municipio, GeoPackage e ao menos 1 fonte.")
+            self.txt_log.appendPlainText(self.tr("Specify municipality, GeoPackage and at least 1 source."))
             return
         try:
             if getattr(self, "_munis", None) and code in self._munis:
@@ -231,15 +231,15 @@ class DiagnosticoDock(QgsDockWidget):
             else:
                 nome, bbox = self._info_municipio(code)
         except Exception as exc:
-            self.txt_log.appendPlainText("Falha ao resolver o municipio: {}".format(exc))
+            self.txt_log.appendPlainText(self.tr("Failed to resolve municipality: {error}").format(error=exc))
             return
-        self.txt_log.appendPlainText("Municipio: {} ({})".format(nome, code))
+        self.txt_log.appendPlainText(self.tr("Municipality: {name} ({code})").format(name=nome, code=code))
         res = diagnostico.carregar_fontes(
             ids, code_muni=code, nome_muni=nome, bbox=bbox, gpkg_path=gpkg,
             add_basemap=self.chk_satelite.isChecked(),
             force=self.chk_atualizar.isChecked(), feedback=None)
-        self.txt_log.appendPlainText("OK: {}".format(", ".join(res["ok"]) or "-"))
+        self.txt_log.appendPlainText(self.tr("OK: {layers}").format(layers=", ".join(res["ok"]) or "-"))
         for sid, msg in res["falhou"]:
-            self.txt_log.appendPlainText("FALHOU {}: {}".format(sid, msg))
+            self.txt_log.appendPlainText(self.tr("FAILED {id}: {error}").format(id=sid, error=msg))
         for sid, msg in res["pulou"]:
-            self.txt_log.appendPlainText("PULOU {}: {}".format(sid, msg))
+            self.txt_log.appendPlainText(self.tr("SKIPPED {id}: {reason}").format(id=sid, reason=msg))

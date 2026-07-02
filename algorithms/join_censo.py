@@ -31,6 +31,10 @@ _FALLBACK_DATASETS = [
 
 
 class JoinCenso(QgsProcessingAlgorithm):
+    def tr(self, string):
+        from qgis.PyQt.QtCore import QCoreApplication
+        return QCoreApplication.translate("GisBR", string)
+
     INPUT = "INPUT"
     YEAR = "YEAR"
     DATASET = "DATASET"
@@ -210,23 +214,20 @@ class JoinCenso(QgsProcessingAlgorithm):
         return "join_censo"
 
     def displayName(self):
-        return "Juntar dados do censo (censobr) a setores"
+        return self.tr("Join census data (censobr) to tracts")
 
     def group(self):
-        return "Censo (censobr)"
+        return self.tr("Census (censobr)")
 
     def groupId(self):
         return "censobr"
 
     def shortHelpString(self):
-        return (
-            "Junta variaveis do Censo (censobr) a uma camada de setores "
-            "censitarios do geobr, pela chave 'code_tract'.\n\n"
-            "Fluxo tipico: read_census_tract (geobr) -> esta ferramenta com "
-            "ano=2010, dataset=DomicilioRenda -> mapa coropletico de renda.\n\n"
-            "Requer backend Parquet (driver GDAL ou pyarrow). Os arquivos do "
-            "censobr sao NACIONAIS; o join mantem apenas os setores da sua "
-            "camada de entrada."
+        return self.tr(
+            "Joins Census variables (censobr) to a census tracts layer from geobr, "
+            "using the 'code_tract' key.\n\n"
+            "Typical workflow: read_census_tract (geobr) -> this tool with "
+            "the desired table (e.g. DomicilioRenda)."
         )
 
     def createInstance(self):

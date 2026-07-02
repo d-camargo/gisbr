@@ -15,6 +15,10 @@ class GeobrPlugin:
         self.provider = GeobrProvider()
         QgsApplication.processingRegistry().addProvider(self.provider)
 
+    def tr(self, s):
+        from qgis.PyQt.QtCore import QCoreApplication
+        return QCoreApplication.translate("GisBR", s)
+
     def initGui(self):
         self.initProcessing()
         from qgis.PyQt.QtWidgets import QAction
@@ -23,7 +27,7 @@ class GeobrPlugin:
         self.dock = DiagnosticoDock(self.iface)
         self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dock)
         self.dock.hide()
-        self.action = QAction("Diagnostico Plano Diretor (GisBR)", self.iface.mainWindow())
+        self.action = QAction(self.tr("Master Plan Diagnostic (GisBR)"), self.iface.mainWindow())
         self.action.setCheckable(True)
         self.action.triggered.connect(self.dock.setUserVisible)
         self.iface.addPluginToMenu("GisBR", self.action)

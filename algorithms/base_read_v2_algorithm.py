@@ -26,9 +26,14 @@ from qgis.core import (
 
 from ..core import capabilities, catalog_v2, downloader, loader_v2
 from ..core.constants import normalize_uf
+from .base_read_algorithm import _DISPLAY_NAMES, _HELPS
 
 
 class BaseReadV2Algorithm(QgsProcessingAlgorithm):
+    def tr(self, string):
+        from qgis.PyQt.QtCore import QCoreApplication
+        return QCoreApplication.translate("GisBR", string)
+
     YEAR = "YEAR"
     CODE = "CODE"
     SIMPLIFIED = "SIMPLIFIED"
@@ -55,27 +60,27 @@ class BaseReadV2Algorithm(QgsProcessingAlgorithm):
 
     def initAlgorithm(self, config=None):
         years = self.years()
-        labels = [str(y) for y in years] if years else ["(catalogo v2 indisponivel)"]
+        labels = [str(y) for y in years] if years else [self.tr("(catalog v2 unavailable)")]
         self.addParameter(
             QgsProcessingParameterEnum(
-                self.YEAR, "Ano", options=labels,
+                self.YEAR, self.tr("Year"), options=labels,
                 defaultValue=(len(years) - 1 if years else 0),
             )
         )
         if self.SUPPORTS_CODE:
             self.addParameter(
                 QgsProcessingParameterString(
-                    self.CODE, 'Codigo / sigla ("all", "MG", 31, 3106200)',
+                    self.CODE, self.tr('Code / abbreviation ("all", "MG", 31, 3106200)'),
                     defaultValue="all", optional=True,
                 )
             )
         self.addParameter(
             QgsProcessingParameterBoolean(
-                self.SIMPLIFIED, "Geometria simplificada", defaultValue=True
+                self.SIMPLIFIED, self.tr("Simplified geometry"), defaultValue=True
             )
         )
         self.addParameter(
-            QgsProcessingParameterFeatureSink(self.OUTPUT, "Saida")
+            QgsProcessingParameterFeatureSink(self.OUTPUT, self.tr("Output"))
         )
 
     # ------------------------------------------------------------- filtro
@@ -116,12 +121,12 @@ class BaseReadV2Algorithm(QgsProcessingAlgorithm):
         backend = capabilities.parquet_backend()
         if backend is None:
             raise QgsProcessingException(capabilities.install_hint())
-        feedback.pushInfo(f"Backend Parquet: {backend}")
+        feedback.pushInfo(self.tr("Parquet backend: {backend}").format(backend=backend))
 
         years = self.years()
         if not years:
             raise QgsProcessingException(
-                "Catalogo v2 indisponivel (releases do geobr_prep_data no GitHub)."
+                self.tr("v2 catalog unavailable (geobr_prep_data releases on GitHub).")
             )
         year = years[self.parameterAsEnum(parameters, self.YEAR, context)]
         simplified = self.parameterAsBool(parameters, self.SIMPLIFIED, context)
@@ -133,7 +138,11 @@ class BaseReadV2Algorithm(QgsProcessingAlgorithm):
             rows = catalog_v2.select(self.GEO, year=year, simplified=simplified)
         except ValueError as exc:
             raise QgsProcessingException(str(exc))
-        feedback.pushInfo(f"{self.GEO} {year} | simplified={simplified} | {len(rows)} arquivo(s)")
+        feedback.pushInfo(
+            self.tr("{geo} {year} | simplified={simplified} | {count} file(s)").format(
+                geo=self.GEO, year=year, simplified=simplified, count=len(rows)
+            )
+        )
 
         # download + carga
         layers = []
@@ -146,13 +155,15 @@ class BaseReadV2Algorithm(QgsProcessingAlgorithm):
                 )
             except Exception as exc:
                 raise QgsProcessingException(
-                    f"Falha no download de {row['file_name']}: {exc}"
+                    self.tr("Download failed for {url}: {error}").format(
+                        url=row["file_name"], error=exc
+                    )
                 )
             layers.append(loader_v2.read_parquet_layer(path, f"{self.GEO}_{i}"))
             feedback.setProgress(int((i + 1) / len(rows) * 60))
 
         if not layers:
-            raise QgsProcessingException("Nenhuma camada carregada.")
+            raise QgsProcessingException(self.tr("No layers loaded."))
 
         from ..core.loader import merge_layers
         merged = merge_layers(layers, context, feedback)
@@ -165,7 +176,7 @@ class BaseReadV2Algorithm(QgsProcessingAlgorithm):
         expression = QgsExpression(expr_str) if expr_str else None
         exp_ctx = QgsExpressionContext()
         if expression is not None:
-            feedback.pushInfo(f"Filtro: {expr_str}")
+            feedback.pushInfo(self.tr("Filter: {expr}").format(expr=expr_str))
             exp_ctx.appendScopes(
                 QgsExpressionContextUtils.globalProjectLayerScopes(merged)
             )
@@ -176,7 +187,7 @@ class BaseReadV2Algorithm(QgsProcessingAlgorithm):
             merged.fields(), merged.wkbType(), merged.crs(),
         )
         if sink is None:
-            raise QgsProcessingException("Nao foi possivel criar a saida.")
+            raise QgsProcessingException(self.tr("Could not create output."))
 
         total = merged.featureCount() or 0
         kept = 0
@@ -192,7 +203,7 @@ class BaseReadV2Algorithm(QgsProcessingAlgorithm):
             if total:
                 feedback.setProgress(70 + int((j + 1) / total * 30))
 
-        feedback.pushInfo(f"Concluido: {kept} feicao(oes).")
+        feedback.pushInfo(self.tr("Completed: {count} feature(s).").format(count=kept))
         return {self.OUTPUT: dest_id}
 
     # ------------------------------------------------------------------ metadata
@@ -200,22 +211,25 @@ class BaseReadV2Algorithm(QgsProcessingAlgorithm):
         return self.FUNCTION_NAME
 
     def displayName(self):
-        return self.DISPLAY_NAME or self.FUNCTION_NAME
+        base_name = self.FUNCTION_NAME.replace("_v2", "")
+        translated_base = _DISPLAY_NAMES.get(base_name, self.DISPLAY_NAME or self.FUNCTION_NAME)
+        return f"{translated_base} (v2)"
 
     def group(self):
-        return "Geografias (Parquet / v2.0.0)"
+        return self.tr("Geographies (Parquet / v2.0.0)")
 
     def groupId(self):
         return "geobr_parquet_v2"
 
     def shortHelpString(self):
-        base = (
-            "Backend Parquet (v2.0.0): catalogo mais novo do geobr "
-            "(ipea/geobr_prep_data), em SIRGAS 2000 / EPSG:4674. Le via driver "
-            "GDAL Parquet OU pyarrow. Arquivos nacionais (filtro por codigo "
-            "e pos-download).\n\n"
+        base = self.tr(
+            "Parquet backend (v2.0.0): newer geobr catalog (ipea/geobr_prep_data), "
+            "in SIRGAS 2000 / EPSG:4674. Reads via native GDAL Parquet driver OR pyarrow. "
+            "National files (filtered by code and post-download).\n\n"
         )
-        return base + (self.HELP or "")
+        base_name = self.FUNCTION_NAME.replace("_v2", "")
+        help_text = _HELPS.get(base_name, self.HELP or "")
+        return base + help_text
 
     def createInstance(self):
         return type(self)()

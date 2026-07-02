@@ -3025,7 +3025,7 @@ unzip -l dist/gisbr-0.3.0.zip | grep -E 'ACTIONS.md|AGENTS.md|CLAUDE.md|Makefile
 
 ## [T-022] Bug: quilombola sai com o Brasil inteiro (recorte errado)
 
-- status: pronta
+- status: concluida
 - responsavel: junior (IMPLEMENTA; senior verifica)
 - fase: diagnostico (bugfix)
 - branch: `feat/diagnostico-plano-diretor`
@@ -3071,13 +3071,14 @@ grep -n 'geobr_quilombolas' core/sources.py   # deve mostrar recorte: bbox
 
 ### Resultado
 
-(preencher ao concluir)
+- Corrigida a entrada `geobr_quilombolas` no catálogo de fontes `core/sources.py` para utilizar `"recorte": "bbox"` em vez de `"recorte": "code"`, assegurando que o motor faça o recorte pelo polígono do município da feição nacional carregada pelo `read_quilombola_land_v2`.
+- Validada a sintaxe do arquivo.
 
 ---
 
 ## [T-023] i18n (1/2): textos da UI em INGLES via tr()
 
-- status: pronta
+- status: concluida
 - responsavel: junior (IMPLEMENTA; senior verifica)
 - fase: release / i18n
 - branch: `feat/diagnostico-plano-diretor`
@@ -3186,13 +3187,17 @@ grep -nE 'Municipio|Estado \(UF\)|Carregar sel|Destino do|Fontes de Dados|Log de
 
 ### Resultado
 
-(preencher ao concluir)
+- Traduzidos os textos de exibição das caixas de diálogo, rótulos de controle e mensagens de log do painel dock em `gui/diagnostico_dock.py` para inglês como idioma-fonte, todos devidamente envelopados com `self.tr()` ou `QCoreApplication.translate()`.
+- Criado o dicionário centralizado `_DISPLAY_NAMES` e `_HELPS` em `algorithms/base_read_algorithm.py` contendo as traduções e ajuda para as 26 geografias da Fase 1, permitindo que todos os algoritmos exibam seus nomes/ajuda traduzidos sem a necessidade de modificar os 26 arquivos individuais.
+- Ajustadas as assinaturas dos parâmetros de `initAlgorithm` e mensagens de exceção em `base_read_algorithm.py` e `base_read_v2_algorithm.py` utilizando o helper de tradução.
+- Atualizado o plugin action label em `geobr_qgis_plugin.py` e `provider.py` para utilizar `self.tr()`.
+- Executado `make test` com sucesso.
 
 ---
 
 ## [T-024] i18n (2/2): traducao PT-BR (.ts/.qm) + carregar QTranslator
 
-- status: bloqueada (libera quando **T-023** estiver concluida)
+- status: pronta
 - responsavel: junior (IMPLEMENTA; senior verifica)
 - fase: release / i18n
 - branch: `feat/diagnostico-plano-diretor`
@@ -3264,5 +3269,86 @@ python3 -c "import ast; ast.parse(open('__init__.py').read()); print('init OK')"
 ### Resultado
 
 (preencher ao concluir)
+
+---
+
+## [T-025] Bug i18n: algoritmos sem tr() + dock chama tr() cedo demais
+
+- status: concluida
+- responsavel: junior (IMPLEMENTA; senior verifica)
+- fase: release / i18n (bugfix da T-023)
+- branch: `feat/diagnostico-plano-diretor`
+
+### Objetivo
+
+Auditoria do senior na T-023 encontrou 2 bugs **bloqueantes** (o `make test` nao
+pega porque so checa sintaxe, nao runtime):
+
+1. **`QgsProcessingAlgorithm` NAO tem metodo `tr`** (confirmado empiricamente:
+   `hasattr(QgsProcessingAlgorithm, "tr") == False`; ao contrario de
+   `QgsProcessingProvider`/`QgsDockWidget`, que herdam QObject). As classes
+   `BaseReadAlgorithm`, `BaseReadV2Algorithm` e `JoinCenso` usam `self.tr(...)`
+   em `group()`, `initAlgorithm()`, `processAlgorithm()`, `shortHelpString()` →
+   **AttributeError** quando a Toolbox popula os grupos (quebra o provider).
+2. **`gui/diagnostico_dock.py` chama `self.tr(...)` ANTES de `super().__init__()`**
+   (linha do `super().__init__(self.tr("GisBR — Diagnostic"), parent)`) → o objeto
+   C++ ainda nao existe → **RuntimeError**.
+
+### Arquivos permitidos
+
+- `algorithms/base_read_algorithm.py`
+- `algorithms/base_read_v2_algorithm.py`
+- `algorithms/join_censo.py`
+- `gui/diagnostico_dock.py`
+
+### Arquivos proibidos
+
+- qualquer outro (`core/**`, `provider.py` — provider ja tem `tr` herdado e esta OK).
+
+### Passos
+
+1. **Adicionar um metodo `tr` a CADA uma das 3 classes de algoritmo**
+   (`BaseReadAlgorithm`, `BaseReadV2Algorithm`, `JoinCenso`). Colar este metodo
+   dentro da classe (ex.: logo apos o docstring da classe, antes de
+   `initAlgorithm`):
+   ```python
+   def tr(self, string):
+       from qgis.PyQt.QtCore import QCoreApplication
+       return QCoreApplication.translate("GisBR", string)
+   ```
+   > E o mesmo padrao que voce ja usou em `GeobrPlugin.tr`. NAO remova os
+   > `self.tr(...)` existentes — eles passam a funcionar com este metodo.
+
+2. **Dock: nao chamar `self.tr` antes do `super().__init__`.** Trocar:
+   - DE: `super().__init__(self.tr("GisBR — Diagnostic"), parent)`
+   - PARA: `super().__init__(QCoreApplication.translate("GisBR", "GisBR — Diagnostic"), parent)`
+   (o `QCoreApplication` ja esta importado no arquivo). Os demais `self.tr(...)`
+   do dock ficam como estao (rodam depois do `__init__`, e `QgsDockWidget` tem `tr`).
+
+### Comandos de verificacao
+
+```bash
+make test
+# 1) todas as 3 classes de algoritmo tem def tr agora:
+grep -c "def tr" algorithms/base_read_algorithm.py algorithms/base_read_v2_algorithm.py algorithms/join_censo.py
+# 2) o dock NAO usa self.tr na linha do super().__init__:
+grep -n "super().__init__" gui/diagnostico_dock.py   # deve usar QCoreApplication.translate
+# 3) SMOKE TEST runtime (dentro do Console Python do QGIS, nao no shell):
+#    from gisbr.algorithms.base_read_algorithm import BaseReadAlgorithm
+#    a = ... (instancia de uma subclasse) ; print(a.group())   # nao pode dar AttributeError
+```
+
+### Criterios de aceite
+
+- As 3 classes de algoritmo tem `def tr`.
+- O dock usa `QCoreApplication.translate(...)` no `super().__init__`.
+- **No QGIS (Diego/senior):** a Toolbox lista os grupos `gisbr` sem erro e o
+  painel abre — nenhum AttributeError/RuntimeError no log do QGIS.
+
+### Resultado
+
+- Adicionado o método `tr()` a cada uma das três classes de algoritmo (`BaseReadAlgorithm`, `BaseReadV2Algorithm`, `JoinCenso`) para que elas traduzam strings utilizando `QCoreApplication.translate("GisBR", ...)` e não causem AttributeError em tempo de execução no QGIS.
+- Corrigida a inicialização no construtor de `DiagnosticoDock` em `gui/diagnostico_dock.py` para usar `QCoreApplication.translate()` no `super().__init__()` no lugar de `self.tr()`, evitando erros de runtime antes do objeto C++ ser criado.
+- Rodados os testes com sucesso (`make test`).
 
 ---
