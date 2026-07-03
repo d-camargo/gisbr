@@ -127,7 +127,7 @@ def _carrega_geobr(s, code_muni, layer_name):
     return _resolve_out(out, layer_name)
 
 
-def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni):
+def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path):
     proto = s.get("protocolo")
     srs = s.get("srs", "EPSG:4674")
     if proto == "wfs":
@@ -141,12 +141,12 @@ def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni):
     if proto == "geobr":
         return _carrega_geobr(s, code_muni, layer_name)
     if proto == "osm":
-        # O protocolo osm nao retorna camada ainda; apenas executa a pipeline e a marca como pendente.
-        res = osm_pipeline.build_osm_municipal_network(code_muni, s.get("nome_muni", ""), 
-                                                        s.get("gpkg_path", ""), 
-                                                        force=False, feedback=None)
-        # Deixar a pipeline armazenar o raw_cache e metadados; nao montar camada agora.
-        return _invalida(layer_name, "pipeline OSM: persistencia em camadas ainda nao implementada")
+        result = osm_pipeline.build_osm_municipal_network(code_muni, s.get("nome_muni", ""), 
+                                                           gpkg_path, force=False, feedback=None)
+        # Retorna osm_links (recortada pelo município) se disponível; senão osm_links_raw
+        layers = result.get("layers", {})
+        link_layer = layers.get("osm_links") or layers.get("osm_links_raw")
+        return link_layer if (link_layer and link_layer.isValid()) else _invalida(layer_name, "OSM: sem vias no municipio")
     return None
 
 
@@ -179,7 +179,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             continue
 
         cql, usa_bbox = _filtro_para(s, code_muni, nome_muni)
-        layer = _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni)
+        layer = _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path)
         if layer is None or not layer.isValid():
             msg = getattr(layer, "error_msg", "camada invalida") if layer else "protocolo desconhecido"
             res["falhou"].append((s["id"], msg))
