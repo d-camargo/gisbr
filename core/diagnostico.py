@@ -9,8 +9,9 @@ import os
 
 from qgis.core import QgsProject, QgsVectorLayer, QgsVectorFileWriter
 
-from .connectors import wfs, basemap, arcgis_rest
+from .connectors import wfs, basemap, arcgis_rest, osm
 from .sources import SOURCES
+from . import osm_pipeline
 
 _UF_POR_CODIGO = {
     "11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16": "AP",
@@ -20,7 +21,7 @@ _UF_POR_CODIGO = {
     "51": "MT", "52": "GO", "53": "DF",
 }
 
-_PROTOCOLOS = ("wfs", "arcgis", "geobr")
+_PROTOCOLOS = ("wfs", "arcgis", "geobr", "osm")
 
 
 def _por_id(ids):
@@ -139,6 +140,13 @@ def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni):
                                        bbox=(bbox if usa_bbox else None))
     if proto == "geobr":
         return _carrega_geobr(s, code_muni, layer_name)
+    if proto == "osm":
+        # O protocolo osm nao retorna camada ainda; apenas executa a pipeline e a marca como pendente.
+        res = osm_pipeline.build_osm_municipal_network(code_muni, s.get("nome_muni", ""), 
+                                                        s.get("gpkg_path", ""), 
+                                                        force=False, feedback=None)
+        # Deixar a pipeline armazenar o raw_cache e metadados; nao montar camada agora.
+        return _invalida(layer_name, "pipeline OSM: persistencia em camadas ainda nao implementada")
     return None
 
 

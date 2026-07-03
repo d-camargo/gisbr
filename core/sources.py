@@ -27,6 +27,8 @@ SOURCES = [
      "protocolo": "wfs", "endpoint": "https://geoserver.meioambiente.mg.gov.br/IDE/wfs",
      "type_name": "IDE:ide_0401_mg_rodovias_lin", "srs": "EPSG:4674",
      "filtro": {"tipo": "bbox"}, "licenca": "Publica"},
+    {"id": "osm_vias", "eixo": "transportes", "nome": "OSM — Vias urbanas (Overpass)",
+     "protocolo": "osm", "licenca": "OpenStreetMap contributors"},
     # --- Eixo 2: Drenagem e Saneamento ---
     {"id": "sgb_rios", "eixo": "saneamento", "nome": "SGB/CPRM — Rios (BC250)",
      "protocolo": "wfs", "endpoint": "https://opendata.sgb.gov.br/geoserver/ows",
