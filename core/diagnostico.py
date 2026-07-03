@@ -145,11 +145,7 @@ def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path):
                                                            gpkg_path, force=False, feedback=None)
         layers = result.get("layers", {})
         link_layer = layers.get("osm_links") or layers.get("osm_links_raw")
-        if link_layer and link_layer.isValid():
-            # ponytail: anexar nodes à layer de links como atributo privado
-            link_layer._osm_nodes = layers.get("osm_nodes")
-            return link_layer
-        return _invalida(layer_name, "OSM: sem vias no municipio")
+        return link_layer if (link_layer and link_layer.isValid()) else _invalida(layer_name, "OSM: sem vias no municipio")
     return None
 
 
@@ -167,6 +163,25 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
     existentes = _layers_existentes(gpkg_path)
     poligono = None
     poligono_tentado = False
+
+    # ponytail: OSM é special-case — retorna links + nós, não segue fluxo comum
+    osm_source = next((s for s in _por_id(source_ids) if s.get("protocolo") == "osm"), None)
+    if osm_source:
+        result = osm_pipeline.build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=force, feedback=feedback)
+        layers = result.get("layers", {})
+        link_layer = layers.get("osm_links") or layers.get("osm_links_raw")
+        if link_layer and link_layer.isValid():
+            QgsProject.instance().addMapLayer(link_layer)
+            res["ok"].append(osm_source["id"])
+            log("OK: osm_links")
+            node_layer = layers.get("osm_nodes")
+            if node_layer and node_layer.isValid():
+                QgsProject.instance().addMapLayer(node_layer)
+                log("OK: osm_nodes")
+        else:
+            res["falhou"].append((osm_source["id"], "OSM: sem vias no municipio"))
+        # remove OSM do loop de procesamento normal (nao segue fluxo)
+        source_ids = [s for s in source_ids if s != osm_source["id"]]
 
     for s in _por_id(source_ids):
         proto = s.get("protocolo")
@@ -223,14 +238,6 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             log("OK: {}".format(layer_name))
         else:
             res["falhou"].append((s["id"], "camada do GeoPackage invalida"))
-        
-        # ponytail: se proto==osm, adicionar nodes como segunda camada (memory)
-        if s.get("protocolo") == "osm" and hasattr(layer, "_osm_nodes"):
-            nodes_layer = layer._osm_nodes
-            if nodes_layer and nodes_layer.isValid():
-                node_name = "{}_nodes - {}".format(s["id"], nome_muni or code_muni)
-                QgsProject.instance().addMapLayer(nodes_layer)
-                log("OK: {}_nodes".format(s["id"]))
 
     if add_basemap:
         bl = basemap.satellite_layer()
