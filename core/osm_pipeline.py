@@ -71,16 +71,25 @@ def _create_links_layer(ways, nodes_dict, layer_name="osm_links_raw"):
 
 
 def _extract_nodes_from_layer(layer):
-    """Extrai pontos de extremidade de LineStringLayer, deduplica."""
+    """Extrai pontos de extremidade de LineStringLayer (LineString ou MultiLineString), deduplica."""
     nodes_set = set()
     for feat in layer.getFeatures():
         geom = feat.geometry()
-        if geom and geom.type() == 1:  # LineString
-            coord_list = geom.asPolyline()
-            if coord_list:
-                nodes_set.add((coord_list[0].x(), coord_list[0].y()))
-                if len(coord_list) > 1:
-                    nodes_set.add((coord_list[-1].x(), coord_list[-1].y()))
+        if geom and geom.type() == 1:  # LineString or MultiLineString
+            if geom.isMultipart():
+                # ponytail: clip pode gerar MultiLineString; iterar partes
+                polylines = geom.asMultiPolyline()
+                for polyline in polylines:
+                    if polyline:
+                        nodes_set.add((polyline[0].x(), polyline[0].y()))
+                        if len(polyline) > 1:
+                            nodes_set.add((polyline[-1].x(), polyline[-1].y()))
+            else:
+                coord_list = geom.asPolyline()
+                if coord_list:
+                    nodes_set.add((coord_list[0].x(), coord_list[0].y()))
+                    if len(coord_list) > 1:
+                        nodes_set.add((coord_list[-1].x(), coord_list[-1].y()))
     return list(nodes_set)
 
 
