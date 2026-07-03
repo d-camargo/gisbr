@@ -168,18 +168,22 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
     osm_source = next((s for s in _por_id(source_ids) if s.get("protocolo") == "osm"), None)
     if osm_source:
         result = osm_pipeline.build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=force, feedback=feedback)
-        layers = result.get("layers", {})
-        link_layer = layers.get("osm_links") or layers.get("osm_links_raw")
-        if link_layer and link_layer.isValid():
-            QgsProject.instance().addMapLayer(link_layer)
-            res["ok"].append(osm_source["id"])
-            log("OK: osm_links")
-            node_layer = layers.get("osm_nodes")
-            if node_layer and node_layer.isValid():
-                QgsProject.instance().addMapLayer(node_layer)
-                log("OK: osm_nodes")
+        meta = result.get("metadata", {})
+        if meta.get("gpkg_ok"):
+            # Carregar DO GPKG, não da memory — persistence real
+            osm_links = QgsVectorLayer("{}|layername=osm_links".format(gpkg_path), "osm_links - {}".format(nome_muni or code_muni), "ogr")
+            osm_nodes = QgsVectorLayer("{}|layername=osm_nodes".format(gpkg_path), "osm_nodes - {}".format(nome_muni or code_muni), "ogr")
+            if osm_links.isValid():
+                QgsProject.instance().addMapLayer(osm_links)
+                res["ok"].append(osm_source["id"])
+                log("OK: osm_links (GPKG)")
+            if osm_nodes.isValid():
+                QgsProject.instance().addMapLayer(osm_nodes)
+                log("OK: osm_nodes (GPKG)")
+            if not (osm_links.isValid() and osm_nodes.isValid()):
+                res["falhou"].append((osm_source["id"], "falha ao carregar OSM do GPKG"))
         else:
-            res["falhou"].append((osm_source["id"], "OSM: sem vias no municipio"))
+            res["falhou"].append((osm_source["id"], "OSM: pipeline falhou — {}".format(meta.get("erro", "desconhecido"))))
         # remove OSM do loop de procesamento normal (nao segue fluxo)
         source_ids = [s for s in source_ids if s != osm_source["id"]]
 
