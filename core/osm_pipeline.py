@@ -205,6 +205,15 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
     osm_nodes = _create_nodes_layer(nodes_set, "osm_nodes")
     log(f"OSM: {osm_nodes.featureCount()} nós de extremidade (deduplicados)")
 
+    # ponytail: gravar em GeoPackage (reutiliza _grava_gpkg existente)
+    from .diagnostico import _grava_gpkg
+    ok_links, _ = _grava_gpkg(osm_links, gpkg_path, "osm_links")
+    ok_nodes, _ = _grava_gpkg(osm_nodes, gpkg_path, "osm_nodes")
+    if ok_links:
+        log(f"OSM: gravadas {osm_links.featureCount()} linhas em osm_links.gpkg")
+    if ok_nodes:
+        log(f"OSM: gravados {osm_nodes.featureCount()} nós em osm_nodes.gpkg")
+
     return {
         "raw_cache": str(cache_path),
         "layers": {"osm_links_raw": osm_links_raw, "osm_links": osm_links, "osm_nodes": osm_nodes},
@@ -216,5 +225,6 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
             "links_raw": osm_links_raw.featureCount(),
             "links_clipped": osm_links.featureCount(),
             "nodes": osm_nodes.featureCount(),
+            "gpkg_ok": ok_links and ok_nodes,
         },
     }
