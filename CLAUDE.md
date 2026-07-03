@@ -390,3 +390,4 @@ Geografias **só-v2** (não existem no metadado v1.7.0, ficam para a Fase 2): `r
 - Metadado legacy: `metadata_1.7.0_gpkg.csv` (IPEA).
 - Dados v2: releases do repo `ipea/geobr_prep_data`.
 - PyQGIS Cookbook (Processing providers, network). Validar APIs na versão local do QGIS.
+- `docs/osm-municipal-pattern.md` — padrão de ingestão **OSM municipal** (Overpass → topologia → GeoPackage) com pitfalls de execução: MultiLineString após `native:clip` (usar `isMultipart()`+`asMultiPolyline()`), atributos privados em `QgsVectorLayer` NÃO persistem (special-case o protocolo cedo em `carregar_fontes`), e gravar→carregar DO GPKG (memory é só intermediária). Branch `feat/osm-municipal`.
