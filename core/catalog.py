@@ -7,9 +7,10 @@ o modulo ``csv`` da stdlib (sem pandas).
 
 import csv
 import io
+from pathlib import Path
 
 from .constants import METADATA_URL
-from .downloader import fetch_bytes, cache_dir
+from .downloader import fetch, cache_dir
 
 # Cache em memoria (por sessao) do metadado parseado.
 _METADATA_CACHE = None
@@ -22,7 +23,7 @@ def _metadata_disk_path():
     return cache_dir() / "metadata_1.7.0_gpkg.csv"
 
 
-def download_metadata(force_refresh=False):
+def download_metadata(force_refresh=False, feedback=None):
     """Baixa (ou le do cache) o metadado e devolve lista de dicts.
 
     Cacheia em memoria por sessao e em disco. A coluna ``code_abbrev`` aparece
@@ -37,9 +38,28 @@ def download_metadata(force_refresh=False):
     if disk.exists() and disk.stat().st_size > 0 and not force_refresh:
         text = disk.read_text(encoding="utf-8")
     else:
-        raw = fetch_bytes(METADATA_URL)
-        text = raw.decode("utf-8", errors="replace")
-        disk.write_text(text, encoding="utf-8")
+        if force_refresh and disk.exists():
+            try:
+                disk.unlink()
+            except Exception:
+                pass
+        try:
+            path = fetch(METADATA_URL, feedback=feedback)
+            text = path.read_text(encoding="utf-8")
+        except Exception as exc:
+            vendor_path = Path(__file__).parent / "data" / "metadata_1.7.0_gpkg.csv"
+            if vendor_path.exists():
+                text = vendor_path.read_text(encoding="utf-8")
+                if feedback is not None:
+                    from qgis.PyQt.QtCore import QCoreApplication
+                    feedback.pushWarning(
+                        QCoreApplication.translate(
+                            "Catalog",
+                            "Offline metadata copy used as fallback. Data might be outdated. (Error: {error})"
+                        ).format(error=exc)
+                    )
+            else:
+                raise exc
 
     rows = []
     reader = csv.DictReader(io.StringIO(text))
@@ -59,10 +79,10 @@ def download_metadata(force_refresh=False):
     return rows
 
 
-def _rows_for_geo(geo):
-    rows = [r for r in download_metadata() if r["geo"] == geo]
+def _rows_for_geo(geo, feedback=None):
+    rows = [r for r in download_metadata(feedback=feedback) if r["geo"] == geo]
     if not rows:
-        unique = sorted({r["geo"] for r in download_metadata()})
+        unique = sorted({r["geo"] for r in download_metadata(feedback=feedback)})
         raise ValueError(
             f"A geografia '{geo}' nao existe no metadado. "
             f"Disponiveis: {', '.join(unique)}"
@@ -70,15 +90,15 @@ def _rows_for_geo(geo):
     return rows
 
 
-def available_years(geo):
+def available_years(geo, feedback=None):
     """Anos disponiveis (ordenados) para uma geografia."""
-    years = sorted({int(r["year"]) for r in _rows_for_geo(geo) if r["year"].isdigit()})
+    years = sorted({int(r["year"]) for r in _rows_for_geo(geo, feedback=feedback) if r["year"].isdigit()})
     return years
 
 
-def select_year(geo, year=None):
+def select_year(geo, year=None, feedback=None):
     """Valida/escolhe o ano. Se ``year`` for None, usa o mais recente."""
-    years = available_years(geo)
+    years = available_years(geo, feedback=feedback)
     if not years:
         raise ValueError(f"Nenhum ano disponivel para '{geo}'.")
     if year is None:
@@ -96,16 +116,16 @@ def _is_simplified(row):
     return "simplified" in row["download_path"]
 
 
-def select(geo, year=None, simplified=True):
+def select(geo, year=None, simplified=True, feedback=None):
     """Filtra o metadado por geo + ano + simplificado.
 
     Retorna lista de rows (dicts). Pode haver varias rows quando a geografia
     e fatiada por UF (ex.: municipality).
     """
-    year = select_year(geo, year)
+    year = select_year(geo, year, feedback=feedback)
     base = [
         r
-        for r in _rows_for_geo(geo)
+        for r in _rows_for_geo(geo, feedback=feedback)
         if r["year"].isdigit() and int(r["year"]) == year
     ]
     rows = [r for r in base if _is_simplified(r) == bool(simplified)]

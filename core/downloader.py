@@ -33,6 +33,24 @@ def _mirror_urls(url):
     return [url] + [mirror.rstrip("/") + "/" + file_id for mirror in GITHUB_MIRRORS]
 
 
+def _configure_ssl_config(request):
+    """Carrega o certificado intermediario/raiz do IPEA (se existir) e injeta na request.
+
+    Sem alterar o PeerVerifyMode.
+    """
+    cert_path = Path(__file__).parent / "certs" / "ipea_chain.pem"
+    if cert_path.exists():
+        try:
+            from qgis.PyQt.QtNetwork import QSslCertificate
+            certs = QSslCertificate.fromPath(str(cert_path))
+            if certs:
+                ssl_config = request.sslConfiguration()
+                ssl_config.addCaCertificates(certs)
+                request.setSslConfiguration(ssl_config)
+        except Exception:
+            pass
+
+
 def _http_get(url):
     """GET sincrono via QgsBlockingNetworkRequest. Retorna bytes ou levanta."""
     request = QNetworkRequest(QUrl(url))
@@ -41,6 +59,7 @@ def _http_get(url):
         QNetworkRequest.UserAgentHeader,
         "geobr-qgis/0.1 (+https://github.com/d-camargo/geobr-qgis)",
     )
+    _configure_ssl_config(request)
     blocking = QgsBlockingNetworkRequest()
     err = blocking.get(request, forceRefresh=True)
     if err != QgsBlockingNetworkRequest.NoError:
@@ -55,6 +74,23 @@ def _http_get(url):
     return data
 
 
+def _format_friendly_error(errors, file_id=None):
+    """Gera uma mensagem de erro amigável em português explicando as causas prováveis."""
+    details = "\n".join(errors)
+    target = f" '{file_id}'" if file_id else ""
+    return (
+        f"Não foi possível concluir o download{target} de nenhuma das fontes/mirrors disponíveis.\n\n"
+        "Causas prováveis:\n"
+        "1. Certificado intermediário SSL ausente ou desatualizado no QGIS/sistema (ex.: cadeia incompleta do servidor IPEA).\n"
+        "2. Antivírus, firewall ou proxy corporativo interceptando a conexão HTTPS (inspeção de tráfego SSL/TLS - MITM).\n"
+        "3. Falta de conexão com a internet ou indisponibilidade temporária nos servidores do IPEA/GitHub.\n\n"
+        "Recomendações:\n"
+        "- Se estiver em rede corporativa, verifique se há bloqueios a conexões seguras externas.\n"
+        "- O plugin tenta usar cópias locais/cache quando aplicável, mas o download inicial exige uma conexão funcional.\n\n"
+        f"Detalhes técnicos dos erros:\n{details}"
+    )
+
+
 def fetch_bytes(url):
     """Baixa um recurso tentando IPEA -> mirrors. Retorna bytes.
 
@@ -66,9 +102,7 @@ def fetch_bytes(url):
             return _http_get(candidate)
         except DownloadError as exc:  # tenta proximo mirror
             errors.append(f"  - {candidate}: {exc}")
-    raise DownloadError(
-        "Falha ao baixar de todos os mirrors:\n" + "\n".join(errors)
-    )
+    raise DownloadError(_format_friendly_error(errors))
 
 
 def _fetch_to_cache(file_id, urls, feedback=None):
@@ -98,9 +132,7 @@ def _fetch_to_cache(file_id, urls, feedback=None):
         tmp.replace(dest)
         return dest
 
-    raise DownloadError(
-        f"Falha ao baixar {file_id} de todos os mirrors:\n" + "\n".join(errors)
-    )
+    raise DownloadError(_format_friendly_error(errors, file_id))
 
 
 def fetch(url, feedback=None):
