@@ -140,12 +140,6 @@ def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path):
                                        bbox=(bbox if usa_bbox else None))
     if proto == "geobr":
         return _carrega_geobr(s, code_muni, layer_name)
-    if proto == "osm":
-        result = osm_pipeline.build_osm_municipal_network(code_muni, s.get("nome_muni", ""), 
-                                                           gpkg_path, force=False, feedback=None)
-        layers = result.get("layers", {})
-        link_layer = layers.get("osm_links") or layers.get("osm_links_raw")
-        return link_layer if (link_layer and link_layer.isValid()) else _invalida(layer_name, "OSM: sem vias no municipio")
     return None
 
 
@@ -167,23 +161,28 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
     # ponytail: OSM é special-case — retorna links + nós, não segue fluxo comum
     osm_source = next((s for s in _por_id(source_ids) if s.get("protocolo") == "osm"), None)
     if osm_source:
-        result = osm_pipeline.build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=force, feedback=feedback)
-        meta = result.get("metadata", {})
-        if meta.get("gpkg_ok"):
-            # Carregar DO GPKG, não da memory — persistence real
-            osm_links = QgsVectorLayer("{}|layername=osm_links".format(gpkg_path), "osm_links - {}".format(nome_muni or code_muni), "ogr")
-            osm_nodes = QgsVectorLayer("{}|layername=osm_nodes".format(gpkg_path), "osm_nodes - {}".format(nome_muni or code_muni), "ogr")
-            if osm_links.isValid():
-                QgsProject.instance().addMapLayer(osm_links)
-                res["ok"].append(osm_source["id"])
-                log("OK: osm_links (GPKG)")
-            if osm_nodes.isValid():
-                QgsProject.instance().addMapLayer(osm_nodes)
-                log("OK: osm_nodes (GPKG)")
-            if not (osm_links.isValid() and osm_nodes.isValid()):
-                res["falhou"].append((osm_source["id"], "falha ao carregar OSM do GPKG"))
+        link_layer_name = "osm_links_{}".format(code_muni)
+        node_layer_name = "osm_nodes_{}".format(code_muni)
+        if (not force) and link_layer_name in existentes and node_layer_name in existentes:
+            res["pulou"].append((osm_source["id"], "ja existe no GeoPackage (osm_links_{}/osm_nodes_{})".format(code_muni, code_muni)))
         else:
-            res["falhou"].append((osm_source["id"], "OSM: pipeline falhou — {}".format(meta.get("erro", "desconhecido"))))
+            result = osm_pipeline.build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=force, feedback=feedback)
+            meta = result.get("metadata", {})
+            if meta.get("gpkg_ok"):
+                # Carregar DO GPKG, não da memory — persistence real
+                osm_links = QgsVectorLayer("{}|layername=osm_links_{}".format(gpkg_path, code_muni), "osm_links - {}".format(nome_muni or code_muni), "ogr")
+                osm_nodes = QgsVectorLayer("{}|layername=osm_nodes_{}".format(gpkg_path, code_muni), "osm_nodes - {}".format(nome_muni or code_muni), "ogr")
+                if osm_links.isValid():
+                    QgsProject.instance().addMapLayer(osm_links)
+                    res["ok"].append(osm_source["id"])
+                    log("OK: osm_links (GPKG)")
+                if osm_nodes.isValid():
+                    QgsProject.instance().addMapLayer(osm_nodes)
+                    log("OK: osm_nodes (GPKG)")
+                if not (osm_links.isValid() and osm_nodes.isValid()):
+                    res["falhou"].append((osm_source["id"], "falha ao carregar OSM do GPKG"))
+            else:
+                res["falhou"].append((osm_source["id"], "OSM: pipeline falhou — {}".format(meta.get("erro", "desconhecido"))))
         # remove OSM do loop de procesamento normal (nao segue fluxo)
         source_ids = [s for s in source_ids if s != osm_source["id"]]
 

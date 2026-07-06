@@ -207,8 +207,8 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
 
     # ponytail: gravar em GeoPackage (reutiliza _grava_gpkg existente)
     from .diagnostico import _grava_gpkg
-    ok_links, _ = _grava_gpkg(osm_links, gpkg_path, "osm_links")
-    ok_nodes, _ = _grava_gpkg(osm_nodes, gpkg_path, "osm_nodes")
+    ok_links, _ = _grava_gpkg(osm_links, gpkg_path, f"osm_links_{code_muni}")
+    ok_nodes, _ = _grava_gpkg(osm_nodes, gpkg_path, f"osm_nodes_{code_muni}")
     if ok_links:
         log(f"OSM: gravadas {osm_links.featureCount()} linhas em osm_links.gpkg")
     if ok_nodes:

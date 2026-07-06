@@ -78,6 +78,11 @@ if osm_source:
 **PITFALL**: se devolveres `osm_links` memory (not GPKG), parece funcionar no QGIS mas desaparece ao fechar o projeto. Contractor expecta persistência.
 **FIX**: gravar → carregar DO GPKG → exibir. Memory é só etapa intermediária, not final output.
 
+### Fase 4: Otimização (Skip-if-exists) e Nomenclatura por Município
+
+- **Nomenclatura Única por Município**: Ajuste dos nomes das camadas salvas e lidas no GeoPackage para incluir o código do município (`osm_links_<code_muni>` e `osm_nodes_<code_muni>`), seguindo o padrão `{id}_{code_muni}` das demais fontes. Isso previne que rodar o diagnóstico para múltiplos municípios em um único GeoPackage acabe sobrescrevendo dados.
+- **Mecanismo de Skip-if-exists**: Adicionado check de existência das camadas no GeoPackage antes de disparar o Overpass. Se as camadas já existirem e a flag `force` (botão de atualização da UI) estiver desligada (`False`), o processamento e o download são pulados (e logados em `pulou`), poupando banda e evitando timeouts de API.
+
 ## Técnica: JSON Overpass → QgsVectorLayer → GeoPackage
 
 1. **Parse JSON nativo** (`json` stdlib) — não há parsing de XML, JSON vem direto do Overpass
