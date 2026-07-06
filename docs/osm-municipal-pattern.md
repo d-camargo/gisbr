@@ -83,6 +83,13 @@ if osm_source:
 - **Nomenclatura Única por Município**: Ajuste dos nomes das camadas salvas e lidas no GeoPackage para incluir o código do município (`osm_links_<code_muni>` e `osm_nodes_<code_muni>`), seguindo o padrão `{id}_{code_muni}` das demais fontes. Isso previne que rodar o diagnóstico para múltiplos municípios em um único GeoPackage acabe sobrescrevendo dados.
 - **Mecanismo de Skip-if-exists**: Adicionado check de existência das camadas no GeoPackage antes de disparar o Overpass. Se as camadas já existirem e a flag `force` (botão de atualização da UI) estiver desligada (`False`), o processamento e o download são pulados (e logados em `pulou`), poupando banda e evitando timeouts de API.
 
+### Fase 5: Robustez no Fetch Overpass (Erros e Timeout)
+
+- **Tratamento de Erros Robustos**: Uso do erro tipado `OverpassError` para encapsular falhas de rede (`QgsBlockingNetworkRequest`) e problemas de decodificação de JSON inválido (por exemplo, erros HTTP com corpo em HTML/texto ou respostas truncadas), prevenindo exceções brutas como `json.JSONDecodeError` de travarem o fluxo principal.
+- **Validação e Repasse de Timeout**: O parâmetro `timeout` passado no `fetch_overpass_json` agora é validado (garantindo que seja um inteiro positivo entre 10 e 600 segundos) e devidamente encaminhado para a query Overpass QL (`[timeout:N]`), corrigindo um bug latente em que o parâmetro era aceito mas ignorado em favor da constante `_OVERPASS_TIMEOUT`.
+- **PITFALL**: Instabilidades de rede ou o limite de requisições da API Overpass (HTTP 429) resultando em dados corrompidos ou falhas de conexão derrubavam o diagnóstico por completo, mesmo havendo uma versão válida em cache.
+- **FIX**: Implementação de fallback para o cache local (`osm_overpass_<code_muni>.json`) quando ocorre um `OverpassError`. O fluxo degrada graciosamente utilizando os dados locais previamente salvos e gerando um aviso (`feedback.pushInfo`) em vez de abortar o processo.
+
 ## Técnica: JSON Overpass → QgsVectorLayer → GeoPackage
 
 1. **Parse JSON nativo** (`json` stdlib) — não há parsing de XML, JSON vem direto do Overpass

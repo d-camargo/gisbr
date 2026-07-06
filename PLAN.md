@@ -112,7 +112,12 @@ cair para o cache local em disco quando existir, e corrigir o parâmetro
       (ex.: desconectar a internet momentaneamente ou apontar
       `_OVERPASS_URL` para um endpoint inválido) — confirmar que o
       diagnóstico não quebra, usa o cache e loga o aviso de fallback.
-- [ ] 10. Atualizar `docs/osm-municipal-pattern.md` (seção de pitfalls) com o
+      **Nota do executor:** `validate_step_9.py` automatiza esse cenário
+      (PyQGIS standalone headless) e roda com sucesso — confirma que o
+      fallback funciona via `carregar_fontes`. Isso não substitui a
+      validação manual do Diego no dock real (UI, checkboxes, satélite);
+      mantido `[ ]` até ele confirmar.
+- [x] 10. Atualizar `docs/osm-municipal-pattern.md` (seção de pitfalls) com o
       novo comportamento: `OverpassError` tipado, fallback para cache local
       em falha de rede/JSON inválido, e a correção do `timeout` antes
       ignorado. — arquivos: `docs/osm-municipal-pattern.md`.

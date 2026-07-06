@@ -101,6 +101,7 @@ def run_validation():
     # 6. Executa a rotina carregar_fontes com a fonte 'osm_vias' (Transportes) e force=True
     # force=True força a tentativa de download pela rede, garantindo que o fallback seja exercitado
     print("\nExecutando carregar_fontes para o eixo de transportes (OSM) com force=True...")
+    import gisbr.core.diagnostico
     try:
         res = gisbr.core.diagnostico.carregar_fontes(
             source_ids=["osm_vias"],
