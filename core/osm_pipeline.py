@@ -174,8 +174,13 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
             log("OSM: cache reutilizado")
     if payload is None:
         log("OSM: consultando Overpass")
-        payload = osm.fetch_overpass_json(bbox, timeout=180)
-        osm.save_overpass_cache(payload, cache_path)
+        try:
+            payload = osm.fetch_overpass_json(bbox, timeout=180, cache_path=cache_path, feedback=feedback)
+            osm.save_overpass_cache(payload, cache_path)
+        except osm.OverpassError as e:
+            log(f"Erro no Overpass: {e}")
+            return {"raw_cache": None, "layers": {"osm_links_raw": None, "osm_links": None, "osm_nodes": None},
+                    "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "erro": str(e)}}
 
     # Extrair ways e nós
     ways = _parse_osm_ways(payload)

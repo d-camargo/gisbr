@@ -1,126 +1,133 @@
-# PLAN — gisbr (skip-exists para OSM, alinhado ao "Atualizar bases já baixadas")
+# PLAN — gisbr (tratamento de erro robusto no fetch_overpass_json)
+
+> Plano anterior neste arquivo ("skip-exists para OSM") está com todos os
+> passos concluídos ([x]) e foi substituído — objetivo diferente. Histórico
+> preservado no git (`git log -- PLAN.md`) se precisar consultar depois.
 
 ## Objetivo
 
-Fazer o protocolo `osm` (Overpass, `core/osm_pipeline.py`) respeitar a mesma regra
-de **skip-if-exists** que já vale para as fontes `wfs`/`arcgis`/`geobr` em
-`core/diagnostico.py::carregar_fontes()`: se as camadas OSM já estiverem gravadas
-no GeoPackage do município, **não rebaixar do Overpass nem reprocessar** — a
-menos que o usuário marque o checkbox **"Update already-downloaded layers
-(re-download)"** (`chk_atualizar` no dock, parâmetro `force`).
+Hoje `fetch_overpass_json` (`core/connectors/osm.py`) propaga `json.JSONDecodeError`
+sem tratamento sempre que a API do Overpass devolve algo que não é JSON válido
+(erro HTTP disfarçado de corpo de texto/HTML, resposta truncada por timeout do
+servidor, rate-limit "Too Many Requests" em texto puro, etc.). Isso derruba o
+diagnóstico inteiro no meio do fluxo (`osm_pipeline.build_osm_municipal_network`),
+mesmo quando já existe um cache local utilizável do mesmo município.
 
-Hoje isso não acontece: o bloco especial de OSM em `carregar_fontes()` (linhas
-167–188) **sempre** chama `osm_pipeline.build_osm_municipal_network(...)`,
-que só decide reusar/pular o **cache do JSON do Overpass** (arquivo
-`osm_overpass_<code_muni>.json`) — mas sempre reprocessa (parse, clip,
-dedup de nós) e **sempre regrava** `osm_links`/`osm_nodes` no GPKG, mesmo que
-já existam e não tenham mudado. Isso é inconsistente com o resto do motor e
-desperdiça uma consulta Overpass (rate-limited, ~180s de timeout) toda vez que
-o diagnóstico roda de novo para o mesmo município.
+Meta: tornar `fetch_overpass_json` resiliente a essas respostas — detectar e
+reportar o erro de forma clara (sem stack trace de `JSONDecodeError` cru),
+cair para o cache local em disco quando existir, e corrigir o parâmetro
+`timeout` que hoje é aceito mas **ignorado** (bug latente relacionado a
+"validação de timeout").
 
 ## Decisões de arquitetura
 
-- **Reaproveitar o mecanismo já existente**, não criar um novo: `carregar_fontes()`
-  já calcula `existentes = _layers_existentes(gpkg_path)` (nomes de camadas do
-  GeoPackage) e, para as demais fontes, faz `if (not force) and layer_name in
-  existentes: pular`. O fix do OSM é fazer o **mesmo check antes de chamar**
-  `build_osm_municipal_network`, não alterar `_layers_existentes` nem o
-  contrato de `force`.
-- **Corrigir a divergência de nomenclatura primeiro — é pré-requisito, não
-  extra.** A spec original (`ACTIONS.md`, T-OSM-001) definia as camadas como
-  `osm_links_<code_muni>` / `osm_nodes_<code_muni>` (mesmo padrão de todas as
-  outras fontes: `"{id}_{code_muni}"`). A implementação atual gravou/lê com
-  nomes **fixos** `osm_links` / `osm_nodes` (sem sufixo de município). Isso é
-  um bug latente: com um único GeoPackage compartilhado entre municípios (o
-  padrão do restante do sistema), rodar o diagnóstico para um segundo
-  município reescreveria as camadas OSM do primeiro. Sem esse fix, um
-  skip-if-exists genérico ficaria **incorreto** (pularia o Overpass de um
-  município B pensando que já tem dados, quando na verdade tem dados do
-  município A). Portanto o passo de nomenclatura entra neste mesmo plano.
-- **Onde fica o check:** dentro de `carregar_fontes()`, junto ao bloco
-  especial de OSM (não dentro de `osm_pipeline.py`) — mantém o mesmo lugar
-  onde o skip-if-exists das outras fontes já vive, e mantém
-  `build_osm_municipal_network()` livre de responsabilidade sobre o GeoPackage
-  já ter ou não as camadas (ele só grava; grava sempre que é chamado).
-- **Semântica do skip igual às demais fontes:** ao pular, não adicionar nenhuma
-  camada ao projeto (mesmo comportamento de `res["pulou"]` para wfs/arcgis/
-  geobr — hoje eles também não recarregam a camada já existente
-  automaticamente). Simplicidade > tentar "carregar do GPKG mesmo pulando" —
-  isso pode vir depois se o Diego pedir.
-- **Não mexer no cache de JSON do Overpass** (`osm_overpass_<code_muni>.json`,
-  controlado por `force` dentro de `build_osm_municipal_network`) — ele
-  continua útil como uma segunda camada de otimização para quando o
-  skip-if-exists **não** se aplica (ex.: GPKG apagado mas cache do Overpass
-  ainda em disco).
-- **Remover código morto:** o branch `if proto == "osm":` dentro de
-  `_busca_camada()` (`core/diagnostico.py` linhas 143–148) nunca executa —
-  o `source_id` do OSM já é removido de `source_ids` antes do loop principal
-  chegar em `_busca_camada`. Não superconstruir em cima de código morto;
-  removê-lo deixa claro que o OSM só tem um caminho (o bloco especial).
+- **Erro tipado, não `RuntimeError` genérico:** criar `OverpassError(Exception)`
+  em `core/connectors/osm.py` para erros de rede/parse do Overpass. Mantém
+  `try/except OverpassError` específico possível no chamador, sem capturar
+  acidentalmente outras exceções (ex.: bug de programação).
+- **Fallback de cache é uma nova camada, não substitui a existente:**
+  `osm_pipeline.build_osm_municipal_network` já verifica o cache **antes** de
+  chamar `fetch_overpass_json` (reuso se existe e `force=False`). Essa lógica
+  não muda. O que falta é: quando o Overpass **falha** (rede ou JSON inválido)
+  e o cache existe mas não foi usado (porque estava desatualizado ou
+  `force=True`), cair para ele em vez de propagar a exceção — degradação
+  graciosa, não substituição da regra de atualização.
+- **Onde entra o fallback:** dentro de `fetch_overpass_json`, via parâmetro
+  opcional `cache_path=None`. Se a consulta falhar (`OverpassError`) e
+  `cache_path` apontar para um arquivo existente, carregar via
+  `load_overpass_cache` (função já existente) e devolver esse payload com um
+  aviso (via `feedback` opcional, mesmo padrão `pushInfo` usado no resto do
+  projeto). Sem `cache_path` ou sem arquivo, propaga o `OverpassError`.
+  Mantém tudo dentro de `osm.py`, sem duplicar lógica de cache no pipeline.
+- **Correção do `timeout`:** hoje `build_query` usa a constante de módulo
+  `_OVERPASS_TIMEOUT` (180) e **ignora** o argumento `timeout` recebido por
+  `fetch_overpass_json`/`_post_overpass` — é passado mas nunca chega à query
+  `[out:json][timeout:...]`. Corrigir para usar o valor efetivo recebido,
+  com validação simples (inteiro positivo, clamp para uma faixa razoável,
+  ex.: 10–600s) para não gerar uma query Overpass QL inválida ou uma espera
+  absurda. Sem taxonomia nova de exceção para isso — só `ValueError` já é
+  suficiente (erro de programação/uso, não de rede).
+- **Sem retry automático nem backoff:** fora de escopo — Overpass é
+  rate-limited e um retry mal feito pode piorar (bloqueio de IP). Se o Diego
+  quiser retry mais pra frente, é uma decisão separada.
+- **Prefeitura da solução mais simples:** não criar um módulo de "circuit
+  breaker" nem persistir métricas de falha — só try/except + fallback de
+  cache + validação de timeout, como pedido.
 
 ## Passos (executor marca [x] ao concluir)
 
-- [x] 1. Corrigir nomes de camada no GeoPackage para incluir o sufixo do
-      município, alinhando com o padrão `"{id}_{code_muni}"` das demais
-      fontes e com a spec original (`ACTIONS.md` T-OSM-001):
-      `osm_links_<code_muni>` e `osm_nodes_<code_muni>` (em vez de
-      `osm_links`/`osm_nodes` fixos). — arquivos: `core/osm_pipeline.py`
-      (chamadas a `_grava_gpkg(..., "osm_links")` / `"osm_nodes"` dentro de
-      `build_osm_municipal_network`), `core/diagnostico.py` (leitura via
-      `"{}|layername=osm_links".format(gpkg_path)` /
-      `"...osm_nodes..."` no bloco especial OSM, linhas ~174–175).
-- [x] 2. No bloco especial de OSM em `carregar_fontes()`, calcular os nomes
-      esperados (`"osm_links_{}".format(code_muni)`,
-      `"osm_nodes_{}".format(code_muni)`) e, **antes** de chamar
-      `osm_pipeline.build_osm_municipal_network(...)`, checar se ambos já
-      estão em `existentes` (mesma variável já calculada no topo da função via
-      `_layers_existentes(gpkg_path)`). — arquivos: `core/diagnostico.py`.
-- [x] 3. Se ambos existirem e `force` for `False`: **pular** o pipeline
-      inteiro (sem chamar Overpass, sem resolver polígono do município, sem
-      regravar), registrar em `res["pulou"].append((osm_source["id"], "ja
-      existe no GeoPackage (osm_links_<code>/osm_nodes_<code>)"))`, no mesmo
-      formato de mensagem usado pelas demais fontes (linha ~200). Caso
-      contrário (não existe, ou `force=True`), seguir o fluxo atual
-      (chamar `build_osm_municipal_network`, carregar do GPKG, `addMapLayer`).
-      — arquivos: `core/diagnostico.py`.
-- [x] 4. Remover o branch morto `if proto == "osm":` dentro de
-      `_busca_camada()` (nunca é alcançado, pois o OSM é removido de
-      `source_ids` antes do loop principal) — só para não deixar dois
-      caminhos incoerentes para o mesmo protocolo. — arquivos:
-      `core/diagnostico.py`.
-- [x] 5. Verificação estática: `python3 -m py_compile core/diagnostico.py
-      core/osm_pipeline.py` sem erros; `grep -n "osm_links\b\|osm_nodes\b"
-      core/diagnostico.py core/osm_pipeline.py` confirma que não sobrou
-      nenhuma referência aos nomes antigos sem sufixo de município (fora dos
-      nomes internos de camada em memória `"osm_links"`/`"osm_nodes"`
-      passados como `layer_name` de exibição, que podem continuar iguais —
-      só os nomes gravados/lidos do GPKG precisam do sufixo).
-- [x] 6. Validação manual no QGIS (Diego), no dock de diagnóstico, para um
-      município já testado (ex.: Contagem, `code_muni=3118402`):
-      1) rodar o diagnóstico com "Transportes" marcado e checkbox "Update
-      already-downloaded layers" **desmarcado** — 1ª vez baixa do Overpass e
-      grava `osm_links_3118402`/`osm_nodes_3118402`; 2) rodar de novo, mesmo
-      município, checkbox ainda desmarcado — log deve mostrar mensagem de
-      "já existe no GeoPackage" e **nenhuma** chamada ao Overpass (sem espera
-      de ~180s, sem novo `OSM: consultando Overpass` no log); 3) marcar o
-      checkbox e rodar de novo — deve rebaixar/regravar normalmente.
-- [x] 7. Atualizar `docs/osm-municipal-pattern.md` com uma seção curta
-      registrando o comportamento de skip-if-exists e a correção do nome de
-      camada (`osm_links_<code_muni>`/`osm_nodes_<code_muni>`), no mesmo
-      estilo das fases já documentadas (Fase 4). — arquivos:
-      `docs/osm-municipal-pattern.md`.
+- [x] 1. Adicionar `class OverpassError(Exception): pass` em
+      `core/connectors/osm.py` (logo após os imports/constantes). — arquivos:
+      `core/connectors/osm.py`.
+- [x] 2. Em `_post_overpass`, checar o erro de rede da resposta antes de olhar
+      o corpo: usar `reply.error()` / `blocking.errorCode()` (verificar qual
+      API o `QgsBlockingNetworkRequest` local expõe — mesmo cuidado já
+      registrado no `CLAUDE.md` §5 sobre variação de assinatura entre versões
+      do QGIS) e, se indicar erro, levantar `OverpassError` com mensagem
+      incluindo `reply.errorString()`. Manter o `raise` atual para corpo vazio,
+      mas trocando `RuntimeError` por `OverpassError`. — arquivos:
+      `core/connectors/osm.py`.
+- [x] 3. Em `fetch_overpass_json`, envolver o `json.loads(...)` em
+      `try/except json.JSONDecodeError` e relançar como `OverpassError`,
+      incluindo no texto um trecho curto da resposta crua (ex.: primeiros
+      200 caracteres, sem `ensure_ascii` gigante) para facilitar diagnóstico
+      sem despejar o payload inteiro no log. — arquivos:
+      `core/connectors/osm.py`.
+- [x] 4. Corrigir o `timeout` morto: `build_query` passa a receber o `timeout`
+      efetivo (não a constante `_OVERPASS_TIMEOUT`) e validar
+      (`int(timeout)`, `ValueError` se não for inteiro positivo; clamp para
+      10–600). Atualizar `_post_overpass`/`fetch_overpass_json` para
+      encaminhar o valor validado até `build_query`. Manter
+      `_OVERPASS_TIMEOUT = 180` só como default do parâmetro. — arquivos:
+      `core/connectors/osm.py`.
+- [x] 5. Adicionar parâmetros opcionais `cache_path=None, feedback=None` a
+      `fetch_overpass_json`. No `except OverpassError`, se `cache_path` for
+      passado e o arquivo existir, chamar `load_overpass_cache(cache_path)`;
+      se retornar payload não-nulo, emitir aviso (`feedback.pushInfo(...)` se
+      `feedback` não for `None`) e devolver esse payload em vez de propagar o
+      erro. Caso não haja `cache_path`/arquivo/parse válido, relançar o
+      `OverpassError` original. — arquivos: `core/connectors/osm.py`.
+- [x] 6. Atualizar a chamada em
+      `osm_pipeline.build_osm_municipal_network` (linha ~177,
+      `osm.fetch_overpass_json(bbox, timeout=180)`) para passar
+      `cache_path=cache_path, feedback=feedback`, aproveitando as variáveis já
+      calculadas na função. Envolver a chamada em `try/except OverpassError`
+      só para logar via `feedback.pushInfo` e devolver o dict de erro já
+      usado pela função (mesmo formato do `return` quando `municipio is None`,
+      linha ~164) em vez de deixar a exceção subir até o dock. — arquivos:
+      `core/osm_pipeline.py`.
+- [x] 7. Verificação estática: `python3 -m py_compile core/connectors/osm.py
+      core/osm_pipeline.py` sem erros.
+- [x] 8. Teste manual/local do parsing de erro (sem depender do Overpass
+      real): no console Python do QGIS ou script avulso, chamar
+      `osm.fetch_overpass_json` mockando `_post_overpass` (ou testar
+      diretamente `json.loads` do trecho novo) com (a) bytes vazios, (b) bytes
+      de HTML de erro (`b"<html>Too Many Requests</html>"`), (c) um
+      `cache_path` válido presente — confirmar que (a)/(b) sem cache levantam
+      `OverpassError` com mensagem legível, e que com `cache_path` válido
+      devolvem o payload do cache em vez de lançar.
+- [ ] 9. Validação manual no QGIS (Diego): rodar o diagnóstico com
+      "Transportes" marcado para um município com cache OSM já gravado em
+      disco (`osm_overpass_<code_muni>.json`), simulando falha de rede
+      (ex.: desconectar a internet momentaneamente ou apontar
+      `_OVERPASS_URL` para um endpoint inválido) — confirmar que o
+      diagnóstico não quebra, usa o cache e loga o aviso de fallback.
+- [ ] 10. Atualizar `docs/osm-municipal-pattern.md` (seção de pitfalls) com o
+      novo comportamento: `OverpassError` tipado, fallback para cache local
+      em falha de rede/JSON inválido, e a correção do `timeout` antes
+      ignorado. — arquivos: `docs/osm-municipal-pattern.md`.
 
 ## Critério de aceite
 
-- Rodar o diagnóstico duas vezes seguidas para o mesmo município com "Update
-  already-downloaded layers" **desmarcado**: a segunda vez não faz nenhuma
-  requisição ao Overpass e não regrava o GeoPackage — aparece em `pulou`,
-  igual ao comportamento já existente para `wfs`/`arcgis`/`geobr`.
-- Com o checkbox **marcado**, o comportamento atual de rebaixar/regravar
-  continua funcionando sem regressão.
-- As camadas no GeoPackage passam a se chamar `osm_links_<code_muni>` e
-  `osm_nodes_<code_muni>`, consistente com o padrão `"{id}_{code_muni}"` do
-  resto do sistema e com a spec original do T-OSM-001.
-- Nenhuma outra fonte (`wfs`, `arcgis`, `geobr`, `basemap`) é afetada
-  (`python3 -m py_compile` limpo; fluxo dessas fontes inalterado).
-- `docs/osm-municipal-pattern.md` reflete o novo comportamento.
+- `fetch_overpass_json` nunca propaga `json.JSONDecodeError` cru — qualquer
+  falha de parse ou rede vira `OverpassError` com mensagem legível.
+- Quando existe cache local (`osm_overpass_<code_muni>.json`) e o Overpass
+  falha (rede ou resposta inválida), o diagnóstico completa usando o cache,
+  com aviso no log, em vez de travar o eixo Transportes inteiro.
+- Sem cache disponível e falha do Overpass, o erro chega ao usuário como
+  mensagem clara (via `feedback.pushInfo`/exceção tratada no dock), não como
+  traceback de `JSONDecodeError`.
+- O parâmetro `timeout` passado para `fetch_overpass_json` realmente altera o
+  `[out:json][timeout:N]` da query enviada ao Overpass (hoje é ignorado).
+- `python3 -m py_compile core/connectors/osm.py core/osm_pipeline.py` limpo.
+- Nenhuma outra fonte (`wfs`, `arcgis`, `geobr`, `basemap`) é afetada.
