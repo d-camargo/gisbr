@@ -1,1 +1,14 @@
 dist export-ignore
+.gitattributes export-ignore
+.gitignore export-ignore
+Makefile export-ignore
+ACTIONS.md export-ignore
+AGENTS.md export-ignore
+CLAUDE.md export-ignore
+INSTRUCTIONS.md export-ignore
+PLAN.md export-ignore
+STRUCTURE.md export-ignore
+OSM_ARQUITETURA.md export-ignore
+QUICK_START_OSM.md export-ignore
+test_osm_error.py export-ignore
+validate_step_9.py export-ignore
