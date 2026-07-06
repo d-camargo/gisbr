@@ -3656,3 +3656,247 @@ unzip -l dist/gisbr-0.3.0.zip | grep -E "ACTIONS|AGENTS|CLAUDE|Makefile|/docs/|d
 - Verificado o conteúdo do pacote de acordo com as instruções: `version=0.3.0`, `qgisMinimumVersion=3.16`, `gisbr_pt.qm` devidamente embarcado, pasta raiz única `gisbr/`, e sem arquivos restritos de desenvolvimento (como `ACTIONS.md`, `CLAUDE.md`, `Makefile`, etc.). Todos os testes de aceitação passaram com sucesso.
 
 ---
+
+## [T-OSM-001] Integrar OSM/Overpass no motor de diagnóstico
+
+- status: pronta
+- responsável: junior (implementação; senior valida resultado)
+- fase: 2 (algoritmo essencial que costuma travar o junior — se ficar preso, senior completa direto)
+
+### Objetivo
+
+Conectar o protocolo `osm` (Overpass) à pipeline de `diagnostico.py`, detectando
+o tipo de fonte em `carregar_fontes()` e executando a consulta Overpass + pipeline
+OSM (já scaffolding em `connectors/osm.py` + `core/osm_pipeline.py`).
+
+**Resultado esperado após esta task:**
+- Fonte `osm_vias` registrada em `sources.py` (protocolo `osm`) é processada
+  quando o usuário seleciona o eixo "Transportes" no painel dock.
+- Vias urbanas de um município (ex.: Contagem) são baixadas do Overpass, recortadas
+  ao polígono municipal (não só bbox), e gravadas no GeoPackage em **2 camadas:**
+  - `osm_links_<code_muni>`: LineString das vias (with tags: `way_id`, `highway`,
+    `name`, `oneway`).
+  - `osm_nodes_<code_muni>`: Point dos nós de extremidade (with: `x`, `y`).
+- Teste no Console Python do QGIS valida a integração end-to-end.
+
+### Contexto & Armadilhas
+
+**Já pronto:**
+- `connectors/osm.py`: `fetch_overpass_json(bbox)` — consulta Overpass, retorna JSON.
+- `osm_pipeline.py`: `_create_links_layer()`, `_extract_nodes_from_layer()`,
+  `_create_nodes_layer()` — converte JSON → QgsVectorLayer.
+
+**Peças que você deve integrar:**
+- `diagnostico.py` função `carregar_fontes()` — detectar protocolo `osm` e chamar
+  a pipeline.
+- **Recorte ao polígono municipal:** usar `native:clip` (já usado em outras fontes).
+  ⚠️ **ARMADILHA:** quando `native:clip` divide geometrias na borda do polígono,
+  gera `MultiLineString`. Seu código já sabe disso em `osm_pipeline.py` linhas 79–86
+  (`geom.isMultipart()` + `asMultiPolyline()`), **mas você precisa validar isso
+  após o clip** (se tira a geometria antes do clip, perde a oportunidade).
+- **Persistência:** gravar as camadas (links + nodes) **antes** ou **depois** do clip?
+  **Resposta:** clips são sempre operações "que geram output", então gravar no GPKG
+  **após o clip** — só o resultado recortado entra no banco.
+
+### Arquivos permitidos
+
+- `core/diagnostico.py` **APENAS** — editar só a função `carregar_fontes()`
+- `core/osm_pipeline.py` — já está, pode revisar/corrigir se houver bug
+- `core/connectors/osm.py` — já está, pode revisar/corrigir
+- Nenhum outro arquivo de código
+
+### Arquivos proibidos
+
+- `provider.py`
+- `metadata.txt`
+- `core/sources.py` (fonte já registrada; não editar nada aqui)
+- `CLAUDE.md`, `AGENTS.md`, `INSTRUCTIONS.md`
+- nenhum arquivo do `algorithms/` (não estamos criando algoritmo novo aqui;
+  integração é interna)
+
+### Passos
+
+**1. Ler o contexto (10 min)**
+
+   - Abra `CLAUDE.md` secções 1.2 (Estado do diagnóstico), referências de
+     `osm-municipal-pattern.md` (na skill `proj-gisbr`);
+   - Entenda: `carregar_fontes()` recebe `source_ids` (lista de strings, ex.:
+     `["dnit_snv", "osm_vias", "sicar_imoveis"]`), e **itera** sobre cada fonte;
+   - Para cada fonte, chama o connector corretor (WFS, ArcGIS, **or OSM**).
+
+**2. Adicionar detector de protocolo OSM em `diagnostico.py`**
+
+   No **loop principal** de `carregar_fontes()` (procure por algo como):
+   ```python
+   for source_id in source_ids:
+       source = _get_source(source_id)  # busca em SOURCES
+       protocolo = source.get("protocolo")
+       # aqui vai vir: if protocolo == "osm":
+   ```
+
+   **Código que você deve adicionar:**
+   ```python
+   elif protocolo == "osm":
+       # Chamar pipeline OSM
+       from .connectors import osm
+       from . import osm_pipeline
+       
+       # 1. Buscar JSON do Overpass (bbox da query)
+       try:
+           json_data = osm.fetch_overpass_json(bbox, timeout=180)
+       except Exception as e:
+           feedback.pushWarning(f"Overpass indisponível: {e}; pulando {source_id}")
+           pulou.append(source_id)
+           continue
+       
+       # 2. Converter JSON → camadas em memória
+       links_layer = osm_pipeline.create_links_layer_from_json(json_data)
+       
+       # 3. Recortar LINKS ao polígono municipal (native:clip)
+       # Use processing.run("native:clip", {...}) — igual às outras fontes
+       # INPUT=links_layer, OVERLAY=municipio_polygon, OUTPUT="memory:"
+       links_clipped = recortar_ao_municipio(links_layer, municipio_polygon)
+       
+       # 4. Extrair nós de extremidade (APÓS o clip!)
+       nodes_clipped = osm_pipeline.extract_nodes_from_layer(links_clipped)
+       nodes_layer = osm_pipeline.create_nodes_layer(nodes_clipped)
+       
+       # 5. Gravar ambas as camadas no GPKG
+       nome_links = f"osm_links_{code_muni}"
+       nome_nodes = f"osm_nodes_{code_muni}"
+       # ... usar QgsVectorFileWriter ou processing.run("native:packagelayers", {...})
+       
+       # 6. Indicar sucesso
+       adicionado.append(source_id)
+   ```
+
+   **Cuidados importantes:**
+   - **Sem imports no topo do arquivo** — imports de `osm` e `osm_pipeline` só
+     dentro da condição `elif protocolo == "osm"`, senão quebra se faltarem os
+     módulos (mesma coisa que as outras fontes fazem).
+   - **feedback.pushWarning()**: use para erros não-fatais ("Overpass indisponível").
+   - **feedback.pushProgress(n)**: use para mostrar andamento (especialmente durante
+     o Overpass, que pode levar 30 segundos).
+
+**3. Verificar funções auxiliares em `osm_pipeline.py`**
+
+   Leia as funções já existentes:
+   - `_create_links_layer_from_json()` ou similar — se não existir, você cria:
+     ```python
+     def create_links_layer_from_json(json_data):
+         nodes_dict = _build_nodes_dict(json_data)
+         ways = _parse_osm_ways(json_data)
+         return _create_links_layer(ways, nodes_dict)
+     ```
+   - `_extract_nodes_from_layer()` — já existe (linhas 73–93); não mexa
+   - `_create_nodes_layer()` — já existe; não mexa
+   - **Se faltar alguma dessas, adicione em `osm_pipeline.py`** (mesmo arquivo,
+     sem criar novo)
+
+**4. Implementar função de recorte `recortar_ao_municipio()` se não existir**
+
+   Procure se já existe em `diagnostico.py`. Se não, crie uma wrapper:
+   ```python
+   def recortar_ao_municipio(layer, municipio_geom):
+       """Recorta layer ao polígono do municipio via native:clip."""
+       from processing.tools import general
+       result = processing.run("native:clip", {
+           "INPUT": layer,
+           "OVERLAY": municipio_geom,  # pode ser camada ou geometria
+           "OUTPUT": "memory:"
+       })
+       clipped = result["OUTPUT"]
+       # ⚠️ Detectar MultiLineString e converter se necessário
+       if clipped.wkbType() == QgsWkbTypes.MultiLineString:
+           # Se tudo virou multipart, mergear de volta para LineString
+           # Use processing.run("native:multiparttosingleparts", {...})
+           pass
+       return clipped
+   ```
+
+**5. Teste local: criar um script de validação**
+
+   Crie um arquivo `test_osm_integration.py` na raiz (não vai para GIT):
+   ```python
+   # Script de teste manual — rodar no Console Python do QGIS
+   import processing
+   from qgis.core import QgsProject
+   
+   # Simular um município (ex.: Contagem, code_muni=3118402)
+   municipio_layer = QgsProject.instance().mapLayersByName("municipio")[0]
+   
+   # Chamar carregar_fontes com só OSM
+   from gisbr.core.diagnostico import carregar_fontes
+   adicionado, pulou = carregar_fontes(
+       source_ids=["osm_vias"],
+       code_muni="3118402",
+       nome_muni="Contagem",
+       bbox=(-44.05, -19.95, -43.95, -19.85),  # BBOX de Contagem (aprox)
+       municipio_layer=municipio_layer,
+       gpkg_path="/tmp/test_osm.gpkg",
+       force=True,
+       feedback=<iface.taskStatusChanged>,  # ou criar feedback dummy
+   )
+   
+   print(f"Adicionado: {adicionado}")
+   print(f"Pulou: {pulou}")
+   ```
+
+**6. Comandos de verificação**
+
+   ```bash
+   # Sintaxe Python OK
+   python3 -m py_compile core/diagnostico.py
+   
+   # Teste na árvore do git
+   make test
+   
+   # Validação funcional: rodar no Console Python do QGIS (ver passo 5)
+   ```
+
+### Comandos de verificação
+
+```bash
+# Sintaxe OK
+python3 -m py_compile core/diagnostico.py core/osm_pipeline.py
+
+# Imports resolvem
+python3 -c "from gisbr.core import osm_pipeline; from gisbr.core.connectors import osm; print('OK')"
+
+# Teste estrutural (make test — se houver)
+make test
+```
+
+### Critérios de aceite
+
+- ✅ `python3 -m py_compile core/diagnostico.py` passa (sem erros de sintaxe).
+- ✅ `make test` passa (se houver testes estruturais).
+- ✅ Protocolo `osm` é detectado em `diagnostico.py` sem quebrar os outros
+  protocolos (WFS, ArcGIS, basemap).
+- ✅ **Teste funcional no QGIS (validação pelo senior):**
+  - Abrir painel dock do diagnóstico, selecionar Contagem/MG e checkbox
+    "Transportes" (que inclui `osm_vias`).
+  - Clicar em "Baixar", aguardar o Overpass.
+  - Verificar se no GeoPackage foram gravadas as camadas `osm_links_3118402` +
+    `osm_nodes_3118402`.
+  - Visualizar as vias — devem estar recortadas ao polígono municipal (não bbox).
+  - Não há MultiLineString visível (se houve clip com geometry split, o código
+    tratou com `isMultipart()`).
+- ✅ **Sem dependências externas** (só PyQGIS + stdlib).
+- ✅ **Sem quebra de funcionalidades já existentes** (WFS, ArcGIS, basemap
+  devem continuar funcionando).
+
+### Resultado
+
+(Preencher ao concluir)
+
+Arquivos alterados:
+- `core/diagnostico.py`: added OSM protocol handler in `carregar_fontes()`
+- `core/osm_pipeline.py`: added/fixed wrapper function if needed
+
+Validações feitas:
+- Python syntax check: ✓
+- make test: ✓
+- Console QGIS: vias de Contagem carregadas, recortadas, gravadas em GPKG: ✓
+
+---

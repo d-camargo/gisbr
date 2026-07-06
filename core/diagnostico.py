@@ -9,8 +9,9 @@ import os
 
 from qgis.core import QgsProject, QgsVectorLayer, QgsVectorFileWriter
 
-from .connectors import wfs, basemap, arcgis_rest
+from .connectors import wfs, basemap, arcgis_rest, osm
 from .sources import SOURCES
+from . import osm_pipeline
 
 _UF_POR_CODIGO = {
     "11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16": "AP",
@@ -20,7 +21,7 @@ _UF_POR_CODIGO = {
     "51": "MT", "52": "GO", "53": "DF",
 }
 
-_PROTOCOLOS = ("wfs", "arcgis", "geobr")
+_PROTOCOLOS = ("wfs", "arcgis", "geobr", "osm")
 
 
 def _por_id(ids):
@@ -126,7 +127,7 @@ def _carrega_geobr(s, code_muni, layer_name):
     return _resolve_out(out, layer_name)
 
 
-def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni):
+def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path):
     proto = s.get("protocolo")
     srs = s.get("srs", "EPSG:4674")
     if proto == "wfs":
@@ -157,6 +158,34 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
     poligono = None
     poligono_tentado = False
 
+    # ponytail: OSM é special-case — retorna links + nós, não segue fluxo comum
+    osm_source = next((s for s in _por_id(source_ids) if s.get("protocolo") == "osm"), None)
+    if osm_source:
+        link_layer_name = "osm_links_{}".format(code_muni)
+        node_layer_name = "osm_nodes_{}".format(code_muni)
+        if (not force) and link_layer_name in existentes and node_layer_name in existentes:
+            res["pulou"].append((osm_source["id"], "ja existe no GeoPackage (osm_links_{}/osm_nodes_{})".format(code_muni, code_muni)))
+        else:
+            result = osm_pipeline.build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=force, feedback=feedback)
+            meta = result.get("metadata", {})
+            if meta.get("gpkg_ok"):
+                # Carregar DO GPKG, não da memory — persistence real
+                osm_links = QgsVectorLayer("{}|layername=osm_links_{}".format(gpkg_path, code_muni), "osm_links - {}".format(nome_muni or code_muni), "ogr")
+                osm_nodes = QgsVectorLayer("{}|layername=osm_nodes_{}".format(gpkg_path, code_muni), "osm_nodes - {}".format(nome_muni or code_muni), "ogr")
+                if osm_links.isValid():
+                    QgsProject.instance().addMapLayer(osm_links)
+                    res["ok"].append(osm_source["id"])
+                    log("OK: osm_links (GPKG)")
+                if osm_nodes.isValid():
+                    QgsProject.instance().addMapLayer(osm_nodes)
+                    log("OK: osm_nodes (GPKG)")
+                if not (osm_links.isValid() and osm_nodes.isValid()):
+                    res["falhou"].append((osm_source["id"], "falha ao carregar OSM do GPKG"))
+            else:
+                res["falhou"].append((osm_source["id"], "OSM: pipeline falhou — {}".format(meta.get("erro", "desconhecido"))))
+        # remove OSM do loop de procesamento normal (nao segue fluxo)
+        source_ids = [s for s in source_ids if s != osm_source["id"]]
+
     for s in _por_id(source_ids):
         proto = s.get("protocolo")
         if proto == "basemap":
@@ -171,7 +200,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             continue
 
         cql, usa_bbox = _filtro_para(s, code_muni, nome_muni)
-        layer = _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni)
+        layer = _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path)
         if layer is None or not layer.isValid():
             msg = getattr(layer, "error_msg", "camada invalida") if layer else "protocolo desconhecido"
             res["falhou"].append((s["id"], msg))

@@ -172,7 +172,7 @@ class BaseReadAlgorithm(QgsProcessingAlgorithm):
 
         # 1) selecionar rows do metadado
         try:
-            rows = catalog.select(self.GEO, year=year, simplified=simplified)
+            rows = catalog.select(self.GEO, year=year, simplified=simplified, feedback=feedback)
         except ValueError as exc:
             raise QgsProcessingException(str(exc))
 

@@ -4,7 +4,7 @@
 name=GisBR
 qgisMinimumVersion=3.16
 description=Load official Brazilian spatial data (IBGE/IPEA geobr + censobr) and run a municipal Master Plan diagnostic in QGIS, using only the native QGIS API.
-version=0.3.1
+version=0.3.2
 author=Diego Camargo
 email=dg.camargo@proton.me
 
@@ -17,6 +17,15 @@ homepage=https://github.com/d-camargo/gisbr
 hasProcessingProvider=yes
 
 changelog=
+    0.3.2
+    - New: municipal OSM road network via Overpass — links + nodes topology,
+      persisted to the municipality GeoPackage, with the same skip-if-exists
+      behavior as the WFS/ArcGIS sources.
+    - Robust error handling for Overpass fetches (network errors, invalid
+      JSON responses, per-source timeout honored).
+    - Fix: SSL certificate failure when loading IPEA metadata on Windows,
+      with a safe fallback.
+    - First non-experimental release.
     0.3.1
     - Packaging: exclude the scratch/ research scripts from the published zip
       (they used urllib/ssl/xml and were flagged by the repository security scan).
@@ -43,6 +52,6 @@ changelog=
 tags=brazil,brasil,ibge,ipea,geobr,censobr,boundaries,census,municipios,vector
 category=Vector
 icon=icon.png
-experimental=True
+experimental=False
 deprecated=False
 server=False

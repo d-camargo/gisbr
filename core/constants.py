@@ -16,6 +16,8 @@ METADATA_URL = "https://www.ipea.gov.br/geobr/metadata/metadata_1.7.0_gpkg.csv"
 IPEA_BASE = "https://www.ipea.gov.br/geobr/data_gpkg"
 
 # Mirror no GitHub: mesmo file_id do arquivo do IPEA.
+# Nota: O arquivo de metadados metadata_1.7.0_gpkg.csv existe como asset no mirror:
+# https://github.com/ipeaGIT/geobr/releases/download/v1.7.0/metadata_1.7.0_gpkg.csv
 GITHUB_MIRRORS = [
     "https://github.com/ipeaGIT/geobr/releases/download/v1.7.0/",
 ]

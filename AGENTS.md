@@ -80,8 +80,9 @@ Estado atual (ver detalhes em `CLAUDE.md`):
   Painel dock (UF->municipio), conectores WFS/ArcGIS/basemap, 8 eixos,
   GeoPackage; UI bilingue EN/PT-BR. Detalhe em `CLAUDE.md` §1.2.
   **Submissao ao QGIS:** 0.3.0 **bloqueada** pelo scan de seguranca (dir
-  `scratch/` vazou pro zip); corrigido na **0.3.1** (pendente re-upload).
-  Ver armadilha do scanner em `CLAUDE.md` §10.
+  `scratch/` vazou pro zip); corrigido na **0.3.1**, publicada e aprovada.
+  **0.3.2 (2026-07-06):** OSM municipal via Overpass + fix SSL Windows,
+  primeira versao **nao-experimental**. Ver armadilha do scanner em `CLAUDE.md` §10.
 
 ## Principio inegociavel do projeto
 
