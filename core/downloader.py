@@ -56,7 +56,7 @@ def _http_get(url):
     request = QNetworkRequest(QUrl(url))
     # Alguns servidores (IPEA) filtram por User-Agent vazio.
     request.setHeader(
-        QNetworkRequest.UserAgentHeader,
+        QNetworkRequest.KnownHeaders.UserAgentHeader,
         "geobr-qgis/0.1 (+https://github.com/d-camargo/geobr-qgis)",
     )
     _configure_ssl_config(request)
@@ -65,7 +65,7 @@ def _http_get(url):
     if err != QgsBlockingNetworkRequest.NoError:
         raise DownloadError(blocking.errorMessage() or f"erro de rede em {url}")
     reply = blocking.reply()
-    status = reply.attribute(QNetworkRequest.HttpStatusCodeAttribute)
+    status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
     if status is not None and int(status) >= 400:
         raise DownloadError(f"HTTP {status} em {url}")
     data = bytes(reply.content())

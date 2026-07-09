@@ -62,11 +62,11 @@ class DiagnosticoDock(QgsDockWidget):
         self.cmb_muni = QComboBox()
         self.cmb_muni.currentIndexChanged.connect(self._on_muni_changed)
         self.cmb_muni.setEditable(True)
-        self.cmb_muni.setInsertPolicy(QComboBox.NoInsert)
+        self.cmb_muni.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
         _comp = self.cmb_muni.completer()
-        _comp.setCompletionMode(QCompleter.PopupCompletion)
-        _comp.setFilterMode(Qt.MatchContains)
-        _comp.setCaseSensitivity(Qt.CaseInsensitive)
+        _comp.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        _comp.setFilterMode(Qt.MatchFlag.MatchContains)
+        _comp.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         layout.addWidget(self.cmb_muni)
 
         # 1.3) Codigo do Municipio (IBGE 7 digitos)
@@ -96,9 +96,9 @@ class DiagnosticoDock(QgsDockWidget):
             parent_item = QTreeWidgetItem(self.tree, [eixo_nome])
             for s in fontes:
                 child_item = QTreeWidgetItem(parent_item, [s.get("nome", s["id"])])
-                child_item.setFlags(child_item.flags() | Qt.ItemIsUserCheckable)
-                child_item.setCheckState(0, Qt.Unchecked)
-                child_item.setData(0, Qt.UserRole, s["id"])
+                child_item.setFlags(child_item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                child_item.setCheckState(0, Qt.CheckState.Unchecked)
+                child_item.setData(0, Qt.ItemDataRole.UserRole, s["id"])
 
         self.tree.expandAll()
         layout.addWidget(self.tree)
@@ -149,8 +149,8 @@ class DiagnosticoDock(QgsDockWidget):
             parent_item = self.tree.topLevelItem(i)
             for j in range(parent_item.childCount()):
                 child = parent_item.child(j)
-                if child.checkState(0) == Qt.Checked:
-                    source_id = child.data(0, Qt.UserRole)
+                if child.checkState(0) == Qt.CheckState.Checked:
+                    source_id = child.data(0, Qt.ItemDataRole.UserRole)
                     if source_id:
                         ids.append(source_id)
         return ids

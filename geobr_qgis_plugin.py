@@ -21,11 +21,14 @@ class GeobrPlugin:
 
     def initGui(self):
         self.initProcessing()
-        from qgis.PyQt.QtWidgets import QAction
+        try:
+            from qgis.PyQt.QtGui import QAction
+        except ImportError:
+            from qgis.PyQt.QtWidgets import QAction
         from qgis.PyQt.QtCore import Qt
         from .gui.diagnostico_dock import DiagnosticoDock
         self.dock = DiagnosticoDock(self.iface)
-        self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dock)
+        self.iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
         self.dock.hide()
         self.action = QAction(self.tr("Master Plan Diagnostic (GisBR)"), self.iface.mainWindow())
         self.action.setCheckable(True)

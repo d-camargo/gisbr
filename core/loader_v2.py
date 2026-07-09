@@ -22,9 +22,8 @@ from qgis.core import (
     QgsVectorLayer,
     QgsWkbTypes,
 )
-from qgis.PyQt.QtCore import QVariant
 
-from . import capabilities
+from . import capabilities, qgis_compat
 from .constants import EPSG_GEOBR
 
 
@@ -45,13 +44,13 @@ def _arrow_type_to_qvariant(field_type):
     import pyarrow as pa
 
     if pa.types.is_boolean(field_type):
-        return QVariant.Bool
+        return qgis_compat.field_type("bool")
     if pa.types.is_integer(field_type):
-        return QVariant.LongLong
+        return qgis_compat.field_type("int")
     if pa.types.is_floating(field_type) or pa.types.is_decimal(field_type):
-        return QVariant.Double
+        return qgis_compat.field_type("double")
     # string, large_string, e qualquer outro -> texto
-    return QVariant.String
+    return qgis_compat.field_type("string")
 
 
 def _detect_geometry_column(schema):

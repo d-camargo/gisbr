@@ -8,8 +8,9 @@ import os
 from pathlib import Path
 
 from qgis.core import (QgsVectorLayer, QgsField, QgsFeature, QgsGeometry,
-                       QgsPoint, QgsLineString, QgsFields, QgsProject)
-from qgis.PyQt.QtCore import QVariant
+                       QgsPoint, QgsLineString, QgsFields, QgsProject, QgsWkbTypes)
+
+from . import qgis_compat
 
 from .connectors import osm
 
@@ -46,10 +47,10 @@ def _build_nodes_dict(payload):
 def _create_links_layer(ways, nodes_dict, layer_name="osm_links_raw"):
     """Cria QgsVectorLayer de LineString a partir de ways."""
     fields = QgsFields()
-    fields.append(QgsField("way_id", QVariant.LongLong))
-    fields.append(QgsField("highway", QVariant.String))
-    fields.append(QgsField("name", QVariant.String))
-    fields.append(QgsField("oneway", QVariant.String))
+    fields.append(QgsField("way_id", qgis_compat.field_type("int")))
+    fields.append(QgsField("highway", qgis_compat.field_type("string")))
+    fields.append(QgsField("name", qgis_compat.field_type("string")))
+    fields.append(QgsField("oneway", qgis_compat.field_type("string")))
     
     layer = QgsVectorLayer(f"LineString?crs=EPSG:4674&field=way_id:long&field=highway:string&field=name:string&field=oneway:string", layer_name, "memory")
     layer.startEditing()
@@ -75,7 +76,7 @@ def _extract_nodes_from_layer(layer):
     nodes_set = set()
     for feat in layer.getFeatures():
         geom = feat.geometry()
-        if geom and geom.type() == 1:  # LineString or MultiLineString
+        if geom and geom.type() == QgsWkbTypes.GeometryType.LineGeometry:  # LineString or MultiLineString
             if geom.isMultipart():
                 # ponytail: clip pode gerar MultiLineString; iterar partes
                 polylines = geom.asMultiPolyline()
@@ -99,9 +100,9 @@ def _create_nodes_layer(nodes_set, layer_name="osm_nodes"):
     layer.startEditing()
     
     fields = QgsFields()
-    fields.append(QgsField("node_id", QVariant.LongLong))
-    fields.append(QgsField("x", QVariant.Double))
-    fields.append(QgsField("y", QVariant.Double))
+    fields.append(QgsField("node_id", qgis_compat.field_type("int")))
+    fields.append(QgsField("x", qgis_compat.field_type("double")))
+    fields.append(QgsField("y", qgis_compat.field_type("double")))
     
     for i, (lon, lat) in enumerate(sorted(nodes_set)):
         feat = QgsFeature(fields)

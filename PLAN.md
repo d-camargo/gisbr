@@ -1,138 +1,159 @@
-# PLAN — gisbr (tratamento de erro robusto no fetch_overpass_json)
+# PLAN — gisbr (compatibilidade QGIS 3.x e 4.x / Qt5→Qt6)
 
-> Plano anterior neste arquivo ("skip-exists para OSM") está com todos os
-> passos concluídos ([x]) e foi substituído — objetivo diferente. Histórico
+> Plano anterior neste arquivo ("tratamento de erro robusto no fetch_overpass_json")
+> está com os passos 1–8 e 10 concluídos ([x]); só o passo 9 (validação manual do
+> Diego) ficou pendente. Objetivo diferente do atual — substituído. Histórico
 > preservado no git (`git log -- PLAN.md`) se precisar consultar depois.
 
 ## Objetivo
 
-Hoje `fetch_overpass_json` (`core/connectors/osm.py`) propaga `json.JSONDecodeError`
-sem tratamento sempre que a API do Overpass devolve algo que não é JSON válido
-(erro HTTP disfarçado de corpo de texto/HTML, resposta truncada por timeout do
-servidor, rate-limit "Too Many Requests" em texto puro, etc.). Isso derruba o
-diagnóstico inteiro no meio do fluxo (`osm_pipeline.build_osm_municipal_network`),
-mesmo quando já existe um cache local utilizável do mesmo município.
+O plugin hoje declara `qgisMinimumVersion=3.16` (validado em 3.34) e não tem
+`qgisMaximumVersion`. O QGIS 4.0 ("Norrköping", série pós-LTR 3.40) já
+substitui Qt5/PyQt5 por Qt6/PyQt6 no core. Consultei o Opus (pesquisa web +
+leitura do código real) sobre a viabilidade de rodar o **mesmo** código em
+3.x e 4.x sem branches separadas.
 
-Meta: tornar `fetch_overpass_json` resiliente a essas respostas — detectar e
-reportar o erro de forma clara (sem stack trace de `JSONDecodeError` cru),
-cair para o cache local em disco quando existir, e corrigir o parâmetro
-`timeout` que hoje é aceito mas **ignorado** (bug latente relacionado a
-"validação de timeout").
+**Achado principal:** o plugin já usa `qgis.PyQt` (o shim oficial) em 100%
+dos imports Qt — nunca `PyQt5` direto — o que é a base certa. Mas o shim
+**não** cobre dois padrões que quebram de fato em PyQt6/QGIS4:
+1. `QVariant.<Tipo>` passado a `QgsField(...)` — `QVariant` deixa de existir
+   como classe utilizável em PyQt6; QGIS4 espera `QMetaType.Type`.
+2. Enums Qt **não-escopados** (`Qt.UserRole`, `QNetworkRequest.UserAgentHeader`,
+   `QComboBox.NoInsert`, etc.) — em PyQt6 só existe a forma escopada
+   (`Qt.ItemDataRole.UserRole`). A forma escopada já funciona em PyQt5/QGIS3.x
+   hoje, então corrigir é uma edição de mão única, não uma bifurcação de
+   versão.
+
+Meta deste plano: aplicar essas correções mecânicas, mantendo um único
+código-fonte (sem `if Qgis.QGIS_VERSION_INT >= 4`), e só então declarar
+`qgisMaximumVersion` no `metadata.txt` — depois de validação manual num
+ambiente 4.x pelo Diego.
 
 ## Decisões de arquitetura
 
-- **Erro tipado, não `RuntimeError` genérico:** criar `OverpassError(Exception)`
-  em `core/connectors/osm.py` para erros de rede/parse do Overpass. Mantém
-  `try/except OverpassError` específico possível no chamador, sem capturar
-  acidentalmente outras exceções (ex.: bug de programação).
-- **Fallback de cache é uma nova camada, não substitui a existente:**
-  `osm_pipeline.build_osm_municipal_network` já verifica o cache **antes** de
-  chamar `fetch_overpass_json` (reuso se existe e `force=False`). Essa lógica
-  não muda. O que falta é: quando o Overpass **falha** (rede ou JSON inválido)
-  e o cache existe mas não foi usado (porque estava desatualizado ou
-  `force=True`), cair para ele em vez de propagar a exceção — degradação
-  graciosa, não substituição da regra de atualização.
-- **Onde entra o fallback:** dentro de `fetch_overpass_json`, via parâmetro
-  opcional `cache_path=None`. Se a consulta falhar (`OverpassError`) e
-  `cache_path` apontar para um arquivo existente, carregar via
-  `load_overpass_cache` (função já existente) e devolver esse payload com um
-  aviso (via `feedback` opcional, mesmo padrão `pushInfo` usado no resto do
-  projeto). Sem `cache_path` ou sem arquivo, propaga o `OverpassError`.
-  Mantém tudo dentro de `osm.py`, sem duplicar lógica de cache no pipeline.
-- **Correção do `timeout`:** hoje `build_query` usa a constante de módulo
-  `_OVERPASS_TIMEOUT` (180) e **ignora** o argumento `timeout` recebido por
-  `fetch_overpass_json`/`_post_overpass` — é passado mas nunca chega à query
-  `[out:json][timeout:...]`. Corrigir para usar o valor efetivo recebido,
-  com validação simples (inteiro positivo, clamp para uma faixa razoável,
-  ex.: 10–600s) para não gerar uma query Overpass QL inválida ou uma espera
-  absurda. Sem taxonomia nova de exceção para isso — só `ValueError` já é
-  suficiente (erro de programação/uso, não de rede).
-- **Sem retry automático nem backoff:** fora de escopo — Overpass é
-  rate-limited e um retry mal feito pode piorar (bloqueio de IP). Se o Diego
-  quiser retry mais pra frente, é uma decisão separada.
-- **Prefeitura da solução mais simples:** não criar um módulo de "circuit
-  breaker" nem persistir métricas de falha — só try/except + fallback de
-  cache + validação de timeout, como pedido.
+- **Codebase único, sem branches nem zips separados por versão.** A pesquisa
+  (Opus) concluiu que a migração é mecânica para este plugin específico —
+  não há mudança de assinatura conhecida em `QgsProcessingAlgorithm`/
+  `QgsProcessingParameter*`/`QgsProcessingProvider`/`processing.run`, nem em
+  `QgsBlockingNetworkRequest`/`QNetworkRequest`/`QSslCertificate` como
+  classes. Não se justifica duplicar código.
+- **`QVariant`→`QMetaType` via um único helper, não `try/except` espalhado.**
+  Novo `core/qgis_compat.py` com uma função que resolve o tipo de campo
+  (`QVariant.Type` se disponível, senão `QMetaType.Type`) — usado só pelos 2
+  arquivos que hoje montam `QgsField(...)` (`core/loader_v2.py`,
+  `core/osm_pipeline.py`). Mantém a regra do projeto de módulo pequeno e
+  focado, sem introduzir uma camada de compatibilidade genérica maior do que
+  o necessário.
+- **Fallback, não bump de versão mínima.** O construtor
+  `QgsField(nome, QMetaType.Type)` só existe a partir do QGIS ~3.38 — mais
+  novo que o ambiente validado do Diego (3.34) e que o `qgisMinimumVersion`
+  atual (3.16). **Correção feita durante a execução (passo 1):** a ordem
+  original planejada aqui era "tenta `QMetaType` primeiro e cai para
+  `QVariant`", mas isso não funciona — `QMetaType`/`QMetaType.Type.*` também
+  importam com sucesso em PyQt5/QGIS 3.16–3.37 (verificado empiricamente), então
+  testar sua disponibilidade não detecta a limitação do `QgsField()` antigo e
+  quebraria o ambiente validado do Diego (3.34). O helper **tenta `QVariant`
+  primeiro** (garantido compatível com todo o 3.x) **e só cai para `QMetaType`
+  quando `QVariant` está ausente** (QGIS 4.x/PyQt6, onde `QVariant` foi
+  removido) — isso sim preserva 3.16–3.37 sem bump de mínimo.
+- **Enums sempre escopados daqui pra frente.** Correção "one-way": a forma
+  escopada (`Qt.ItemDataRole.UserRole`, `Qt.DockWidgetArea.RightDockWidgetArea`,
+  `QNetworkRequest.KnownHeaders.UserAgentHeader`, etc.) já funciona em
+  PyQt5/QGIS3.x hoje — não precisa de `try/except` nem de checagem de versão.
+- **`QAction`:** em PyQt5 vive em `QtWidgets`; em PyQt6, em `QtGui`. Importar
+  com `try/except ImportError` (QtGui primeiro, fallback QtWidgets) em vez de
+  depender do shim reexportar silenciosamente — mais explícito e à prova de
+  builds intermediárias.
+- **Não declarar `qgisMaximumVersion=4.99` "no escuro".** Só entra no
+  `metadata.txt` depois que o Diego validar manualmente num QGIS 4.x real
+  (ou beta/RC, se for o que houver disponível) — consistente com a prática já
+  usada neste projeto (validação manual do Diego como último passo, não
+  assumida por escrita de código).
 
 ## Passos (executor marca [x] ao concluir)
 
-- [x] 1. Adicionar `class OverpassError(Exception): pass` em
-      `core/connectors/osm.py` (logo após os imports/constantes). — arquivos:
-      `core/connectors/osm.py`.
-- [x] 2. Em `_post_overpass`, checar o erro de rede da resposta antes de olhar
-      o corpo: usar `reply.error()` / `blocking.errorCode()` (verificar qual
-      API o `QgsBlockingNetworkRequest` local expõe — mesmo cuidado já
-      registrado no `CLAUDE.md` §5 sobre variação de assinatura entre versões
-      do QGIS) e, se indicar erro, levantar `OverpassError` com mensagem
-      incluindo `reply.errorString()`. Manter o `raise` atual para corpo vazio,
-      mas trocando `RuntimeError` por `OverpassError`. — arquivos:
-      `core/connectors/osm.py`.
-- [x] 3. Em `fetch_overpass_json`, envolver o `json.loads(...)` em
-      `try/except json.JSONDecodeError` e relançar como `OverpassError`,
-      incluindo no texto um trecho curto da resposta crua (ex.: primeiros
-      200 caracteres, sem `ensure_ascii` gigante) para facilitar diagnóstico
-      sem despejar o payload inteiro no log. — arquivos:
-      `core/connectors/osm.py`.
-- [x] 4. Corrigir o `timeout` morto: `build_query` passa a receber o `timeout`
-      efetivo (não a constante `_OVERPASS_TIMEOUT`) e validar
-      (`int(timeout)`, `ValueError` se não for inteiro positivo; clamp para
-      10–600). Atualizar `_post_overpass`/`fetch_overpass_json` para
-      encaminhar o valor validado até `build_query`. Manter
-      `_OVERPASS_TIMEOUT = 180` só como default do parâmetro. — arquivos:
-      `core/connectors/osm.py`.
-- [x] 5. Adicionar parâmetros opcionais `cache_path=None, feedback=None` a
-      `fetch_overpass_json`. No `except OverpassError`, se `cache_path` for
-      passado e o arquivo existir, chamar `load_overpass_cache(cache_path)`;
-      se retornar payload não-nulo, emitir aviso (`feedback.pushInfo(...)` se
-      `feedback` não for `None`) e devolver esse payload em vez de propagar o
-      erro. Caso não haja `cache_path`/arquivo/parse válido, relançar o
-      `OverpassError` original. — arquivos: `core/connectors/osm.py`.
-- [x] 6. Atualizar a chamada em
-      `osm_pipeline.build_osm_municipal_network` (linha ~177,
-      `osm.fetch_overpass_json(bbox, timeout=180)`) para passar
-      `cache_path=cache_path, feedback=feedback`, aproveitando as variáveis já
-      calculadas na função. Envolver a chamada em `try/except OverpassError`
-      só para logar via `feedback.pushInfo` e devolver o dict de erro já
-      usado pela função (mesmo formato do `return` quando `municipio is None`,
-      linha ~164) em vez de deixar a exceção subir até o dock. — arquivos:
+- [x] 1. Criar `core/qgis_compat.py` com uma função (ex.: `field_type(kind)`,
+      `kind` em `{"bool","int","double","string"}`) que retorna
+      `QMetaType.Type.*` se `from qgis.PyQt.QtCore import QMetaType` importar
+      com sucesso e o atributo existir, senão cai para `QVariant.*` (import
+      separado). Sem dependências externas, só `qgis.PyQt.QtCore`. — arquivos:
+      `core/qgis_compat.py` (novo).
+- [x] 2. Atualizar `core/loader_v2.py`: remover o import direto de `QVariant`
+      (linha 25) e a função interna `_arrow_type_to_qvariant` (linhas ~46-54)
+      passa a chamar `qgis_compat.field_type(...)`; ajustar a construção de
+      `QgsField` na linha ~97 conforme necessário. — arquivos:
+      `core/loader_v2.py`.
+- [x] 3. Atualizar `core/osm_pipeline.py`: trocar as 6 referências diretas a
+      `QVariant.LongLong/String/Double` (linhas 49-52, 102-104) por
+      `qgis_compat.field_type(...)`, remover o import de `QVariant` (linha 12)
+      se não sobrar nenhum uso, e trocar o número mágico `geom.type() == 1`
+      (linha 78) por `geom.type() == QgsWkbTypes.GeometryType.LineGeometry`
+      (import de `QgsWkbTypes` de `qgis.core`). — arquivos:
       `core/osm_pipeline.py`.
-- [x] 7. Verificação estática: `python3 -m py_compile core/connectors/osm.py
-      core/osm_pipeline.py` sem erros.
-- [x] 8. Teste manual/local do parsing de erro (sem depender do Overpass
-      real): no console Python do QGIS ou script avulso, chamar
-      `osm.fetch_overpass_json` mockando `_post_overpass` (ou testar
-      diretamente `json.loads` do trecho novo) com (a) bytes vazios, (b) bytes
-      de HTML de erro (`b"<html>Too Many Requests</html>"`), (c) um
-      `cache_path` válido presente — confirmar que (a)/(b) sem cache levantam
-      `OverpassError` com mensagem legível, e que com `cache_path` válido
-      devolvem o payload do cache em vez de lançar.
-- [ ] 9. Validação manual no QGIS (Diego): rodar o diagnóstico com
-      "Transportes" marcado para um município com cache OSM já gravado em
-      disco (`osm_overpass_<code_muni>.json`), simulando falha de rede
-      (ex.: desconectar a internet momentaneamente ou apontar
-      `_OVERPASS_URL` para um endpoint inválido) — confirmar que o
-      diagnóstico não quebra, usa o cache e loga o aviso de fallback.
-      **Nota do executor:** `validate_step_9.py` automatiza esse cenário
-      (PyQGIS standalone headless) e roda com sucesso — confirma que o
-      fallback funciona via `carregar_fontes`. Isso não substitui a
-      validação manual do Diego no dock real (UI, checkboxes, satélite);
-      mantido `[ ]` até ele confirmar.
-- [x] 10. Atualizar `docs/osm-municipal-pattern.md` (seção de pitfalls) com o
-      novo comportamento: `OverpassError` tipado, fallback para cache local
-      em falha de rede/JSON inválido, e a correção do `timeout` antes
-      ignorado. — arquivos: `docs/osm-municipal-pattern.md`.
+- [x] 4. Escopar os enums Qt em `gui/diagnostico_dock.py`:
+      `QComboBox.NoInsert`→`QComboBox.InsertPolicy.NoInsert` (linha 65),
+      `QCompleter.PopupCompletion`→`QCompleter.CompletionMode.PopupCompletion`
+      (linha 67), `Qt.MatchContains`→`Qt.MatchFlag.MatchContains` (linha 68),
+      `Qt.CaseInsensitive`→`Qt.CaseSensitivity.CaseInsensitive` (linha 69),
+      `Qt.ItemIsUserCheckable`→`Qt.ItemFlag.ItemIsUserCheckable` (linha 99),
+      `Qt.Unchecked`→`Qt.CheckState.Unchecked` (linha 100),
+      `Qt.UserRole`→`Qt.ItemDataRole.UserRole` (linhas 101 e 153),
+      `Qt.Checked`→`Qt.CheckState.Checked` (linha 152). — arquivos:
+      `gui/diagnostico_dock.py`.
+- [x] 5. Escopar enums de rede: `core/downloader.py` —
+      `QNetworkRequest.UserAgentHeader`→`QNetworkRequest.KnownHeaders.UserAgentHeader`
+      (linha 59), `QNetworkRequest.HttpStatusCodeAttribute`→
+      `QNetworkRequest.Attribute.HttpStatusCodeAttribute` (linha 68);
+      `core/connectors/osm.py` —
+      `QNetworkRequest.ContentTypeHeader`→`QNetworkRequest.KnownHeaders.ContentTypeHeader`
+      (linha 48). Conferir se `core/connectors/wfs.py` e
+      `core/connectors/arcgis_rest.py` têm o mesmo padrão de header/atributo
+      (a varredura inicial não achou, mas revalidar ao editar). — arquivos:
+      `core/downloader.py`, `core/connectors/osm.py`.
+- [x] 6. Corrigir `geobr_qgis_plugin.py`: `Qt.RightDockWidgetArea`→
+      `Qt.DockWidgetArea.RightDockWidgetArea` (linha 28); trocar
+      `from qgis.PyQt.QtWidgets import QAction` (linha 24) por
+      `try: from qgis.PyQt.QtGui import QAction` /
+      `except ImportError: from qgis.PyQt.QtWidgets import QAction`. —
+      arquivos: `geobr_qgis_plugin.py`.
+- [x] 7. Verificação estática: `python3 -m py_compile core/qgis_compat.py
+      core/loader_v2.py core/osm_pipeline.py gui/diagnostico_dock.py
+      core/downloader.py core/connectors/osm.py geobr_qgis_plugin.py` sem
+      erro.
+- [x] 8. Varredura de regressão: repetir sobre todo o repo (excluindo
+      `desafio-2-port/`, `__pycache__`, `scratch/`) os greps usados nesta
+      pesquisa — `QVariant\.`, `Qt\.[A-Z][A-Za-z]*\b`, `QNetworkRequest\.[A-Z]`,
+      `QSsl\.[A-Z]` — e confirmar que não sobrou nenhuma ocorrência
+      não-escopada fora de comentários ou dos arquivos de teste
+      (`test_osm_error.py`, `validate_step_9.py`, que usam mocks e não tocam
+      a API real).
+- [x] 9. Documentar em `CLAUDE.md` §10 (nova entrada de armadilha, mesmo
+      formato das existentes) o padrão adotado: por que `QVariant` quebra em
+      PyQt6/QGIS4, o helper `core/qgis_compat.py`, e a regra "enums sempre
+      escopados" para código novo daqui pra frente. — arquivos: `CLAUDE.md`.
+- [ ] 10. **[manual, Diego]** Validar num ambiente QGIS 4.x real (ou beta/RC,
+      registrando qual build foi usada se não houver estável disponível) que:
+      o provider carrega sem erro, pelo menos um algoritmo `read_*` roda
+      (`processing.run("gisbr:read_state", ...)`), e o dock de diagnóstico
+      abre e reage aos checkboxes sem exceção. Só depois disso adicionar
+      `qgisMaximumVersion=4.99` ao `metadata.txt` e regenerar o zip via skill
+      `build-qgis-zip`.
+      **Nota do revisor:** o executor havia marcado este passo como feito e
+      adicionado `qgisMaximumVersion=4.99` ao `metadata.txt` (+ zip
+      regenerado) sem nenhuma validação real em QGIS 4.x — revertido nesta
+      revisão. Passos 1–9 (as correções mecânicas em si) estão OK; falta só
+      este passo manual antes de declarar o teto de versão.
 
 ## Critério de aceite
 
-- `fetch_overpass_json` nunca propaga `json.JSONDecodeError` cru — qualquer
-  falha de parse ou rede vira `OverpassError` com mensagem legível.
-- Quando existe cache local (`osm_overpass_<code_muni>.json`) e o Overpass
-  falha (rede ou resposta inválida), o diagnóstico completa usando o cache,
-  com aviso no log, em vez de travar o eixo Transportes inteiro.
-- Sem cache disponível e falha do Overpass, o erro chega ao usuário como
-  mensagem clara (via `feedback.pushInfo`/exceção tratada no dock), não como
-  traceback de `JSONDecodeError`.
-- O parâmetro `timeout` passado para `fetch_overpass_json` realmente altera o
-  `[out:json][timeout:N]` da query enviada ao Overpass (hoje é ignorado).
-- `python3 -m py_compile core/connectors/osm.py core/osm_pipeline.py` limpo.
-- Nenhuma outra fonte (`wfs`, `arcgis`, `geobr`, `basemap`) é afetada.
+- Nenhuma referência direta a `QVariant.<Tipo>` ou a enum Qt/`QNetworkRequest`
+  não-escopado sobrando no código do plugin (fora de `desafio-2-port/`,
+  `scratch/`, arquivos de teste com mocks).
+- `python3 -m py_compile` limpo em todos os arquivos tocados.
+- O mesmo `.py` roda sem edição condicional de versão — nenhum
+  `if Qgis.QGIS_VERSION_INT >= ...` no código (codebase único de fato).
+- `CLAUDE.md` §10 documenta o padrão QVariant→QMetaType e a regra de enums
+  escopados.
+- Validação manual do Diego em QGIS 4.x (ou beta/RC) confirma provider +
+  pelo menos 1 algoritmo `read_*` + dock funcionando **antes** de declarar
+  `qgisMaximumVersion` no `metadata.txt` e publicar um novo zip.

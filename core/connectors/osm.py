@@ -45,7 +45,7 @@ def _post_overpass(query, timeout=_OVERPASS_TIMEOUT):
     t = _validate_timeout(timeout)
     req = QNetworkRequest(QUrl(_OVERPASS_URL))
     req.setRawHeader(b"User-Agent", _UA.encode("utf-8"))
-    req.setHeader(QNetworkRequest.ContentTypeHeader, "application/x-www-form-urlencoded")
+    req.setHeader(QNetworkRequest.KnownHeaders.ContentTypeHeader, "application/x-www-form-urlencoded")
     payload = "data={}".format(QUrl.toPercentEncoding(query).data().decode("utf-8"))
     blocking = QgsBlockingNetworkRequest()
     res = blocking.post(req, payload.encode("utf-8"), True)
