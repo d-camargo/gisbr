@@ -4,6 +4,9 @@
 name=GisBR
 qgisMinimumVersion=3.16
 description=Load official Brazilian spatial data (IBGE/IPEA geobr + censobr) and run a municipal Master Plan diagnostic in QGIS, using only the native QGIS API.
+version=0.4.0
+author=Diego Camargo
+email=dg.camargo@proton.me
 
 about=GisBR brings the "one line -> one layer" access of the geobr/censobr packages (IPEA) into QGIS as a Processing provider, using only the native QGIS/Qt API and the Python standard library (no geopandas/requests/pandas). Phase 1: legacy GeoPackage backend (geobr v1.7.0), fully native. Phase 2: Parquet backend (geobr v2.0.0) read via the GDAL Parquet driver or a pyarrow fallback, plus a join with census tables from censobr. On top of the geobr mirror, GisBR adds a municipal Master Plan diagnostic: a dock panel (state -> municipality) that loads official layers organized in 8 axes (transport, sanitation, demography, environment, education, health, urban, administrative) from WFS and ArcGIS REST services, clipped to the municipality polygon and saved to a local GeoPackage, with an optional Esri World Imagery satellite basemap. Data in SIRGAS 2000 / EPSG:4674. Licensed under GPL-3.0.
 
@@ -14,6 +17,7 @@ homepage=https://github.com/d-camargo/gisbr
 hasProcessingProvider=yes
 
 changelog=
+    0.4.0
     - Added explicit QGIS 4.x compatibility
     0.3.2
     - New: municipal OSM road network via Overpass — links + nodes topology,
