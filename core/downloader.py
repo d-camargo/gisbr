@@ -20,7 +20,7 @@ class DownloadError(Exception):
 
 def cache_dir():
     """Diretorio de cache em disco: ~/.cache/geobr-qgis/ (ou equivalente)."""
-    base = QStandardPaths.writableLocation(QStandardPaths.CacheLocation)
+    base = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.CacheLocation)
     # CacheLocation ja inclui o nome da app no QGIS; ainda assim isolamos.
     path = Path(base) / CACHE_SUBDIR
     path.mkdir(parents=True, exist_ok=True)

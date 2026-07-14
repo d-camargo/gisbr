@@ -109,14 +109,16 @@ class BaseReadAlgorithm(QgsProcessingAlgorithm):
 
     # cache dos anos (preenchido sob demanda)
     _years_cache = None
+    _years_error = None
 
     # ------------------------------------------------------------------ infra
     def years(self):
         if self._years_cache is None:
             try:
                 self._years_cache = catalog.available_years(self.GEO)
-            except Exception:
+            except Exception as exc:
                 self._years_cache = []
+                self._years_error = str(exc)
         return self._years_cache
 
     def initAlgorithm(self, config=None):
@@ -156,12 +158,15 @@ class BaseReadAlgorithm(QgsProcessingAlgorithm):
     def processAlgorithm(self, parameters, context, feedback):
         years = self.years()
         if not years:
-            raise QgsProcessingException(
-                self.tr(
-                    "geobr catalog unavailable. Verify your internet connection "
-                    "(IPEA metadata / GitHub mirror)."
-                )
+            message = self.tr(
+                "geobr catalog unavailable. Verify your internet connection "
+                "(IPEA metadata / GitHub mirror)."
             )
+            if self._years_error:
+                message = "{message} (causa: {cause})".format(
+                    message=message, cause=self._years_error
+                )
+            raise QgsProcessingException(message)
 
         year_idx = self.parameterAsEnum(parameters, self.YEAR, context)
         year = years[year_idx]

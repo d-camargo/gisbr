@@ -49,13 +49,15 @@ class BaseReadV2Algorithm(QgsProcessingAlgorithm):
     HELP = ""
 
     _years_cache = None
+    _years_error = None
 
     def years(self):
         if self._years_cache is None:
             try:
                 self._years_cache = catalog_v2.available_years(self.GEO)
-            except Exception:
+            except Exception as exc:
                 self._years_cache = []
+                self._years_error = str(exc)
         return self._years_cache
 
     def initAlgorithm(self, config=None):
@@ -125,9 +127,12 @@ class BaseReadV2Algorithm(QgsProcessingAlgorithm):
 
         years = self.years()
         if not years:
-            raise QgsProcessingException(
-                self.tr("v2 catalog unavailable (geobr_prep_data releases on GitHub).")
-            )
+            message = self.tr("v2 catalog unavailable (geobr_prep_data releases on GitHub).")
+            if self._years_error:
+                message = "{message} (causa: {cause})".format(
+                    message=message, cause=self._years_error
+                )
+            raise QgsProcessingException(message)
         year = years[self.parameterAsEnum(parameters, self.YEAR, context)]
         simplified = self.parameterAsBool(parameters, self.SIMPLIFIED, context)
         code = "all"
