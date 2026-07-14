@@ -99,7 +99,7 @@ def _load_with_pyarrow(path, name, default_epsg=EPSG_GEOBR):
     n_rows = table.num_rows
 
     # tipo de geometria: detecta no primeiro WKB nao-nulo
-    wkb_type = QgsWkbTypes.NoGeometry
+    wkb_type = QgsWkbTypes.Type.NoGeometry
     if geom_col:
         for i in range(n_rows):
             raw = data[geom_col][i]
@@ -111,7 +111,7 @@ def _load_with_pyarrow(path, name, default_epsg=EPSG_GEOBR):
 
     geom_token = (
         QgsWkbTypes.displayString(wkb_type)
-        if wkb_type != QgsWkbTypes.NoGeometry
+        if wkb_type != QgsWkbTypes.Type.NoGeometry
         else "None"
     )
     uri = f"{geom_token}?crs=EPSG:{crs_epsg}"

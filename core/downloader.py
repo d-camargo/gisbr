@@ -62,7 +62,7 @@ def _http_get(url):
     _configure_ssl_config(request)
     blocking = QgsBlockingNetworkRequest()
     err = blocking.get(request, forceRefresh=True)
-    if err != QgsBlockingNetworkRequest.NoError:
+    if err != QgsBlockingNetworkRequest.ErrorCode.NoError:
         raise DownloadError(blocking.errorMessage() or f"erro de rede em {url}")
     reply = blocking.reply()
     status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)

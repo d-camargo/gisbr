@@ -50,7 +50,7 @@ def _post_overpass(query, timeout=_OVERPASS_TIMEOUT):
     blocking = QgsBlockingNetworkRequest()
     res = blocking.post(req, payload.encode("utf-8"), True)
     reply = blocking.reply()
-    if res != QgsBlockingNetworkRequest.NoError:
+    if res != QgsBlockingNetworkRequest.ErrorCode.NoError:
         err_msg = blocking.errorMessage()
         if reply:
             err_msg = err_msg or reply.errorString()

@@ -198,7 +198,7 @@ class BaseReadV2Algorithm(QgsProcessingAlgorithm):
                 exp_ctx.setFeature(feature)
                 if not expression.evaluate(exp_ctx):
                     continue
-            sink.addFeature(feature, QgsFeatureSink.FastInsert)
+            sink.addFeature(feature, QgsFeatureSink.Flag.FastInsert)
             kept += 1
             if total:
                 feedback.setProgress(70 + int((j + 1) / total * 30))

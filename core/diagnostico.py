@@ -64,12 +64,12 @@ def _grava_gpkg(layer, gpkg_path, layer_name):
     opts.driverName = "GPKG"
     opts.layerName = layer_name
     opts.actionOnExistingFile = (
-        QgsVectorFileWriter.CreateOrOverwriteLayer if os.path.exists(gpkg_path)
-        else QgsVectorFileWriter.CreateOrOverwriteFile
+        QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteLayer if os.path.exists(gpkg_path)
+        else QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteFile
     )
     ctx = QgsProject.instance().transformContext()
     res = QgsVectorFileWriter.writeAsVectorFormatV3(layer, gpkg_path, ctx, opts)
-    return res[0] == QgsVectorFileWriter.NoError, res[1]
+    return res[0] == QgsVectorFileWriter.WriterError.NoError, res[1]
 
 
 def _resolve_out(out, layer_name):

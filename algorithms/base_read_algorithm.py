@@ -238,7 +238,7 @@ class BaseReadAlgorithm(QgsProcessingAlgorithm):
         for j, feature in enumerate(merged.getFeatures()):
             if feedback.isCanceled():
                 break
-            sink.addFeature(feature, QgsFeatureSink.FastInsert)
+            sink.addFeature(feature, QgsFeatureSink.Flag.FastInsert)
             if count:
                 feedback.setProgress(80 + int((j + 1) / count * 20))
 
