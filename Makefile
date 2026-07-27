@@ -71,5 +71,6 @@ package:
 	@mkdir -p dist
 	@qgis-plugin-ci package $(VERSION) --disable-submodule-update
 	@mv $(PLUGINNAME).$(VERSION).zip dist/$(PLUGINNAME)-$(VERSION).zip 2>/dev/null || true
+	@python3 tools/check_package.py dist/$(PLUGINNAME)-$(VERSION).zip
 	@echo "Pacote gerado em dist/$(PLUGINNAME)-$(VERSION).zip"
 

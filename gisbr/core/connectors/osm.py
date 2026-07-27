@@ -55,7 +55,7 @@ def _post_overpass(query, timeout=_OVERPASS_TIMEOUT):
         if reply:
             err_msg = err_msg or reply.errorString()
         raise OverpassError(err_msg or "Erro de rede no Overpass")
-    if reply and reply.error() != QNetworkReply.NoError:
+    if reply and reply.error() != QNetworkReply.NetworkError.NoError:
         raise OverpassError(reply.errorString() or "Erro de rede do Overpass")
     data = bytes(reply.content())
     if not data:
