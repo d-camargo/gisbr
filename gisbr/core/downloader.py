@@ -12,6 +12,7 @@ from qgis.PyQt.QtNetwork import QNetworkRequest
 from qgis.core import QgsBlockingNetworkRequest
 
 from .constants import CACHE_SUBDIR, GITHUB_MIRRORS, IPEA_V2_FALLBACK_BASE
+from .ssl_support import configure_request, last_errors
 
 
 class DownloadError(Exception):
@@ -33,24 +34,6 @@ def _mirror_urls(url):
     return [url] + [mirror.rstrip("/") + "/" + file_id for mirror in GITHUB_MIRRORS]
 
 
-def _configure_ssl_config(request):
-    """Carrega o certificado intermediario/raiz do IPEA (se existir) e injeta na request.
-
-    Sem alterar o PeerVerifyMode.
-    """
-    cert_path = Path(__file__).parent / "certs" / "ipea_chain.pem"
-    if cert_path.exists():
-        try:
-            from qgis.PyQt.QtNetwork import QSslCertificate
-            certs = QSslCertificate.fromPath(str(cert_path))
-            if certs:
-                ssl_config = request.sslConfiguration()
-                ssl_config.addCaCertificates(certs)
-                request.setSslConfiguration(ssl_config)
-        except Exception:
-            pass
-
-
 def _http_get(url):
     """GET sincrono via QgsBlockingNetworkRequest. Retorna bytes ou levanta."""
     request = QNetworkRequest(QUrl(url))
@@ -59,18 +42,23 @@ def _http_get(url):
         QNetworkRequest.KnownHeaders.UserAgentHeader,
         "geobr-qgis/0.1 (+https://github.com/d-camargo/geobr-qgis)",
     )
-    _configure_ssl_config(request)
+    configure_request(request)
     blocking = QgsBlockingNetworkRequest()
     err = blocking.get(request, forceRefresh=True)
-    if err != QgsBlockingNetworkRequest.ErrorCode.NoError:
-        raise DownloadError(blocking.errorMessage() or f"erro de rede em {url}")
     reply = blocking.reply()
-    status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
-    if status is not None and int(status) >= 400:
-        raise DownloadError(f"HTTP {status} em {url}")
-    data = bytes(reply.content())
+    host = QUrl(url).host()
+    if err != QgsBlockingNetworkRequest.ErrorCode.NoError:
+        err_msg = blocking.errorMessage()
+        if reply:
+            err_msg = err_msg or reply.errorString()
+        raise DownloadError(f"erro de rede em {url} (host: {host}): {err_msg or err}")
+    if reply:
+        status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
+        if status is not None and int(status) >= 400:
+            raise DownloadError(f"HTTP {status} em {url} (host: {host})")
+    data = bytes(reply.content()) if reply else b""
     if not data:
-        raise DownloadError(f"resposta vazia em {url}")
+        raise DownloadError(f"resposta vazia em {url} (host: {host})")
     return data
 
 
@@ -78,8 +66,14 @@ def _format_friendly_error(errors, file_id=None):
     """Gera uma mensagem de erro amigável em português explicando as causas prováveis."""
     details = "\n".join(errors)
     target = f" '{file_id}'" if file_id else ""
+    ssl_errs = last_errors()
+    ssl_info = "O plugin embarca certificados de CA próprios (em core/certs/)."
+    if ssl_errs:
+        ssl_info += "\n  Falhas registradas no carregamento de certificados:\n" + "\n".join(f"  - {e}" for e in ssl_errs)
+
     return (
         f"Não foi possível concluir o download{target} de nenhuma das fontes/mirrors disponíveis.\n\n"
+        f"Status de SSL: {ssl_info}\n\n"
         "Causas prováveis:\n"
         "1. Certificado intermediário SSL ausente ou desatualizado no QGIS/sistema (ex.: cadeia incompleta do servidor IPEA).\n"
         "2. Antivírus, firewall ou proxy corporativo interceptando a conexão HTTPS (inspeção de tráfego SSL/TLS - MITM).\n"

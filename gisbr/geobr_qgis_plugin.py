@@ -3,6 +3,7 @@
 
 from qgis.core import QgsApplication
 
+from .core.ssl_support import install_default_ca_certificates
 from .provider import GeobrProvider
 
 
@@ -10,6 +11,7 @@ class GeobrPlugin:
     def __init__(self, iface):
         self.iface = iface
         self.provider = None
+        install_default_ca_certificates()
 
     def initProcessing(self):
         self.provider = GeobrProvider()

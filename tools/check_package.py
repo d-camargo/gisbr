@@ -8,6 +8,8 @@ Uso:
 Verificações:
 1. (a) Grep amplo por enums Qt/PyQGIS não-escopados (\\bQ[A-Za-z]+\\.[A-Z][A-Za-z]+\\b) em todos os arquivos .py do zip.
 2. (b) Divergência entre version= do metadata.txt no zip e gisbr/metadata.txt do working tree.
+3. (c) Todo *.pem presente em gisbr/core/certs/ do working tree precisa estar dentro do ZIP;
+   o ZIP precisa conter pelo menos um .pem.
 """
 
 import sys
@@ -120,6 +122,32 @@ def check_version_match(zf: zipfile.ZipFile, working_tree_root: Path) -> list:
     return errors
 
 
+def check_pem_files_packaged(zf: zipfile.ZipFile, working_tree_root: Path) -> list:
+    """Verifica se todo *.pem de gisbr/core/certs/ do working tree está dentro do ZIP."""
+    errors = []
+
+    certs_dir = working_tree_root / 'gisbr' / 'core' / 'certs'
+    wt_pems = sorted(p.name for p in certs_dir.glob('*.pem')) if certs_dir.is_dir() else []
+
+    if not wt_pems:
+        errors.append(f"Nenhum *.pem encontrado em {certs_dir} — verificação sem material para conferir.")
+        return errors
+
+    zip_pem_names = {os.path.basename(n) for n in zf.namelist() if n.endswith('.pem')}
+
+    if not zip_pem_names:
+        errors.append("Nenhum arquivo .pem encontrado dentro do ZIP!")
+        return errors
+
+    missing = [name for name in wt_pems if name not in zip_pem_names]
+    if missing:
+        errors.append(
+            "Certificado(s) presente(s) no working tree mas ausente(s) do ZIP: " + ", ".join(missing)
+        )
+
+    return errors
+
+
 def main():
     if len(sys.argv) < 2:
         print("Uso: python3 tools/check_package.py <caminho_para_pacote.zip>")
@@ -150,6 +178,11 @@ def main():
             if version_errors:
                 errors.append("Divergência de versão encontrada:")
                 errors.extend(version_errors)
+
+            pem_errors = check_pem_files_packaged(zf, working_tree_root)
+            if pem_errors:
+                errors.append("Problema com certificados (.pem) no pacote:")
+                errors.extend(pem_errors)
 
     except Exception as e:
         print(f"ERRO fatal ao processar {zip_path}: {e}")

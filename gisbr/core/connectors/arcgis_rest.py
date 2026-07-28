@@ -13,6 +13,8 @@ from qgis.core import QgsVectorLayer, QgsBlockingNetworkRequest
 from qgis.PyQt.QtCore import QUrl
 from qgis.PyQt.QtNetwork import QNetworkRequest
 
+from ..ssl_support import configure_request
+
 _UA = "GisBR-QGIS/0.2 (diagnostico Plano Diretor)"
 
 
@@ -55,6 +57,7 @@ def fetch_layer(endpoint, layer_id, layer_name, srs="EPSG:4674", where=None, bbo
     try:
         req = QNetworkRequest(QUrl(url))
         req.setRawHeader(b"User-Agent", _UA.encode("utf-8"))
+        configure_request(req)
         blocking = QgsBlockingNetworkRequest()
         blocking.get(req, True)
         reply = blocking.reply()
@@ -71,4 +74,5 @@ def fetch_layer(endpoint, layer_id, layer_name, srs="EPSG:4674", where=None, bbo
     layer = QgsVectorLayer("/vsicurl/" + url, layer_name, "ogr")
     if layer.isValid():
         return _stamp(layer, "ArcGIS REST (GeoJSON/vsicurl)")
-    return _invalid(layer_name, "Falha ArcGIS ({}/{}). {}".format(endpoint, layer_id, erro or ""))
+    host = QUrl(url).host()
+    return _invalid(layer_name, "Falha ArcGIS ({}/{}, host: {}): {}".format(endpoint, layer_id, host, erro or "resposta vazia/invalida"))

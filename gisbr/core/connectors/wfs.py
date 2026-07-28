@@ -17,6 +17,8 @@ from qgis.core import QgsVectorLayer, QgsBlockingNetworkRequest
 from qgis.PyQt.QtCore import QUrl
 from qgis.PyQt.QtNetwork import QNetworkRequest
 
+from ..ssl_support import configure_request
+
 _UA = "GisBR-QGIS/0.2 (diagnostico Plano Diretor)"
 
 
@@ -79,6 +81,7 @@ def fetch_layer(endpoint, type_name, layer_name, srs="EPSG:4674",
     try:
         req = QNetworkRequest(QUrl(url))
         req.setRawHeader(b"User-Agent", _UA.encode("utf-8"))
+        configure_request(req)
         blocking = QgsBlockingNetworkRequest()
         blocking.get(req, True)
         reply = blocking.reply()
@@ -98,4 +101,5 @@ def fetch_layer(endpoint, type_name, layer_name, srs="EPSG:4674",
     if layer.isValid():
         return _stamp(layer, "WFS GeoJSON/vsicurl")
 
-    return _invalid(layer_name, "Falha WFS ({}). {}".format(type_name, erro or ""))
+    host = QUrl(url).host()
+    return _invalid(layer_name, "Falha WFS ({}, host: {}): {}".format(type_name, host, erro or "resposta vazia/invalida"))

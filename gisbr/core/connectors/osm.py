@@ -10,6 +10,8 @@ from qgis.core import QgsBlockingNetworkRequest
 from qgis.PyQt.QtCore import QUrl
 from qgis.PyQt.QtNetwork import QNetworkRequest, QNetworkReply
 
+from ..ssl_support import configure_request
+
 _OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 _UA = "GisBR-QGIS/0.3 (diagnostico Plano Diretor)"
 _OVERPASS_TIMEOUT = 180
@@ -43,9 +45,12 @@ def build_query(bbox, timeout=_OVERPASS_TIMEOUT):
 
 def _post_overpass(query, timeout=_OVERPASS_TIMEOUT):
     t = _validate_timeout(timeout)
-    req = QNetworkRequest(QUrl(_OVERPASS_URL))
+    url_obj = QUrl(_OVERPASS_URL)
+    host = url_obj.host()
+    req = QNetworkRequest(url_obj)
     req.setRawHeader(b"User-Agent", _UA.encode("utf-8"))
     req.setHeader(QNetworkRequest.KnownHeaders.ContentTypeHeader, "application/x-www-form-urlencoded")
+    configure_request(req)
     payload = "data={}".format(QUrl.toPercentEncoding(query).data().decode("utf-8"))
     blocking = QgsBlockingNetworkRequest()
     res = blocking.post(req, payload.encode("utf-8"), True)
@@ -54,12 +59,12 @@ def _post_overpass(query, timeout=_OVERPASS_TIMEOUT):
         err_msg = blocking.errorMessage()
         if reply:
             err_msg = err_msg or reply.errorString()
-        raise OverpassError(err_msg or "Erro de rede no Overpass")
+        raise OverpassError("Overpass (host: {}): {}".format(host, err_msg or "Erro de rede no Overpass"))
     if reply and reply.error() != QNetworkReply.NetworkError.NoError:
-        raise OverpassError(reply.errorString() or "Erro de rede do Overpass")
-    data = bytes(reply.content())
+        raise OverpassError("Overpass (host: {}): {}".format(host, reply.errorString() or "Erro de rede do Overpass"))
+    data = bytes(reply.content()) if reply else b""
     if not data:
-        raise OverpassError(reply.errorString() or "resposta vazia do Overpass")
+        raise OverpassError("Overpass (host: {}): resposta vazia do servidor".format(host))
     return data
 
 

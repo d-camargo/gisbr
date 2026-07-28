@@ -4,7 +4,7 @@
 name=GisBR
 qgisMinimumVersion=3.16
 description=Load official Brazilian spatial data (IBGE/IPEA geobr + censobr) and run a municipal Master Plan diagnostic in QGIS, using only the native QGIS API.
-version=0.4.1
+version=0.4.2
 author=Diego Camargo
 email=dg.camargo@proton.me
 supportsQt6=True
@@ -18,6 +18,19 @@ homepage=https://github.com/d-camargo/gisbr
 hasProcessingProvider=yes
 
 changelog=
+    0.4.2
+    - Fix (SSL on freshly installed Windows/OSGeo4W): downloads failed with
+      "unable to find issuer certificate" because the bundled CA material only
+      covered the IPEA server and was only injected in the geobr downloader.
+      The plugin now ships the self-signed roots used by the GitHub mirror,
+      SICAR, ANA/SNIRH, INDE, SGB, IBAMA, Overpass and the satellite basemap.
+    - The certificate injection moved to a single module (core/ssl_support.py)
+      and is now applied to the WFS, ArcGIS REST and Overpass connectors, plus
+      the default SSL configuration used by the XYZ basemap.
+    - Certificates are only added as trust anchors; no verification setting is
+      ever relaxed.
+    - Network failures now report the host and the underlying error instead of
+      a generic message.
     0.4.1
     - Fix (QGIS 4.x / Qt6): the cache directory lookup used the unscoped
       QStandardPaths.CacheLocation enum, which raises on PyQt6 and made the
