@@ -2,14 +2,15 @@
 # Deploy por symlink para o perfil default do QGIS (padrao dos outros plugins).
 
 PLUGINNAME = gisbr
+VERSION = $(shell grep '^version=' $(PLUGINNAME)/metadata.txt | cut -d= -f2)
 QGIS_PLUGINS = $(HOME)/.local/share/QGIS/QGIS3/profiles/default/python/plugins
 # Perfil do QGIS instalado via Flatpak (org.qgis.qgis) — traz GDAL com GeoParquet.
 FLATPAK_PLUGINS = $(HOME)/.var/app/org.qgis.qgis/data/QGIS/QGIS3/profiles/default/python/plugins
 TARGET = $(QGIS_PLUGINS)/$(PLUGINNAME)
 FLATPAK_TARGET = $(FLATPAK_PLUGINS)/$(PLUGINNAME)
-SRC = $(CURDIR)
+SRC = $(CURDIR)/$(PLUGINNAME)
 
-.PHONY: deploy deploy-flatpak undeploy undeploy-flatpak clean test help
+.PHONY: deploy deploy-flatpak undeploy undeploy-flatpak clean test package help
 
 help:
 	@echo "make deploy          - symlink do plugin no perfil do QGIS do sistema"
@@ -18,6 +19,7 @@ help:
 	@echo "make undeploy-flatpak- remove o symlink (flatpak)"
 	@echo "make clean           - remove __pycache__"
 	@echo "make test            - smoke test de sintaxe (sem QGIS)"
+	@echo "make package         - gera o pacote zip via qgis-plugin-ci em dist/gisbr-<version>.zip"
 
 deploy:
 	@mkdir -p $(QGIS_PLUGINS)
@@ -56,12 +58,19 @@ clean:
 	@echo "limpo"
 
 transup:
-	@mkdir -p i18n
-	@pylupdate5 provider.py geobr_qgis_plugin.py gui/diagnostico_dock.py algorithms/*.py -ts i18n/gisbr_pt.ts
+	@mkdir -p $(PLUGINNAME)/i18n
+	@pylupdate5 $(PLUGINNAME)/provider.py $(PLUGINNAME)/geobr_qgis_plugin.py $(PLUGINNAME)/gui/diagnostico_dock.py $(PLUGINNAME)/algorithms/*.py -ts $(PLUGINNAME)/i18n/gisbr_pt.ts
 
 transcompile:
-	@lrelease i18n/gisbr_pt.ts
+	@lrelease $(PLUGINNAME)/i18n/gisbr_pt.ts
 
 test:
 	@python3 -c "import ast,glob,sys; [ast.parse(open(f).read(), f) for f in glob.glob('**/*.py', recursive=True)]; print('sintaxe OK')"
+
+package:
+	@mkdir -p dist
+	@qgis-plugin-ci package $(VERSION) --disable-submodule-update
+	@mv $(PLUGINNAME).$(VERSION).zip dist/$(PLUGINNAME)-$(VERSION).zip 2>/dev/null || true
+	@python3 tools/check_package.py dist/$(PLUGINNAME)-$(VERSION).zip
+	@echo "Pacote gerado em dist/$(PLUGINNAME)-$(VERSION).zip"
 

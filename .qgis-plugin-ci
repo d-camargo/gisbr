@@ -1,0 +1,5 @@
+# Configuração do qgis-plugin-ci — empacotamento e publicação do plugin.
+# Docs: https://opengisch.github.io/qgis-plugin-ci/
+plugin_path: gisbr
+github_organization_slug: d-camargo
+project_slug: gisbr

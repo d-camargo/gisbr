@@ -33,12 +33,16 @@ def download_metadata(force_refresh=False, feedback=None):
     if _METADATA_CACHE is not None and not force_refresh:
         return _METADATA_CACHE
 
-    disk = _metadata_disk_path()
+    try:
+        disk = _metadata_disk_path()
+    except Exception:
+        disk = None
+
     text = None
-    if disk.exists() and disk.stat().st_size > 0 and not force_refresh:
+    if disk is not None and disk.exists() and disk.stat().st_size > 0 and not force_refresh:
         text = disk.read_text(encoding="utf-8")
     else:
-        if force_refresh and disk.exists():
+        if force_refresh and disk is not None and disk.exists():
             try:
                 disk.unlink()
             except Exception:
