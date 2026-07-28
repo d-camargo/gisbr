@@ -13,3 +13,8 @@ OSM_ARQUITETURA.md export-ignore
 QUICK_START_OSM.md export-ignore
 test_osm_error.py export-ignore
 validate_step_9.py export-ignore
+test_*.py export-ignore
+*_test.py export-ignore
+conftest.py export-ignore
+test/ export-ignore
+tests/ export-ignore
