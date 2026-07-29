@@ -127,17 +127,20 @@ def _carrega_geobr(s, code_muni, layer_name):
     return _resolve_out(out, layer_name)
 
 
-def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path):
+def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path,
+                  feedback=None):
     proto = s.get("protocolo")
     srs = s.get("srs", "EPSG:4674")
     if proto == "wfs":
         type_name = s["type_name"].replace("{uf}", uf)
         return wfs.fetch_layer(s["endpoint"], type_name, layer_name, srs=srs,
-                               cql_filter=cql, bbox=(bbox if usa_bbox else None))
+                               cql_filter=cql, bbox=(bbox if usa_bbox else None),
+                               feedback=feedback)
     if proto == "arcgis":
         return arcgis_rest.fetch_layer(s["endpoint"], s["layer_id"], layer_name,
                                        srs=srs, where=cql,
-                                       bbox=(bbox if usa_bbox else None))
+                                       bbox=(bbox if usa_bbox else None),
+                                       feedback=feedback)
     if proto == "geobr":
         return _carrega_geobr(s, code_muni, layer_name)
     return None
@@ -200,7 +203,8 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             continue
 
         cql, usa_bbox = _filtro_para(s, code_muni, nome_muni)
-        layer = _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path)
+        layer = _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni,
+                              gpkg_path, feedback=feedback)
         if layer is None or not layer.isValid():
             msg = getattr(layer, "error_msg", "camada invalida") if layer else "protocolo desconhecido"
             res["falhou"].append((s["id"], msg))
