@@ -82,7 +82,7 @@ def fetch_overpass_json(bbox, timeout=_OVERPASS_TIMEOUT, cache_path=None, feedba
             raise OverpassError(
                 "Erro ao decodificar JSON do Overpass: {}. Resposta crua (snippet): {}".format(e, snippet)
             )
-    except OverpassError as e:
+    except OverpassError:
         if cache_path:
             path = Path(cache_path)
             if path.exists():
@@ -94,9 +94,13 @@ def fetch_overpass_json(bbox, timeout=_OVERPASS_TIMEOUT, cache_path=None, feedba
                                 "Aviso: Falha na consulta do Overpass. Usando cache local: {}".format(cache_path)
                             )
                         return payload
-                except Exception:
-                    pass
-        raise e
+                except (OSError, ValueError) as cache_exc:
+                    if feedback is not None:
+                        feedback.pushWarning(
+                            "Aviso: o cache local do Overpass existe mas nao pode ser lido "
+                            "({}): {}".format(cache_path, cache_exc)
+                        )
+        raise
 
 
 def overpass_cache_key(code_muni, bbox, filters=None):

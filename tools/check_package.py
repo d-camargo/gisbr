@@ -10,8 +10,15 @@ Verificações:
 2. (b) Divergência entre version= do metadata.txt no zip e gisbr/metadata.txt do working tree.
 3. (c) Todo *.pem presente em gisbr/core/certs/ do working tree precisa estar dentro do ZIP;
    o ZIP precisa conter pelo menos um .pem.
+4. (d) Padrões que o scanner de segurança do plugins.qgis.org (tipo Bandit) bloqueia, em todo .py do zip:
+   (d1) handler mudo bare/Exception/BaseException com corpo só ``pass``/``continue`` (B110/B112);
+   (d2) import de módulo-gatilho (urllib.request, xml.etree, ssl, pickle, subprocess, yaml)
+        e chamada direta a eval()/exec().
+   Também valida a interpolação do metadata.txt no ZIP (evita % não escapado) e a ausência de
+   arquivos/diretórios de dev (scratch/, test/, tests/, __pycache__, *.pyc).
 """
 
+import ast
 import sys
 import os
 import re
@@ -148,6 +155,138 @@ def check_pem_files_packaged(zf: zipfile.ZipFile, working_tree_root: Path) -> li
     return errors
 
 
+# (d1) Semântica do B110/B112 do Bandit: handler TIPADO não é flagrado
+# (check_typed_exception=False por padrão) — só bare/Exception/BaseException.
+MUTE_HANDLER_TYPES = {"Exception", "BaseException"}
+
+# (d2) Módulos que o scanner do repositório oficial bloqueia (ver CLAUDE.md §10).
+TRIGGER_MODULES = (
+    "urllib.request",
+    "xml.etree",
+    "ssl",
+    "pickle",
+    "subprocess",
+    "yaml",
+)
+
+
+def _is_trigger_module(name: str) -> str:
+    """Devolve o módulo-gatilho casado por ``name`` (ou string vazia)."""
+    for trigger in TRIGGER_MODULES:
+        if name == trigger or name.startswith(trigger + "."):
+            return trigger
+    return ""
+
+
+def _snippet(lines: list, lineno: int) -> str:
+    if 1 <= lineno <= len(lines):
+        return lines[lineno - 1].strip()
+    return ""
+
+
+def check_security_scanner_patterns(zf: zipfile.ZipFile) -> list:
+    """Verifica (d1)/(d2) por AST em todo .py do ZIP."""
+    errors = []
+
+    for name in sorted(zf.namelist()):
+        if not name.endswith('.py'):
+            continue
+
+        try:
+            source = zf.read(name).decode('utf-8', errors='replace')
+            tree = ast.parse(source, filename=name)
+        except (SyntaxError, ValueError) as e:
+            errors.append(f"{name}: Erro ao analisar o arquivo (AST): {e}")
+            continue
+
+        lines = source.splitlines()
+
+        for node in ast.walk(tree):
+            # (d1) handler mudo bare/Exception/BaseException
+            if isinstance(node, ast.ExceptHandler):
+                muted = node.body and all(
+                    isinstance(stmt, (ast.Pass, ast.Continue)) for stmt in node.body
+                )
+                if not muted:
+                    continue
+                if node.type is None:
+                    flagged = True
+                elif isinstance(node.type, ast.Name):
+                    flagged = node.type.id in MUTE_HANDLER_TYPES
+                else:
+                    flagged = False
+                if flagged:
+                    errors.append(
+                        f"{name}:{node.lineno}: try/except/pass mudo (B110/B112) — "
+                        f"{_snippet(lines, node.lineno)}"
+                    )
+                continue
+
+            # (d2) imports de módulos-gatilho
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    trigger = _is_trigger_module(alias.name)
+                    if trigger:
+                        errors.append(
+                            f"{name}:{node.lineno}: import de modulo bloqueado ({trigger}) — "
+                            f"{_snippet(lines, node.lineno)}"
+                        )
+                continue
+
+            if isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                candidates = [module] + [f"{module}.{a.name}" for a in node.names if module]
+                for candidate in candidates:
+                    trigger = _is_trigger_module(candidate)
+                    if trigger:
+                        errors.append(
+                            f"{name}:{node.lineno}: import de modulo bloqueado ({trigger}) — "
+                            f"{_snippet(lines, node.lineno)}"
+                        )
+                        break
+                continue
+
+            # (d2) chamada direta a eval()/exec()
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                if node.func.id in ("eval", "exec"):
+                    errors.append(
+                        f"{name}:{node.lineno}: uso de {node.func.id}() — "
+                        f"{_snippet(lines, node.lineno)}"
+                    )
+
+    return errors
+
+
+def check_metadata_and_forbidden_files(zf: zipfile.ZipFile) -> list:
+    """Verifica (d): interpolação no metadata.txt (% não escapado) e ausência de arquivos/diretórios de dev."""
+    errors = []
+
+    # Validação de interpolação em todas as opções do metadata.txt no ZIP
+    zip_meta_files = [n for n in zf.namelist() if n.endswith('metadata.txt')]
+    if zip_meta_files:
+        zip_meta_path = zip_meta_files[0]
+        try:
+            zip_meta_content = zf.read(zip_meta_path).decode('utf-8', errors='replace')
+            config = configparser.ConfigParser()
+            config.read_string(zip_meta_content)
+            for section in config.sections():
+                for key in config.options(section):
+                    try:
+                        config.get(section, key)
+                    except configparser.InterpolationError as err:
+                        errors.append(f"Erro de interpolação no metadata.txt ({section}.{key}): {err}")
+        except Exception as e:
+            errors.append(f"Erro ao validar interpolação no metadata.txt do ZIP: {e}")
+
+    # Validação de arquivos/pastas de dev ou temporários no ZIP
+    for name in zf.namelist():
+        parts = name.split('/')
+        if any(part in ('scratch', 'test', 'tests', '__pycache__') for part in parts) or name.endswith('.pyc'):
+            errors.append(f"Arquivo/diretório proibido presente no ZIP: {name}")
+
+    return errors
+
+
 def main():
     if len(sys.argv) < 2:
         print("Uso: python3 tools/check_package.py <caminho_para_pacote.zip>")
@@ -183,6 +322,16 @@ def main():
             if pem_errors:
                 errors.append("Problema com certificados (.pem) no pacote:")
                 errors.extend(pem_errors)
+
+            scanner_errors = check_security_scanner_patterns(zf)
+            if scanner_errors:
+                errors.append("Padroes bloqueados pelo scanner do plugins.qgis.org:")
+                errors.extend(scanner_errors)
+
+            pkg_errors = check_metadata_and_forbidden_files(zf)
+            if pkg_errors:
+                errors.append("Problema no metadata.txt ou arquivos proibidos no pacote:")
+                errors.extend(pkg_errors)
 
     except Exception as e:
         print(f"ERRO fatal ao processar {zip_path}: {e}")

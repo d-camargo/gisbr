@@ -45,8 +45,15 @@ def download_metadata(force_refresh=False, feedback=None):
         if force_refresh and disk is not None and disk.exists():
             try:
                 disk.unlink()
-            except Exception:
-                pass
+            except OSError as exc:
+                if feedback is not None:
+                    from qgis.PyQt.QtCore import QCoreApplication
+                    feedback.pushWarning(
+                        QCoreApplication.translate(
+                            "Catalog",
+                            "Could not remove the cached metadata file {path}: {error}"
+                        ).format(path=disk, error=exc)
+                    )
         try:
             path = fetch(METADATA_URL, feedback=feedback)
             text = path.read_text(encoding="utf-8")
