@@ -18,6 +18,7 @@ scratch/
 # --- Arquivos de trabalho dos agentes (NAO versionar: ficam locais/no brain repo privado) ---
 CLAUDE.md
 AGENTS.md
+GEMINI.md
 ACTIONS.md
 INSTRUCTIONS.md
 QUICK_START_OSM.md

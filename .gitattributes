@@ -6,6 +6,7 @@ Makefile export-ignore
 ACTIONS.md export-ignore
 AGENTS.md export-ignore
 CLAUDE.md export-ignore
+GEMINI.md export-ignore
 INSTRUCTIONS.md export-ignore
 PLAN.md export-ignore
 STRUCTURE.md export-ignore
