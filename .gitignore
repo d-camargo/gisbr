@@ -15,6 +15,9 @@ Thumbs.db
 dist/
 scratch/
 
+# Artefato solto que o qgis-plugin-ci larga no CWD durante o release
+/gisbr.*.zip
+
 # --- Arquivos de trabalho dos agentes (NAO versionar: ficam locais/no brain repo privado) ---
 CLAUDE.md
 AGENTS.md
