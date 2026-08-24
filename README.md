@@ -13,7 +13,7 @@ All data is output in **SIRGAS 2000 / EPSG:4674**.
 
 Open the **GisBR** panel (toolbar button / *Plugins → GisBR*). Pick a **state → municipality**, choose the sources you want (checkboxes grouped by axis), a destination **GeoPackage**, and click **Load**. GisBR downloads each source **filtered to that municipality**, clips it to the municipality polygon, saves one layer per source in the GeoPackage, and adds them to the project.
 
-- **44 sources** across **8 axes**: Transport · Drainage & Sanitation · Demography · Environment · Education · Health · Urban · Administrative. Since 0.5.0 the catalog also covers geological risk (SGB/CPRM), mining claims (ANM/SIGMINE), groundwater wells (SIAGAS), IBGE BC250 2025 layers, IBGE urbanised areas (2019), subnormal agglomerations (2010), and the IBGE BDIA physical-environment set (soil, geology, geomorphology, vegetation).
+- **45 sources** across **8 axes**: Transport · Drainage & Sanitation · Demography · Environment · Education · Health · Urban · Administrative. Since 0.5.0 the catalog also covers geological risk (SGB/CPRM), mining claims (ANM/SIGMINE), groundwater wells (SIAGAS), IBGE BC250 2025 layers, IBGE urbanised areas (2019), subnormal agglomerations (2010), and the IBGE BDIA physical-environment set (soil, geology, geomorphology, vegetation).
 - **Connectors** (one per protocol): **WFS** (`CQL_FILTER`, GeoJSON via the QGIS network stack + `/vsicurl/` fallback), **ArcGIS REST** (`where=` query), **OSM/Overpass** (municipal road network — links and node topology, same skip-if-exists behavior as the other sources), **geobr** (v1/v2), and an optional **Esri World Imagery** satellite basemap (added at the bottom of the layer tree).
 - **Server-side filter** by municipality when the service supports it, plus a **client-side clip to the municipality polygon** (avoids pulling neighbors). Empty layers are skipped; already-downloaded layers are skipped unless you tick *Update*.
 
@@ -50,6 +50,14 @@ Distinguish the **reference year of the data** (vintage) from the **extraction d
 - **Diagnostic**: each source has its own reference year (e.g., DNIT SNV is `snv_202507a`, July 2025). See [docs/diagnostico-plano-diretor/fontes-detalhe.md](docs/diagnostico-plano-diretor/fontes-detalhe.md).
 
 Downloaded layers store the download date in a custom property `data_extracao`, distinct from the dataset's vintage.
+
+## SIGEF / INCRA bases
+
+The SIGEF certified parcels have no public endpoint: the INCRA export service (`https://certificacao.incra.gov.br/csv_shp/export_shp.py`) answers with a gov.br login page, and no official mirror (INDE, geoservicos.incra.gov.br, dados.gov.br) publishes them anonymously (measured on 2026-08-23, see [docs/diagnostico-plano-diretor/incra-sigef-acesso.md](docs/diagnostico-plano-diretor/incra-sigef-acesso.md)). GisBR therefore never asks for and never stores credentials. Workflow:
+
+1. Logged in with your own gov.br account, download the certified parcels Shapefile from the INCRA export service;
+2. Point the "Manual downloads folder" field of the diagnostic panel to that folder (it defaults to the system Downloads folder);
+3. Check the "INCRA/SIGEF" source (8. Administrative axis) — GisBR picks the newest matching file in that folder, clips it to the municipality polygon and saves it to the GeoPackage like any other source. If the file is missing, the source is skipped with a note telling you where to get it.
 
 ## Requirements
 
@@ -110,7 +118,7 @@ Todos os dados são entregues em **SIRGAS 2000 / EPSG:4674**.
 
 Abra o painel **GisBR** (botão na barra / *Complementos → GisBR*). Escolha **UF → Município**, marque as fontes desejadas (checkboxes agrupados por eixo), um **GeoPackage** de destino e clique em **Carregar**. O GisBR baixa cada fonte **filtrada pelo município**, recorta pelo polígono do município, grava uma camada por fonte no GeoPackage e adiciona ao projeto.
 
-- **44 fontes** em **8 eixos**: Transportes · Drenagem e Saneamento · Demografia · Ambiental · Educação · Saúde · Urbano · Político-administrativo. Desde a 0.5.0 o catálogo também cobre risco geológico (SGB/CPRM), processos minerários (ANM/SIGMINE), poços (SIAGAS), camadas BC250 2025 do IBGE, áreas urbanizadas (2019) e aglomerados subnormais (2010) do IBGE, e o conjunto de meio físico do BDIA/IBGE (pedologia, geologia, geomorfologia, vegetação).
+- **45 fontes** em **8 eixos**: Transportes · Drenagem e Saneamento · Demografia · Ambiental · Educação · Saúde · Urbano · Político-administrativo. Desde a 0.5.0 o catálogo também cobre risco geológico (SGB/CPRM), processos minerários (ANM/SIGMINE), poços (SIAGAS), camadas BC250 2025 do IBGE, áreas urbanizadas (2019) e aglomerados subnormais (2010) do IBGE, e o conjunto de meio físico do BDIA/IBGE (pedologia, geologia, geomorfologia, vegetação).
 - **Conectores** (um por protocolo): **WFS** (`CQL_FILTER`, GeoJSON pela pilha de rede do QGIS + fallback `/vsicurl/`), **ArcGIS REST** (consulta `where=`), **OSM/Overpass** (malha viária municipal — vias e a topologia de nós, com o mesmo skip-if-exists das demais fontes), **geobr** (v1/v2) e um **basemap de satélite** opcional (Esri World Imagery, adicionado ao fundo da árvore de camadas).
 - **Filtro no servidor** por município quando o serviço permite, mais um **recorte pelo polígono do município** no cliente (evita trazer vizinhos). Camadas vazias são puladas; bases já baixadas são puladas, salvo se marcar *Atualizar*.
 
@@ -147,6 +155,14 @@ Distinga o **ano de referência dos dados** (vintage) da **data de extração** 
 - **Diagnóstico**: cada fonte tem sua própria vintage (ex.: a malha do DNIT é `snv_202507a`, julho/2025). Veja [docs/diagnostico-plano-diretor/fontes-detalhe.md](docs/diagnostico-plano-diretor/fontes-detalhe.md).
 
 As camadas baixadas gravam a data do download na propriedade `data_extracao`, distinta do ano de referência do conjunto de dados.
+
+## SIGEF / bases do INCRA
+
+As parcelas certificadas do SIGEF não têm endpoint público: o serviço de exportação do INCRA (`https://certificacao.incra.gov.br/csv_shp/export_shp.py`) responde com a página de login do gov.br, e nenhum espelho oficial (INDE, geoservicos.incra.gov.br, dados.gov.br) as publica de forma anônima (medição de 23/08/2026 em [docs/diagnostico-plano-diretor/incra-sigef-acesso.md](docs/diagnostico-plano-diretor/incra-sigef-acesso.md)). Por isso o GisBR não pede e não guarda credencial nenhuma. Fluxo:
+
+1. Logado com a sua conta gov.br, baixe o Shapefile das parcelas certificadas no serviço de exportação do INCRA;
+2. Aponte o campo "Pasta de downloads manuais" do painel de diagnóstico para essa pasta (o padrão é a pasta Downloads do sistema);
+3. Marque a fonte "INCRA/SIGEF" (eixo 8. Político-Administrativo) — o GisBR escolhe o arquivo mais recente que casar na pasta, recorta pelo polígono do município e grava no GeoPackage como qualquer outra fonte. Sem o arquivo, a fonte é pulada com um aviso dizendo onde obtê-lo.
 
 ## Requisitos
 

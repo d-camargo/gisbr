@@ -8,7 +8,7 @@ from qgis.gui import QgsDockWidget
 from qgis.PyQt.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QTreeWidget, QTreeWidgetItem, QCheckBox, QPushButton, QFileDialog,
     QLabel, QPlainTextEdit, QComboBox, QCompleter)
-from qgis.PyQt.QtCore import Qt, QCoreApplication
+from qgis.PyQt.QtCore import Qt, QCoreApplication, QSettings
 from qgis.core import QgsProject
 from ..core.sources import SOURCES
 from ..core import diagnostico
@@ -114,6 +114,19 @@ class DiagnosticoDock(QgsDockWidget):
         gpkg_layout.addWidget(btn_gpkg)
         layout.addLayout(gpkg_layout)
 
+        # 3.1) Pasta de downloads manuais (fontes protocolo "arquivo")
+        layout.addWidget(QLabel(self.tr("Manual downloads folder:")))
+        manual_layout = QHBoxLayout()
+        self.ed_manual_folder = QLineEdit()
+        self.ed_manual_folder.setReadOnly(True)
+        self.ed_manual_folder.setText(diagnostico._pasta_downloads_manuais())
+        self.ed_manual_folder.setPlaceholderText(self.tr("Path to manual downloads folder (optional)"))
+        manual_layout.addWidget(self.ed_manual_folder)
+        btn_manual = QPushButton("...")
+        btn_manual.clicked.connect(self._on_choose_manual_folder)
+        manual_layout.addWidget(btn_manual)
+        layout.addLayout(manual_layout)
+
         # 4) Basemap satelite
         self.chk_satelite = QCheckBox(self.tr("Add satellite basemap"))
         layout.addWidget(self.chk_satelite)
@@ -142,6 +155,14 @@ class DiagnosticoDock(QgsDockWidget):
             if not path.lower().endswith(".gpkg"):
                 path += ".gpkg"
             self.ed_gpkg.setText(path)
+
+    def _on_choose_manual_folder(self):
+        folder = QFileDialog.getExistingDirectory(
+            self, self.tr("Select Manual Downloads Folder"), ""
+        )
+        if folder:
+            self.ed_manual_folder.setText(folder)
+            QSettings().setValue(diagnostico._QSETTINGS_PASTA_MANUAL, folder)
 
     def _selected_source_ids(self):
         ids = []

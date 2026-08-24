@@ -5,12 +5,21 @@ Preenchido a partir de docs/diagnostico-plano-diretor/fontes-detalhe.md (T-007).
 Fase A: fontes WFS + basemap. As fontes ArcGIS REST entram na T-012.
 
 Cada fonte e um dict:
-  id, eixo, nome, protocolo ("wfs"|"basemap"), endpoint, type_name, srs,
-  filtro, licenca.
+  id, eixo, nome, protocolo ("wfs"|"arcgis"|"geobr"|"osm"|"arquivo"|"basemap"),
+  endpoint, type_name, srs, filtro, licenca.
 filtro: {"tipo": "cql_codigo", "campo": <str>}  -> CQL campo = <code_muni>
         {"tipo": "cql_nome",   "campo": <str>}  -> CQL campo = '<nome_muni>'
         {"tipo": "bbox"}                          -> filtro espacial por bbox
 type_name pode conter "{uf}" (substituido pela sigla da UF do municipio).
+
+Protocolo "arquivo" (download manual): fontes oficiais que so existem atras
+de login (ex.: gov.br) NAO tem endpoint — o conector procura um arquivo ja
+baixado pelo usuario na pasta de downloads manuais (chave QSettings
+"gisbr/pasta_downloads_manuais", default Downloads do sistema). Chaves:
+  arquivo_glob: lista de globs (ex.: ["*sigef*.zip"]) — casa sem sensibilidade
+                a caixa; vence o arquivo de st_mtime mais alto
+  origem_url:   URL do portal de origem (vai no aviso quando o arquivo falta)
+  requer_login: qual credencial o portal exige (informativo, ex.: "gov.br")
 """
 
 SOURCES = [
@@ -111,6 +120,17 @@ SOURCES = [
      "protocolo": "wfs", "endpoint": "https://geoservicos.ibge.gov.br/geoserver/ows",
      "type_name": "CCAR:BC250_2025_lml_area_densamente_edificada_a", "srs": "EPSG:4674",
      "filtro": {"tipo": "bbox"}, "licenca": "Publica"},
+    # --- Eixo 8: Politico-administrativo (download manual) ---
+    # SIGEF nao tem endpoint publico: export_shp.py exige login gov.br
+    # (medição em docs/diagnostico-plano-diretor/incra-sigef-acesso.md).
+    {"id": "incra_sigef_parcelas", "eixo": "pol-admin",
+     "nome": "INCRA/SIGEF — Parcelas certificadas (download manual)",
+     "protocolo": "arquivo", "srs": "EPSG:4674",
+     "filtro": {"tipo": "bbox"}, "licenca": "Publica (exige login gov.br)",
+     "arquivo_glob": ["*sigef*.zip", "*parcela*certific*.zip",
+                      "*sigef*.shp", "*sigef*.gpkg"],
+     "origem_url": "https://certificacao.incra.gov.br/csv_shp/export_shp.py",
+     "requer_login": "gov.br"},
     # --- ArcGIS REST (Fase C) ---
     {"id": "ana_hidrografia", "eixo": "saneamento", "nome": "ANA — Hidrografia",
      "protocolo": "arcgis",

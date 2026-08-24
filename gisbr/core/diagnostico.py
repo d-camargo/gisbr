@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Motor do diagnostico. Protocolos: wfs, arcgis, geobr (code|bbox).
+"""Motor do diagnostico. Protocolos: wfs, arcgis, geobr (code|bbox), osm, arquivo.
 
 Fontes filtradas por bbox sao recortadas pelo POLIGONO do municipio (native:clip)
 para nao trazer feicoes de municipios vizinhos. Camadas sem feicoes sao puladas
@@ -7,9 +7,10 @@ com aviso no Log.
 """
 import os
 
+from qgis.PyQt.QtCore import QCoreApplication, QSettings, QStandardPaths
 from qgis.core import QgsProject, QgsVectorLayer, QgsVectorFileWriter
 
-from .connectors import wfs, basemap, arcgis_rest, osm
+from .connectors import wfs, basemap, arcgis_rest, osm, local_file
 from .sources import SOURCES
 from . import osm_pipeline
 
@@ -21,7 +22,19 @@ _UF_POR_CODIGO = {
     "51": "MT", "52": "GO", "53": "DF",
 }
 
-_PROTOCOLOS = ("wfs", "arcgis", "geobr", "osm")
+_PROTOCOLOS = ("wfs", "arcgis", "geobr", "osm", "arquivo")
+
+_QSETTINGS_PASTA_MANUAL = "gisbr/pasta_downloads_manuais"
+
+
+def _pasta_downloads_manuais():
+    """Pasta de downloads manuais: QSettings com fallback para a pasta de
+    Downloads do sistema (o painel persiste a escolha do usuario)."""
+    pasta = QSettings().value(_QSETTINGS_PASTA_MANUAL, "")
+    if pasta and str(pasta).strip():
+        return str(pasta).strip()
+    return QStandardPaths.writableLocation(
+        QStandardPaths.StandardLocation.DownloadLocation)
 
 
 def _por_id(ids):
@@ -127,8 +140,30 @@ def _carrega_geobr(s, code_muni, layer_name):
     return _resolve_out(out, layer_name)
 
 
+def _msg_arquivo_ausente(s, pasta):
+    """Aviso de 'pulou' quando o arquivo de download manual nao esta na pasta.
+
+    Idioma-base do plugin: ingles (traduzido pelo .ts no contexto 'GisBR').
+    Diz onde foi procurado e como obter a base, para o usuario nao achar que
+    e falha do plugin.
+    """
+    url = s.get("origem_url")
+    if url:
+        return QCoreApplication.translate(
+            "GisBR",
+            "file not found in the manual downloads folder ({folder}); this "
+            "dataset requires a gov.br login, so download it from {url} and "
+            "save it in that folder"
+        ).format(folder=pasta, url=url)
+    return QCoreApplication.translate(
+        "GisBR",
+        "file not found in the manual downloads folder ({folder}); download "
+        "the dataset from its official portal and save it in that folder"
+    ).format(folder=pasta)
+
+
 def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path,
-                  feedback=None):
+                  feedback=None, caminho_manual=None):
     proto = s.get("protocolo")
     srs = s.get("srs", "EPSG:4674")
     if proto == "wfs":
@@ -143,6 +178,9 @@ def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path,
                                        feedback=feedback)
     if proto == "geobr":
         return _carrega_geobr(s, code_muni, layer_name)
+    if proto == "arquivo":
+        return local_file.fetch_layer(caminho_manual, layer_name, srs=srs,
+                                      feedback=feedback)
     return None
 
 
@@ -202,9 +240,20 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             res["pulou"].append((s["id"], "ja existe no GeoPackage ({})".format(layer_name)))
             continue
 
+        # arquivo de download manual ausente e 'pulou' (como requer_parquet):
+        # o aviso diz qual pasta foi olhada e de onde baixar
+        caminho_manual = None
+        if proto == "arquivo":
+            pasta = _pasta_downloads_manuais()
+            caminho_manual = local_file.resolve_arquivo(pasta, s.get("arquivo_glob") or [])
+            if caminho_manual is None:
+                res["pulou"].append((s["id"], _msg_arquivo_ausente(s, pasta)))
+                continue
+
         cql, usa_bbox = _filtro_para(s, code_muni, nome_muni)
         layer = _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni,
-                              gpkg_path, feedback=feedback)
+                              gpkg_path, feedback=feedback,
+                              caminho_manual=caminho_manual)
         if layer is None or not layer.isValid():
             msg = getattr(layer, "error_msg", "camada invalida") if layer else "protocolo desconhecido"
             res["falhou"].append((s["id"], msg))
