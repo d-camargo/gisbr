@@ -1,0 +1,80 @@
+site_name: GisBR
+site_url: https://gisbr.dcamargo.com.br/
+repo_url: https://github.com/d-camargo/gisbr
+edit_uri: edit/main/docs/
+docs_dir: docs
+
+theme:
+  name: material
+  language: pt
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      languages:
+        - locale: pt
+          name: Português (Brasil)
+          default: true
+          build: true
+        - locale: en
+          name: English
+          build: true
+      fallback_to_default: true
+
+# docs/ é pasta mista (D1): publicável entra no nav; o resto entra aqui.
+exclude_docs: |
+  diagnostico-plano-diretor/
+  topicos/
+  README.md
+  osm-municipal-pattern.md
+  ssl-ipea-windows.md
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+    absolute_links: warn
+  links:
+    not_found: warn
+    absolute_links: warn
+    unrecognized_links: warn
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      slugify: !!python/name:pymdownx.slugs.uslugify
+  - pymdownx.superfences
+  - pymdownx.highlight
+
+nav:
+  - Início: index.md
+  - Instalação: instalacao.md
+  - Guias:
+      - Diagnóstico de Plano Diretor: guias/diagnostico.md
+      - Espelho geobr/censobr: guias/geobr.md
+      - SIGEF e bases do INCRA: guias/sigef.md
+  - Referência:
+      - Fontes de dados: referencia/fontes.md
+      - Algoritmos: referencia/algoritmos.md
+      - Rede e certificados: referencia/rede.md
+  - Histórico de versões: changelog.md

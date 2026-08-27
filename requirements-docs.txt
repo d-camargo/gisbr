@@ -1,0 +1,7 @@
+# Dependências do SITE de documentação apenas (mkdocs.yml + tools/build_docs_site.py).
+# O plugin não ganha dependência nenhuma: ele roda com o Python embutido do QGIS.
+#   pip install --user -r requirements-docs.txt
+mkdocs~=1.6
+mkdocs-material~=9.5
+mkdocs-static-i18n~=1.2
+pymdown-extensions~=10.7

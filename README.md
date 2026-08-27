@@ -1,6 +1,6 @@
 # GisBR
 
-**English** | [Português](#português)
+**English** | [Português](#português) | [Documentation](https://gisbr.dcamargo.com.br)
 
 GisBR brings official Brazilian spatial data **into QGIS**, using **only PyQGIS and the Python stdlib** (with one optional exception for Parquet). It does two things:
 
@@ -83,6 +83,8 @@ The actual compatibility check is a **smoke test that imports every plugin modul
 
 Reload with the Plugin Reloader or restart QGIS. Enable it via *Plugins → Manage and Install Plugins*.
 
+The full documentation site is built locally with `make docs` (dependencies in `requirements-docs.txt`).
+
 ## Usage in the QGIS Python Console
 
 ```python
@@ -105,7 +107,7 @@ Downloaded files are stored in `QStandardPaths.CacheLocation` → `.../geobr-qgi
 
 # Português
 
-[English](#gisbr) | **Português**
+[English](#gisbr) | **Português** | [Documentação](https://gisbr.dcamargo.com.br)
 
 O GisBR traz dados espaciais oficiais do Brasil **para dentro do QGIS**, usando **apenas PyQGIS e a stdlib do Python** (com uma exceção opcional para Parquet). Ele faz duas coisas:
 
@@ -187,6 +189,8 @@ make test          # checagem de sintaxe (ast.parse, sem QGIS) — não é o por
 A verificação real de compatibilidade é um **smoke test que importa todos os módulos do plugin sob Qt5 (QGIS 3.x) e Qt6 (QGIS 4.x)**; o `make test` só pega erro de sintaxe.
 
 Recarregue com o Plugin Reloader ou reinicie o QGIS. Ative em *Complementos → Gerenciar e Instalar*.
+
+O site de documentação completo é gerado localmente com `make docs` (dependências em `requirements-docs.txt`).
 
 ## Uso no Console Python do QGIS
 

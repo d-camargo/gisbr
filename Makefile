@@ -10,7 +10,7 @@ TARGET = $(QGIS_PLUGINS)/$(PLUGINNAME)
 FLATPAK_TARGET = $(FLATPAK_PLUGINS)/$(PLUGINNAME)
 SRC = $(CURDIR)/$(PLUGINNAME)
 
-.PHONY: deploy deploy-flatpak undeploy undeploy-flatpak clean test package help
+.PHONY: deploy deploy-flatpak undeploy undeploy-flatpak clean test docs docs-serve test-docs package help
 
 help:
 	@echo "make deploy          - symlink do plugin no perfil do QGIS do sistema"
@@ -19,6 +19,9 @@ help:
 	@echo "make undeploy-flatpak- remove o symlink (flatpak)"
 	@echo "make clean           - remove __pycache__"
 	@echo "make test            - smoke test de sintaxe (sem QGIS)"
+	@echo "make test-docs       - executa os testes do gerador de documentação"
+	@echo "make docs            - gera as páginas derivadas e compila a documentação com mkdocs"
+	@echo "make docs-serve      - gera as páginas derivadas e inicia o servidor local do mkdocs"
 	@echo "make package         - gera o pacote zip via qgis-plugin-ci em dist/gisbr-<version>.zip"
 
 deploy:
@@ -66,6 +69,17 @@ transcompile:
 
 test:
 	@python3 -c "import ast,glob,sys; [ast.parse(open(f).read(), f) for f in glob.glob('**/*.py', recursive=True)]; print('sintaxe OK')"
+
+test-docs:
+	@python3 -m pytest tests/test_docs_site.py
+
+docs:
+	@python3 tools/build_docs_site.py
+	@mkdocs build --strict
+
+docs-serve:
+	@python3 tools/build_docs_site.py
+	@mkdocs serve
 
 package:
 	@mkdir -p dist

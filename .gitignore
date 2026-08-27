@@ -18,6 +18,15 @@ scratch/
 # Artefato solto que o qgis-plugin-ci larga no CWD durante o release
 /gisbr.*.zip
 
+# --- Site de documentação (gerado, não versionado — D4) ---
+site/
+.venv-docs/
+docs/changelog.md
+docs/referencia/fontes.md
+docs/referencia/fontes.en.md
+docs/referencia/algoritmos.md
+docs/referencia/algoritmos.en.md
+
 # --- Arquivos de trabalho dos agentes (NAO versionar: ficam locais/no brain repo privado) ---
 CLAUDE.md
 AGENTS.md
