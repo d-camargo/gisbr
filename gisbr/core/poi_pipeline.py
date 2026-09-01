@@ -85,7 +85,9 @@ def build_osm_municipal_pois(code_muni, nome_muni, gpkg_path, force=False, feedb
     if cache_path.exists() and not force:
         payload = osm.load_overpass_cache(cache_path)
         if payload is not None:
-            log("OSM POI: cache reutilizado")
+            log("OSM POI: cache reutilizado ({})".format(cache_path))
+        else:
+            log("OSM POI: cache invalido ou corrompido em {}, consultando Overpass".format(cache_path))
     if payload is None:
         log("OSM POI: consultando Overpass")
         try:

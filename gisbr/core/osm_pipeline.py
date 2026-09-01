@@ -172,7 +172,9 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
     if cache_path.exists() and not force:
         payload = osm.load_overpass_cache(cache_path)
         if payload is not None:
-            log("OSM: cache reutilizado")
+            log(f"OSM: cache reutilizado ({cache_path})")
+        else:
+            log(f"OSM: cache invalido ou corrompido em {cache_path}, consultando Overpass")
     if payload is None:
         log("OSM: consultando Overpass")
         try:
@@ -193,7 +195,8 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
     if osm_links_raw.featureCount() == 0:
         log("OSM: nenhum way com highway encontrado no bbox")
         return {"raw_cache": str(cache_path), "layers": {"osm_links_raw": None, "osm_links": None, "osm_nodes": None},
-                "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "bbox": bbox, "municipio_layer": municipio.name()}}
+                "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "bbox": bbox, "municipio_layer": municipio.name(),
+                             "erro": "nenhum way com highway encontrado no bbox", "sem_vias": True}}
 
     log(f"OSM: {osm_links_raw.featureCount()} links no bbox")
 
@@ -202,7 +205,8 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
     if osm_links is None or not osm_links.isValid():
         log("OSM: falha ao recortar pelo polígono municipal")
         return {"raw_cache": str(cache_path), "layers": {"osm_links_raw": osm_links_raw, "osm_links": None, "osm_nodes": None},
-                "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "bbox": bbox, "municipio_layer": municipio.name()}}
+                "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "bbox": bbox, "municipio_layer": municipio.name(),
+                             "erro": "falha ao recortar pelo polígono municipal"}}
 
     log(f"OSM: {osm_links.featureCount()} links dentro do município")
 

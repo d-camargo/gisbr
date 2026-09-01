@@ -28,6 +28,7 @@ from cryptography.x509.oid import NameOID
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SOURCES_PATH = REPO_ROOT / "gisbr" / "core" / "sources.py"
+OSM_CONNECTOR_PATH = REPO_ROOT / "gisbr" / "core" / "connectors" / "osm.py"
 CERTS_DIR = REPO_ROOT / "gisbr" / "core" / "certs"
 
 CERT_BLOCK_RE = re.compile(
@@ -54,7 +55,26 @@ def hosts_from_sources(sources):
         host = urlparse(endpoint).hostname
         if host:
             hosts.add(host)
-    return sorted(hosts)
+    return hosts
+
+
+def hosts_from_osm_connector():
+    """Hosts da cadeia de mirrors Overpass (_OVERPASS_ENDPOINTS em
+    connectors/osm.py), extraidos por regex — o modulo importa qgis.core
+    e nao pode ser carregado aqui. Fontes de protocolo "osm" nao tem
+    "endpoint" em SOURCES, entao sem isto os mirrors ficariam de fora."""
+    if not OSM_CONNECTOR_PATH.exists():
+        return set()
+    text = OSM_CONNECTOR_PATH.read_text(encoding="utf-8")
+    match = re.search(r"_OVERPASS_ENDPOINTS\s*=\s*\((.*?)\)", text, re.S)
+    if not match:
+        return set()
+    hosts = set()
+    for url in re.findall(r'"(https?://[^"]+)"', match.group(1)):
+        host = urlparse(url).hostname
+        if host:
+            hosts.add(host)
+    return hosts
 
 
 def local_anchor_cns():
@@ -128,7 +148,7 @@ def main():
     if args.host:
         hosts = [args.host]
     else:
-        hosts = hosts_from_sources(load_sources())
+        hosts = sorted(hosts_from_sources(load_sources()) | hosts_from_osm_connector())
 
     failed = False
     for host in hosts:

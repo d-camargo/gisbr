@@ -5,6 +5,7 @@ __pycache__/
 
 # QGIS / plugin
 *.part
+/symbology-style.db
 
 # Claude Code (configuracoes locais)
 .claude/

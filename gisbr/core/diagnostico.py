@@ -211,7 +211,11 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             else:
                 result = osm_pipeline.build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=force, feedback=feedback)
                 meta = result.get("metadata", {})
-                if meta.get("gpkg_ok"):
+                if meta.get("sem_vias"):
+                    # regra da casa: 0 feições entra em pulou com aviso, nao em falhou
+                    res["pulou"].append((sid, meta.get("erro", "nenhuma via")))
+                    log("Aviso: {} — {}".format(sid, meta.get("erro", "nenhuma via")))
+                elif meta.get("gpkg_ok"):
                     # Carregar DO GPKG, não da memory — persistence real
                     osm_links = QgsVectorLayer("{}|layername=osm_links_{}".format(gpkg_path, code_muni), "osm_links - {}".format(nome_muni or code_muni), "ogr")
                     osm_nodes = QgsVectorLayer("{}|layername=osm_nodes_{}".format(gpkg_path, code_muni), "osm_nodes - {}".format(nome_muni or code_muni), "ogr")
@@ -226,7 +230,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
                     else:
                         res["falhou"].append((sid, "falha ao carregar OSM do GPKG"))
                 else:
-                    res["falhou"].append((sid, "OSM: pipeline falhou — {}".format(meta.get("erro", "desconhecido"))))
+                    res["falhou"].append((sid, "OSM: pipeline falhou — {}".format(meta.get("erro") or "desconhecido")))
         elif sid == "osm_pois":
             poi_layer_name = "osm_pois_{}".format(code_muni)
             area_layer_name = "osm_pois_area_{}".format(code_muni)

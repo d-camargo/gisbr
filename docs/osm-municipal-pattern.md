@@ -140,6 +140,88 @@ Exemplo aqui: `HTTP 429` no júnior → você fez 100+ linhas do parsing JSON + 
 
 Pipeline retorna `gpkg_ok: false` quando não conseguiu gravar. Backend verifica, não fingir sucesso. Facilita debug.
 
+## Quando o Overpass falha (medido em 2026-09-01)
+
+> Nota interna de implementação — este arquivo segue em `exclude_docs` do
+> `mkdocs.yml` e **não** entra no `nav` (regra D1 da rodada 9).
+
+Os quatro modos de falha medidos e o que o plugin faz em cada um.
+
+### 1. Dois relógios de timeout: o NAM do QGIS (60 s) vs. o `[timeout:N]` da query
+
+São timeouts **independentes**, e o menor manda. As pipelines pedem
+`timeout=180` (`osm_pipeline.py` e `poi_pipeline.py`), que vai para o
+`[timeout:180]` da query Overpass QL — mas o `QgsNetworkAccessManager` do QGIS
+corta a transferência em **60000 ms** por padrão. Numa consulta que fica na fila
+do servidor, o NAM cancela **antes de a query começar a executar**, e o erro que
+chega é de rede, não do Overpass.
+
+Medições em Contagem (2026-09-01), com resposta completa:
+
+| Consulta | Elementos | Tempo |
+|---|---|---|
+| Vias (`way["highway"]`) | 126.269 | 13,8 s |
+| POIs (predicado osm2gmns) | 48.148 | 19,1 s |
+
+Ou seja: para Contagem os 60 s do NAM **não** apertavam — mas a folga é de ~3x,
+e some num município maior ou num mirror sob carga.
+
+**O que o plugin faz:** `_post_overpass` (`core/connectors/osm.py`) fixa o
+timeout de transporte em `(t + 60) * 1000` ms, nos dois pontos que o QGIS
+respeita — `QNetworkRequest.Attribute.TransferTimeoutAttribute` e
+`QgsBlockingNetworkRequest.setTimeout()`. Os 60 s extras são folga de fila, de
+modo que quem expira primeiro passa a ser o `[timeout:N]` da própria query — o
+relógio que devolve erro explicável, não cancelamento mudo.
+
+### 2. Erro do servidor com HTTP 200 (HTML ou `remark`)
+
+O Overpass responde **200 OK** carregando o erro no corpo: página HTML
+(`<p>...error...</p>`) quando o gateway rejeita, ou JSON válido com a chave
+`remark` (`runtime error`, `out of memory`) quando a query estoura na execução.
+É a mesma armadilha de ArcGIS/OWS registrada no CLAUDE.md §10: sem inspecionar
+o corpo, o HTML vira `json.JSONDecodeError` e o `remark` vira "0 feições".
+
+**O que o plugin faz:** `_validar_payload` inspeciona o corpo antes de qualquer
+consumo — corpo começando com `<` tem o texto do `<p>` extraído e vira
+`OverpassError` citando o host; `remark` com `error`/`runtime error`/`out of
+memory` vira `OverpassError` com o texto do servidor; payload sem `elements`
+também. A causa real chega ao log em vez de "falha genérica".
+
+### 3. Cadeia de mirrors
+
+`_OVERPASS_ENDPOINTS` tem três, tentados em ordem: `overpass-api.de` →
+`overpass.kumi.systems` → `overpass.private.coffee`. Falha de rede num host
+acumula `(host, mensagem)` e passa ao próximo; se todos falharem, o
+`OverpassError` final lista host por host, não um "falhou" genérico.
+
+⚠️ **A cadeia só cobre falha de transporte.** O erro-com-200 da seção 2 é
+validado **depois** que `_post_overpass` retorna, então uma resposta 200 com
+`remark` de erro **não** faz o plugin trocar de mirror — é tratada como falha
+final da consulta (e cai no cache, seção 4). Consciente: um `remark` de
+`out of memory` é da query, não do host, e repetir nos outros mirrors só gastaria
+a cota deles.
+
+### 4. Cache local e como limpar quando ele envenena
+
+Em `OverpassError`, `_fetch_json` degrada para o cache local em disco e avisa
+via `feedback.pushWarning` em vez de abortar. Os arquivos ficam **ao lado do
+GeoPackage** (mesma pasta de `gpkg_path`):
+
+- `osm_overpass_<code_muni>.json` — vias (`osm_pipeline.py`)
+- `osm_poi_<code_muni>.json` — POIs (`poi_pipeline.py`)
+
+Há duas guardas contra cache envenenado: `save_overpass_cache` **recusa** gravar
+payload sem `elements` ou com `remark` de erro, e `load_overpass_cache`
+re-valida pelo `_validar_payload` na leitura, devolvendo `None` se o conteúdo
+não presta — a pipeline loga `cache invalido ou corrompido em <caminho>,
+consultando Overpass` e refaz a consulta.
+
+**Para limpar na mão:** apagar o `.json` da fonte na pasta do GeoPackage. Como
+alternativa sem apagar nada, marcar **"Atualizar bases já baixadas"** no painel
+(`force=True`) — a leitura do cache é pulada e a consulta vai à rede; o arquivo
+antigo continua servindo de rede de segurança se o Overpass estiver fora.
+
+
 ---
 
 **Commits desta sessão** (`feat/osm-municipal`):
