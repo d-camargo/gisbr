@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Algoritmos do diagnostico (gerados por factory nas tarefas T-010+).
+"""Algoritmos do diagnostico.
 
-Vazio por enquanto. NAO importar daqui no provider ate a T-010.
+O registro no provider é feito pela lista ALGORITHMS de gisbr/algorithms/__init__.py.
 """
-
-DIAGNOSTICO_ALGORITHMS = []  # type: list

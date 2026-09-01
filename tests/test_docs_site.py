@@ -62,11 +62,12 @@ def test_todo_algoritmo_aparece(tmp_path):
     gerar(RAIZ, tmp_path)
     texto = (tmp_path / "referencia/algoritmos.md").read_text(encoding="utf-8")
     v1, v2 = _load_constants(RAIZ)
-    for funcao in v1:
+    for funcao in sorted(v1):
         assert "`gisbr:%s`" % funcao in texto
-    for funcao in v2:
+    for funcao in sorted(v2):
         assert "`gisbr:%s_v2`" % funcao in texto
     assert "`gisbr:join_censo`" in texto
+    assert "`gisbr:export_poi_gmns`" in texto
 
 
 def test_changelog_traz_versao_corrente_primeiro(tmp_path):
@@ -80,7 +81,7 @@ def test_changelog_traz_versao_corrente_primeiro(tmp_path):
     secoes = [linha[3:] for linha in texto.splitlines()
               if linha.startswith("## ")]
     assert secoes[0] == versao
-    assert versao == "0.6.0"  # D8: a rodada do site não bumpa o plugin
+    assert versao == "0.7.0"  # D8: a rodada do site não bumpa o plugin
 
 
 def test_destino_alternativo(tmp_path):

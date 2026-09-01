@@ -20,6 +20,11 @@ baixado pelo usuario na pasta de downloads manuais (chave QSettings
                 a caixa; vence o arquivo de st_mtime mais alto
   origem_url:   URL do portal de origem (vai no aviso quando o arquivo falta)
   requer_login: qual credencial o portal exige (informativo, ex.: "gov.br")
+
+Protocolo "osm": fontes servidas pela API Overpass (host fixo no conector,
+sem endpoint por fonte). O motor de diagnostico despacha por id para o
+pipeline dedicado — "osm_vias" (vias/nós) e "osm_pois" (pontos de interesse).
+Sem host próprio, ficam fora do tools/check_sources_tls.py.
 """
 
 SOURCES = [
@@ -120,6 +125,8 @@ SOURCES = [
      "protocolo": "wfs", "endpoint": "https://geoservicos.ibge.gov.br/geoserver/ows",
      "type_name": "CCAR:BC250_2025_lml_area_densamente_edificada_a", "srs": "EPSG:4674",
      "filtro": {"tipo": "bbox"}, "licenca": "Publica"},
+    {"id": "osm_pois", "eixo": "urbano", "nome": "OSM — POIs (equipamentos e edificações, Overpass)",
+     "protocolo": "osm", "licenca": "OpenStreetMap contributors"},
     # --- Eixo 8: Politico-administrativo (download manual) ---
     # SIGEF nao tem endpoint publico: export_shp.py exige login gov.br
     # (medição em docs/diagnostico-plano-diretor/incra-sigef-acesso.md).

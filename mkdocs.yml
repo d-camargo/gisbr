@@ -72,6 +72,7 @@ nav:
   - Guias:
       - Diagnóstico de Plano Diretor: guias/diagnostico.md
       - Espelho geobr/censobr: guias/geobr.md
+      - Pontos de interesse (OSM): guias/pois.md
       - SIGEF e bases do INCRA: guias/sigef.md
   - Referência:
       - Fontes de dados: referencia/fontes.md

@@ -164,16 +164,17 @@ def _render_algoritmos(v1, v2, lang):
     linhas = []
     linhas.append(
         "# Algorithms\n\n" if en else "# Algoritmos\n\n")
+    total = len(v1) + len(v2) + 2
     linhas.append(
         "The `gisbr` Processing provider ships **%d algorithms**: %d "
         "`read_*` (legacy GeoPackage backend, v1.7.0), %d `read_*_v2` "
-        "(Parquet backend, v2.0.0) and `join_censo` (censobr).\n\n"
-        % (len(v1) + len(v2) + 1, len(v1), len(v2))
+        "(Parquet backend, v2.0.0), `join_censo` (censobr) and `export_poi_gmns` (diagnostic).\n\n"
+        % (total, len(v1), len(v2))
         if en else
         "O provedor de Processamento `gisbr` traz **%d algoritmos**: %d "
         "`read_*` (backend legado GeoPackage, v1.7.0), %d `read_*_v2` "
-        "(backend Parquet, v2.0.0) e o `join_censo` (censobr).\n\n"
-        % (len(v1) + len(v2) + 1, len(v1), len(v2)))
+        "(backend Parquet, v2.0.0), `join_censo` (censobr) e `export_poi_gmns` (diagnóstico).\n\n"
+        % (total, len(v1), len(v2)))
     linhas.append(
         "This page is generated from `gisbr/core/constants.py` — do not "
         "edit.\n" if en else
@@ -207,6 +208,13 @@ def _render_algoritmos(v1, v2, lang):
         if en else
         "\n## Censo (censobr) — 1\n\n"
         "| Algoritmo |\n|---|\n| `gisbr:join_censo` |\n")
+
+    linhas.append(
+        "\n## Diagnóstico — 1\n\n"
+        "| Algorithm | Description |\n|---|---|\n| `gisbr:export_poi_gmns` | Export POIs to GMNS (csv) |\n"
+        if en else
+        "\n## Diagnóstico — 1\n\n"
+        "| Algoritmo | Descrição |\n|---|---|\n| `gisbr:export_poi_gmns` | Exporta POIs para o padrão GMNS (csv) |\n")
     return "".join(linhas)
 
 

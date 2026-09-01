@@ -48,6 +48,9 @@ from .v2_factory import V2_ALGORITHMS
 # --- Censo (censobr): join geometria <-> tabela ---
 from .join_censo import JoinCenso
 
+# --- Diagnóstico: export de POIs para GMNS/grid2demand ---
+from .diagnostico.export_poi_gmns import ExportPoiGmns
+
 # Ordem de registro no provider.
 ALGORITHMS = [
     # politico-administrativa
@@ -84,4 +87,6 @@ ALGORITHMS = [
 ] + V2_ALGORITHMS + [
     # censo
     JoinCenso,
+    # diagnostico
+    ExportPoiGmns,
 ]

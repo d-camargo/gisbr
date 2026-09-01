@@ -4,7 +4,7 @@
 name=GisBR
 qgisMinimumVersion=3.16
 description=Load official Brazilian spatial data (IBGE/IPEA geobr + censobr) and run a municipal Master Plan diagnostic in QGIS, using only the native QGIS API.
-version=0.6.0
+version=0.7.0
 author=Diego Camargo
 email=dg.camargo@proton.me
 supportsQt6=True
@@ -18,6 +18,14 @@ homepage=https://github.com/d-camargo/gisbr
 hasProcessingProvider=yes
 
 changelog=
+    0.7.0
+    - New OpenStreetMap POI engine (source `osm_pois`, Urban axis): downloads
+      buildings, amenities and station-like POIs for the selected municipality
+      via Overpass, using the same POI predicate as osm2gmns, and writes two
+      GeoPackage layers (`osm_pois_<code>`, points, and `osm_pois_area_<code>`,
+      footprints) with area in m2/ft2 and centroid-based municipal clipping.
+    - New `gisbr:export_poi_gmns` Processing algorithm exporting the POI layer
+      as a poi.csv in the exact osm2gmns/grid2demand column layout.
     0.6.0
     - New local-file protocol for official datasets that sit behind a personal
       gov.br login: instead of a network endpoint, the source reads a file the

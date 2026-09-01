@@ -68,10 +68,9 @@ def _post_overpass(query, timeout=_OVERPASS_TIMEOUT):
     return data
 
 
-def fetch_overpass_json(bbox, timeout=_OVERPASS_TIMEOUT, cache_path=None, feedback=None):
-    """Consulta o Overpass e devolve o JSON parseado."""
+def _fetch_json(query, timeout, cache_path=None, feedback=None):
+    """POST no Overpass com a query dada; em falha, cai para o cache local."""
     t = _validate_timeout(timeout)
-    query = build_query(bbox, timeout=t)
     try:
         data = _post_overpass(query, timeout=t)
         raw_str = data.decode("utf-8")
@@ -126,3 +125,24 @@ def load_overpass_cache(cache_path):
     if not path.exists():
         return None
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def fetch_overpass_json(bbox, timeout=_OVERPASS_TIMEOUT, cache_path=None, feedback=None):
+    """Consulta o Overpass e devolve o JSON parseado."""
+    t = _validate_timeout(timeout)
+    query = build_query(bbox, timeout=t)
+    return _fetch_json(query, timeout=t, cache_path=cache_path, feedback=feedback)
+
+
+def fetch_poi_json(bbox, timeout=_OVERPASS_TIMEOUT, cache_path=None, feedback=None):
+    """Consulta POIs no Overpass (predicado osm2gmns) e devolve o JSON parseado.
+
+    Gêmeo de `fetch_overpass_json`: mesma query de rede, mesmo tratamento de
+    `OverpassError` com fallback para o cache local.
+    """
+    from .. import poi_parser
+
+    t = _validate_timeout(timeout)
+    query = poi_parser.build_poi_query(bbox, timeout=t)
+    return _fetch_json(query, timeout=t, cache_path=cache_path, feedback=feedback)
+

@@ -12,7 +12,7 @@ from qgis.core import QgsProject, QgsVectorLayer, QgsVectorFileWriter
 
 from .connectors import wfs, basemap, arcgis_rest, osm, local_file
 from .sources import SOURCES
-from . import osm_pipeline
+from . import osm_pipeline, poi_pipeline
 
 _UF_POR_CODIGO = {
     "11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16": "AP",
@@ -199,33 +199,68 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
     poligono = None
     poligono_tentado = False
 
-    # ponytail: OSM é special-case — retorna links + nós, não segue fluxo comum
-    osm_source = next((s for s in _por_id(source_ids) if s.get("protocolo") == "osm"), None)
-    if osm_source:
-        link_layer_name = "osm_links_{}".format(code_muni)
-        node_layer_name = "osm_nodes_{}".format(code_muni)
-        if (not force) and link_layer_name in existentes and node_layer_name in existentes:
-            res["pulou"].append((osm_source["id"], "ja existe no GeoPackage (osm_links_{}/osm_nodes_{})".format(code_muni, code_muni)))
-        else:
-            result = osm_pipeline.build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=force, feedback=feedback)
-            meta = result.get("metadata", {})
-            if meta.get("gpkg_ok"):
-                # Carregar DO GPKG, não da memory — persistence real
-                osm_links = QgsVectorLayer("{}|layername=osm_links_{}".format(gpkg_path, code_muni), "osm_links - {}".format(nome_muni or code_muni), "ogr")
-                osm_nodes = QgsVectorLayer("{}|layername=osm_nodes_{}".format(gpkg_path, code_muni), "osm_nodes - {}".format(nome_muni or code_muni), "ogr")
-                if osm_links.isValid():
-                    QgsProject.instance().addMapLayer(osm_links)
-                    res["ok"].append(osm_source["id"])
-                    log("OK: osm_links (GPKG)")
-                if osm_nodes.isValid():
-                    QgsProject.instance().addMapLayer(osm_nodes)
-                    log("OK: osm_nodes (GPKG)")
-                if not (osm_links.isValid() and osm_nodes.isValid()):
-                    res["falhou"].append((osm_source["id"], "falha ao carregar OSM do GPKG"))
+    # ponytail: OSM é special-case — despacha pipelines especificos por fonte (osm_vias, osm_pois, etc)
+    osm_sources = [s for s in _por_id(source_ids) if s.get("protocolo") == "osm"]
+    for osm_source in osm_sources:
+        sid = osm_source["id"]
+        if sid == "osm_vias":
+            link_layer_name = "osm_links_{}".format(code_muni)
+            node_layer_name = "osm_nodes_{}".format(code_muni)
+            if (not force) and link_layer_name in existentes and node_layer_name in existentes:
+                res["pulou"].append((sid, "ja existe no GeoPackage (osm_links_{}/osm_nodes_{})".format(code_muni, code_muni)))
             else:
-                res["falhou"].append((osm_source["id"], "OSM: pipeline falhou — {}".format(meta.get("erro", "desconhecido"))))
-        # remove OSM do loop de procesamento normal (nao segue fluxo)
-        source_ids = [s for s in source_ids if s != osm_source["id"]]
+                result = osm_pipeline.build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=force, feedback=feedback)
+                meta = result.get("metadata", {})
+                if meta.get("gpkg_ok"):
+                    # Carregar DO GPKG, não da memory — persistence real
+                    osm_links = QgsVectorLayer("{}|layername=osm_links_{}".format(gpkg_path, code_muni), "osm_links - {}".format(nome_muni or code_muni), "ogr")
+                    osm_nodes = QgsVectorLayer("{}|layername=osm_nodes_{}".format(gpkg_path, code_muni), "osm_nodes - {}".format(nome_muni or code_muni), "ogr")
+                    if osm_links.isValid():
+                        QgsProject.instance().addMapLayer(osm_links)
+                        log("OK: osm_links (GPKG)")
+                    if osm_nodes.isValid():
+                        QgsProject.instance().addMapLayer(osm_nodes)
+                        log("OK: osm_nodes (GPKG)")
+                    if osm_links.isValid() and osm_nodes.isValid():
+                        res["ok"].append(sid)
+                    else:
+                        res["falhou"].append((sid, "falha ao carregar OSM do GPKG"))
+                else:
+                    res["falhou"].append((sid, "OSM: pipeline falhou — {}".format(meta.get("erro", "desconhecido"))))
+        elif sid == "osm_pois":
+            poi_layer_name = "osm_pois_{}".format(code_muni)
+            area_layer_name = "osm_pois_area_{}".format(code_muni)
+            if (not force) and poi_layer_name in existentes and area_layer_name in existentes:
+                res["pulou"].append((sid, "ja existe no GeoPackage ({}/{})".format(poi_layer_name, area_layer_name)))
+            else:
+                result = poi_pipeline.build_osm_municipal_pois(code_muni, nome_muni, gpkg_path, force=force, feedback=feedback)
+                meta = result.get("metadata", {})
+                if meta.get("sem_pois"):
+                    # regra da casa: 0 feições entra em pulou com aviso, nao em falhou
+                    res["pulou"].append((sid, meta.get("erro", "nenhum POI")))
+                    log("Aviso: {} — {}".format(sid, meta.get("erro", "nenhum POI")))
+                elif meta.get("gpkg_ok"):
+                    # Carregar DO GPKG, não da memory — persistence real
+                    osm_pois = QgsVectorLayer("{}|layername={}".format(gpkg_path, poi_layer_name), "osm_pois - {}".format(nome_muni or code_muni), "ogr")
+                    if osm_pois.isValid():
+                        QgsProject.instance().addMapLayer(osm_pois)
+                        log("OK: osm_pois (GPKG)")
+                    if meta.get("area_layer_criada"):
+                        osm_pois_area = QgsVectorLayer("{}|layername={}".format(gpkg_path, area_layer_name), "osm_pois_area - {}".format(nome_muni or code_muni), "ogr")
+                        if osm_pois_area.isValid():
+                            QgsProject.instance().addMapLayer(osm_pois_area)
+                            log("OK: osm_pois_area (GPKG)")
+                    if osm_pois.isValid():
+                        res["ok"].append(sid)
+                    else:
+                        res["falhou"].append((sid, "falha ao carregar OSM POI do GPKG"))
+                else:
+                    res["falhou"].append((sid, "OSM POI: pipeline falhou — {}".format(meta.get("erro", "desconhecido"))))
+        else:
+            res["falhou"].append((sid, "fonte OSM desconhecida: {}".format(sid)))
+
+    osm_ids = set(s["id"] for s in osm_sources)
+    source_ids = [s for s in source_ids if s not in osm_ids]
 
     for s in _por_id(source_ids):
         proto = s.get("protocolo")

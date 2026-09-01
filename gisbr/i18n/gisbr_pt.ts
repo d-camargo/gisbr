@@ -294,6 +294,54 @@
     </message>
 </context>
 <context>
+    <name>ExportPoiGmns</name>
+    <message>
+        <location filename="../algorithms/diagnostico/export_poi_gmns.py" line="42"/>
+        <source>Export POIs to GMNS / grid2demand poi.csv</source>
+        <translation>Exportar POIs para o poi.csv do GMNS / grid2demand</translation>
+    </message>
+    <message>
+        <location filename="../algorithms/diagnostico/export_poi_gmns.py" line="45"/>
+        <source>Diagnóstico</source>
+        <translation>Diagnóstico</translation>
+    </message>
+    <message>
+        <location filename="../algorithms/diagnostico/export_poi_gmns.py" line="51"/>
+        <source>Exports an osm_pois_* layer to a poi.csv file with the exact column layout produced by osm2gmns, which grid2demand reads via load_network(). Columns: name, poi_id, osm_way_id, osm_relation_id, building, amenity, way, geometry, centroid, area, area_ft2 (area in m2, area_ft2 in square feet).</source>
+        <translation>Exporta uma camada osm_pois_* para um poi.csv com o layout de colunas exato produzido pelo osm2gmns, que o grid2demand lê via load_network(). Colunas: name, poi_id, osm_way_id, osm_relation_id, building, amenity, way, geometry, centroid, area, area_ft2 (area em m2, area_ft2 em pés quadrados).</translation>
+    </message>
+    <message>
+        <location filename="../algorithms/diagnostico/export_poi_gmns.py" line="60"/>
+        <source>POI layer (osm_pois)</source>
+        <translation>Camada de POIs (osm_pois)</translation>
+    </message>
+    <message>
+        <location filename="../algorithms/diagnostico/export_poi_gmns.py" line="66"/>
+        <source>poi.csv (GMNS)</source>
+        <translation>poi.csv (GMNS)</translation>
+    </message>
+    <message>
+        <location filename="../algorithms/diagnostico/export_poi_gmns.py" line="81"/>
+        <source>Invalid output file path.</source>
+        <translation>Caminho de saída do arquivo inválido.</translation>
+    </message>
+    <message>
+        <location filename="../algorithms/diagnostico/export_poi_gmns.py" line="86"/>
+        <source>Missing required field(s): {}. The input must be an osm_pois_* layer from the GisBR diagnostic.</source>
+        <translation>Campo(s) obrigatório(s) ausente(s): {}. A entrada deve ser uma camada osm_pois_* do diagnóstico do GisBR.</translation>
+    </message>
+    <message>
+        <location filename="../algorithms/diagnostico/export_poi_gmns.py" line="92"/>
+        <source>Exporting {} POIs to {}...</source>
+        <translation>Exportando {} POIs para {}...</translation>
+    </message>
+    <message>
+        <location filename="../algorithms/diagnostico/export_poi_gmns.py" line="111"/>
+        <source>Done: {} rows written to {}.</source>
+        <translation>Concluído: {} linhas gravadas em {}.</translation>
+    </message>
+</context>
+<context>
     <name>GeobrPlugin</name>
     <message>
         <location filename="../geobr_qgis_plugin.py" line="35"/>
