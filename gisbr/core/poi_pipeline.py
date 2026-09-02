@@ -17,7 +17,7 @@ import os
 from pathlib import Path
 
 from qgis.core import (QgsVectorLayer, QgsField, QgsFeature, QgsGeometry,
-                       QgsPointXY, QgsFields, QgsDistanceArea)
+                       QgsPointXY, QgsPoint, QgsFields, QgsDistanceArea)
 
 from . import poi_parser, qgis_compat
 from .connectors import osm
@@ -57,6 +57,76 @@ def _geometria_municipio(municipio):
     if len(geoms) == 1:
         return geoms[0]
     return geoms[0].unaryUnion(geoms[1:])
+
+
+def _montar_camadas(registros, mun_geom):
+    """Cria as camadas de memória (pontos e áreas), popula com os POIs dentro do município e commita."""
+    # Filtro por centróide DENTRO do município (D6) — engine preparado: o loop
+    # ingênuo de contains sobre ~10^5 POIs seria O(n) por chamada.
+    engine = QgsGeometry.createGeometryEngine(mun_geom.constGet())
+    engine.prepareGeometry()
+    medidor = _medidor_area()
+
+    pois_layer = QgsVectorLayer(_uri("Point", "osm_pois"), "osm_pois", "memory")
+    area_layer = QgsVectorLayer(_uri("Polygon", "osm_pois_area"), "osm_pois_area", "memory")
+    campos = _fields()
+    pois_layer.startEditing()
+    area_layer.startEditing()
+
+    por_tipo = {"node": 0, "way": 0, "relation": 0}
+    building_yes = 0
+    for reg in registros:
+        # geometria: anel(is) para way/relation; ponto para node
+        if reg["aneis"]:
+            if len(reg["aneis"]) == 1:
+                geom = QgsGeometry.fromPolygonXY([[QgsPointXY(lon, lat) for lon, lat in reg["aneis"][0]]])
+            else:
+                geom = QgsGeometry.fromMultiPolygonXY(
+                    [[[QgsPointXY(lon, lat) for lon, lat in anel] for anel in reg["aneis"]]])
+            centro = geom.centroid()
+            c = centro.asPoint()
+            # engine.contains exige QgsAbstractGeometry (ex: QgsPoint); constGet() de QgsGeometry temporario devolve resposta errada em silencio (medido).
+            if centro.isEmpty() or not engine.contains(QgsPoint(c.x(), c.y())):
+                continue
+            area_m2 = sum(medidor.measurePolygon([QgsPointXY(lon, lat) for lon, lat in anel])
+                          for anel in reg["aneis"])
+            centroid_lon, centroid_lat = c.x(), c.y()
+            feat_area = QgsFeature(campos)
+            feat_area.setGeometry(geom)
+        else:
+            ponto = QgsPointXY(reg["lon"], reg["lat"])
+            if not engine.contains(QgsPoint(reg["lon"], reg["lat"])):
+                continue
+            geom = QgsGeometry.fromPointXY(ponto)
+            area_m2 = 0.0
+            centroid_lon, centroid_lat = reg["lon"], reg["lat"]
+            feat_area = None
+
+        atributos = {
+            "poi_id": reg["poi_id"], "osm_type": reg["osm_type"], "osm_id": reg["osm_id"],
+            "name": reg["name"], "building": reg["building"], "amenity": reg["amenity"],
+            "way": reg["way"], "poi_type": reg["poi_type"], "area": area_m2,
+            "area_ft2": area_m2 * poi_parser.AREA_M2_TO_FT2,
+            "centroid_lon": centroid_lon, "centroid_lat": centroid_lat,
+        }
+        feat_poi = QgsFeature(campos)
+        feat_poi.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(centroid_lon, centroid_lat)))
+        for nome, valor in atributos.items():
+            feat_poi[nome] = valor
+        pois_layer.addFeature(feat_poi)
+        if feat_area is not None:
+            for nome, valor in atributos.items():
+                feat_area[nome] = valor
+            area_layer.addFeature(feat_area)
+
+        por_tipo[reg["osm_type"]] = por_tipo.get(reg["osm_type"], 0) + 1
+        if reg["building"] == "yes":
+            building_yes += 1
+
+    pois_layer.commitChanges()
+    area_layer.commitChanges()
+
+    return pois_layer, area_layer, por_tipo, building_yes
 
 
 def build_osm_municipal_pois(code_muni, nome_muni, gpkg_path, force=False, feedback=None):
@@ -105,72 +175,10 @@ def build_osm_municipal_pois(code_muni, nome_muni, gpkg_path, force=False, feedb
                                      "erro": "nenhum POI retornado pelo Overpass",
                                      "sem_pois": True, "bbox": bbox})
 
-    # Filtro por centróide DENTRO do município (D6) — engine preparado: o loop
-    # ingênuo de contains sobre ~10^5 POIs seria O(n) por chamada.
-    engine = QgsGeometry.createGeometryEngine(mun_geom.constGet())
-    engine.prepareGeometry()
-    medidor = _medidor_area()
-
     base_meta = {"code_muni": str(code_muni), "nome_muni": nome_muni, "bbox": bbox,
                  "total_baixa": len(registros), "descartadas": descartadas}
 
-    pois_layer = QgsVectorLayer(_uri("Point", "osm_pois"), "osm_pois", "memory")
-    area_layer = QgsVectorLayer(_uri("Polygon", "osm_pois_area"), "osm_pois_area", "memory")
-    campos = _fields()
-    pois_layer.startEditing()
-    area_layer.startEditing()
-
-    por_tipo = {"node": 0, "way": 0, "relation": 0}
-    building_yes = 0
-    for reg in registros:
-        # geometria: anel(is) para way/relation; ponto para node
-        if reg["aneis"]:
-            if len(reg["aneis"]) == 1:
-                geom = QgsGeometry.fromPolygonXY([[QgsPointXY(lon, lat) for lon, lat in reg["aneis"][0]]])
-            else:
-                geom = QgsGeometry.fromMultiPolygonXY(
-                    [[[QgsPointXY(lon, lat) for lon, lat in anel] for anel in reg["aneis"]]])
-            centro = geom.centroid()
-            if centro.isEmpty() or not engine.contains(centro.asPoint()):
-                continue
-            area_m2 = sum(medidor.measurePolygon([QgsPointXY(lon, lat) for lon, lat in anel])
-                          for anel in reg["aneis"])
-            c = centro.asPoint()
-            centroid_lon, centroid_lat = c.x(), c.y()
-            feat_area = QgsFeature(campos)
-            feat_area.setGeometry(geom)
-        else:
-            ponto = QgsPointXY(reg["lon"], reg["lat"])
-            if not engine.contains(ponto):
-                continue
-            geom = QgsGeometry.fromPointXY(ponto)
-            area_m2 = 0.0
-            centroid_lon, centroid_lat = reg["lon"], reg["lat"]
-            feat_area = None
-
-        atributos = {
-            "poi_id": reg["poi_id"], "osm_type": reg["osm_type"], "osm_id": reg["osm_id"],
-            "name": reg["name"], "building": reg["building"], "amenity": reg["amenity"],
-            "way": reg["way"], "poi_type": reg["poi_type"], "area": area_m2,
-            "area_ft2": area_m2 * poi_parser.AREA_M2_TO_FT2,
-            "centroid_lon": centroid_lon, "centroid_lat": centroid_lat,
-        }
-        feat_poi = QgsFeature(campos)
-        feat_poi.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(centroid_lon, centroid_lat)))
-        for nome, valor in atributos.items():
-            feat_poi[nome] = valor
-        pois_layer.addFeature(feat_poi)
-        if feat_area is not None:
-            for nome, valor in atributos.items():
-                feat_area[nome] = valor
-            area_layer.addFeature(feat_area)
-
-        por_tipo[reg["osm_type"]] = por_tipo.get(reg["osm_type"], 0) + 1
-        if reg["building"] == "yes":
-            building_yes += 1
-
-    pois_layer.commitChanges()
-    area_layer.commitChanges()
+    pois_layer, area_layer, por_tipo, building_yes = _montar_camadas(registros, mun_geom)
 
     total = pois_layer.featureCount()
     if total == 0:

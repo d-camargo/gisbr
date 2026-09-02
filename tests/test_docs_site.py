@@ -81,7 +81,7 @@ def test_changelog_traz_versao_corrente_primeiro(tmp_path):
     secoes = [linha[3:] for linha in texto.splitlines()
               if linha.startswith("## ")]
     assert secoes[0] == versao
-    assert versao == "0.7.1"  # D8: a rodada do site não bumpa o plugin
+    assert versao == "0.7.2"  # D8: a rodada do site não bumpa o plugin
 
 
 def test_destino_alternativo(tmp_path):

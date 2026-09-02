@@ -33,6 +33,7 @@ QT_ENUM_PATTERN = re.compile(r'\b(Q[A-Za-z0-9_]+)\.([A-Z][A-Za-z0-9_]+)\b')
 # Exceções conhecidas / formas válidas que coincidem com o padrão simples
 KNOWN_ALLOWED = {
     "QgsVectorFileWriter.SaveVectorOptions",
+    "QNetworkRequest.Attribute",
     "QVariant.Type",
     "QMetaType.Type",
     "QgsVectorFileWriter.ActionOnExistingFile",
