@@ -32,10 +32,36 @@ class LoaderV2Error(Exception):
 
 
 # ----------------------------------------------------------------- backend GDAL
-def _load_with_gdal(path, name):
+def _load_with_gdal(path, name, filtro=None):
     layer = QgsVectorLayer(str(path), name, "ogr")
     if not layer.isValid():
         raise LoaderV2Error(f"GDAL nao abriu o parquet: {path}")
+    if filtro:
+        coluna, valor, modo = filtro
+        f_idx = layer.fields().indexOf(coluna)
+        if f_idx == -1:
+            first_cols = ", ".join([f.name() for f in layer.fields()][:5])
+            raise LoaderV2Error(
+                f"Coluna '{coluna}' ausente no schema. Colunas existentes: {first_cols}"
+            )
+        field = layer.fields().at(f_idx)
+        is_num = field.isNumeric()
+
+        if modo == "igual":
+            if is_num:
+                expr = f'"{coluna}" = {valor}'
+            else:
+                expr = f'"{coluna}" = \'{valor}\''
+        elif modo == "prefixo":
+            expr = f'"{coluna}" LIKE \'{valor}%\''
+        else:
+            raise LoaderV2Error(f"Modo de filtro desconhecido: '{modo}'")
+
+        ok = layer.setSubsetString(expr)
+        if not ok:
+            raise LoaderV2Error(
+                f"GDAL recusou o filtro '{expr}' para a coluna '{coluna}'."
+            )
     return layer
 
 
@@ -78,11 +104,43 @@ def _detect_geometry_column(schema):
     return None, None
 
 
-def _load_with_pyarrow(path, name, default_epsg=EPSG_GEOBR):
+def _load_with_pyarrow(path, name, default_epsg=EPSG_GEOBR, filtro=None):
+    import pyarrow as pa
+    import pyarrow.compute as pc
     import pyarrow.parquet as pq
 
     table = pq.read_table(str(path))
     schema = table.schema
+
+    if filtro:
+        coluna, valor, modo = filtro
+        if coluna not in schema.names:
+            first_cols = ", ".join(schema.names[:5])
+            raise LoaderV2Error(
+                f"Coluna '{coluna}' ausente no schema. Colunas existentes: {first_cols}"
+            )
+
+        field_type = schema.field(coluna).type
+        col_arr = table[coluna]
+
+        if modo == "igual":
+            if pa.types.is_integer(field_type):
+                val_coagido = int(valor)
+            elif pa.types.is_string(field_type) or pa.types.is_large_string(field_type):
+                val_coagido = str(valor)
+            else:
+                val_coagido = valor
+            mask = pc.equal(col_arr, val_coagido)
+        elif modo == "prefixo":
+            val_coagido = str(valor)
+            if not (pa.types.is_string(field_type) or pa.types.is_large_string(field_type)):
+                col_arr = pc.cast(col_arr, pa.string())
+            mask = pc.starts_with(col_arr, val_coagido)
+        else:
+            raise LoaderV2Error(f"Modo de filtro desconhecido: '{modo}'")
+
+        table = table.filter(mask)
+
     geom_col, crs_epsg = _detect_geometry_column(schema)
     if crs_epsg is None:
         crs_epsg = default_epsg
@@ -140,7 +198,7 @@ def _load_with_pyarrow(path, name, default_epsg=EPSG_GEOBR):
 
 
 # ------------------------------------------------------------------- API publica
-def read_parquet_layer(path, name):
+def read_parquet_layer(path, name, filtro=None):
     """Le um .parquet (com ou sem geometria) como QgsVectorLayer.
 
     Escolhe o backend disponivel (GDAL nativo > pyarrow). Levanta
@@ -148,7 +206,7 @@ def read_parquet_layer(path, name):
     """
     backend = capabilities.parquet_backend()
     if backend == "gdal":
-        return _load_with_gdal(path, name)
+        return _load_with_gdal(path, name, filtro=filtro)
     if backend == "pyarrow":
-        return _load_with_pyarrow(path, name)
+        return _load_with_pyarrow(path, name, filtro=filtro)
     raise LoaderV2Error(capabilities.install_hint())

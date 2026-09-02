@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Catalogo do censobr (dados tabulares do Censo, nivel setor censitario).
 
-Lista os assets `*_tracts_*` dos releases do repo ipeaGIT/censobr e resolve
+Lista os assets `*_tracts_*` dos releases do repo ipea/censobr e resolve
 ano + dataset -> URL do .parquet. Esses arquivos carregam a chave `code_tract`,
 feita justamente para o join com a geometria de setores do geobr.
 
@@ -13,12 +13,30 @@ import re
 
 from .downloader import fetch_bytes, cache_dir
 
-CENSOBR_RELEASES_API = "https://api.github.com/repos/ipeaGIT/censobr/releases"
+CENSOBR_RELEASES_API = "https://api.github.com/repos/ipea/censobr/releases"
 
 # 2010_tracts_DomicilioRenda_v0.6.0.parquet -> (ano, dataset, versao)
 _TRACT_RE = re.compile(r"^(\d{4})_tracts_(.+?)_(v[\d.]+)\.parquet$")
 
 _CACHE = None
+
+
+def _versao_tupla(v_str):
+    """Converte string de versao (ex: 'v0.5.0', 'v0.10.0') em tupla numerica.
+
+    Componentes nao inteiros sao convertidos para 0.
+    """
+    if not v_str:
+        return (0,)
+    clean = v_str.lstrip("vV")
+    parts = clean.split(".")
+    res = []
+    for p in parts:
+        try:
+            res.append(int(p))
+        except ValueError:
+            res.append(0)
+    return tuple(res)
 
 
 def _disk_path():
@@ -49,13 +67,16 @@ def download_metadata(force_refresh=False):
                 continue
             year, dataset, version = int(m.group(1)), m.group(2), m.group(3)
             key = f"{year}|{dataset}"
-            if key not in best or version > best[key]["version"]:
+            if key not in best or _versao_tupla(version) > _versao_tupla(
+                best[key]["version"]
+            ):
                 best[key] = {
                     "file_name": asset.get("name", ""),
                     "download_url": asset.get("browser_download_url", ""),
                     "year": year,
                     "dataset": dataset,
                     "version": version,
+                    "size": asset.get("size", 0),
                 }
     rows = list(best.values())
     if not rows:
@@ -72,6 +93,16 @@ def available_years():
 
 def available_datasets(year):
     return sorted(r["dataset"] for r in download_metadata() if r["year"] == int(year))
+
+
+def available_datasets_por_ano():
+    """Retorna dict {ano: [datasets]} com os datasets disponiveis por ano."""
+    res = {}
+    for r in download_metadata():
+        res.setdefault(r["year"], []).append(r["dataset"])
+    for year in res:
+        res[year] = sorted(res[year])
+    return res
 
 
 def select(year, dataset):

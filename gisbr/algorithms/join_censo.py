@@ -4,13 +4,14 @@
 Recebe uma camada de setores censitarios do geobr (com `code_tract`) e um
 dataset de setor do censobr (ano + dataset, ex.: 2010 / DomicilioRenda), baixa
 o .parquet do censobr, le como tabela (loader_v2) e faz o join pela chave
-`code_tract` via native:joinattributestable.
+`code_tract` chamando censo_join.anexar_censo.
 
 Criterio de pronto da Fase 2: setor do geobr + read_tracts(DomicilioRenda) ->
 mapa coropletico de renda por setor, tudo dentro do QGIS.
 """
 
 from qgis.core import (
+    QgsCoordinateReferenceSystem,
     QgsProcessingAlgorithm,
     QgsProcessingException,
     QgsProcessingParameterEnum,
@@ -18,16 +19,13 @@ from qgis.core import (
     QgsProcessingParameterFeatureSource,
     QgsProcessingParameterString,
     QgsProcessingParameterVectorDestination,
+    QgsProcessingUtils,
+    QgsVectorLayer,
 )
 
-from ..core import capabilities, catalog_censo, downloader, loader_v2
-
-# fallback estatico (uniao de datasets) se o catalogo estiver offline
-_FALLBACK_DATASETS = [
-    "Basico", "Domicilio", "DomicilioRenda", "Entorno", "Instrucao",
-    "Morador", "Pessoa", "PessoaRenda", "Pessoas", "Responsavel",
-    "ResponsavelRenda", "Obitos", "Preliminares", "Indigenas", "Quilombolas",
-]
+from ..core import capabilities, catalog_censo, censo_join
+from ..core.censo_join import CensoJoinError
+from ..core.constants import EPSG_GEOBR
 
 
 class JoinCenso(QgsProcessingAlgorithm):
@@ -55,7 +53,7 @@ class JoinCenso(QgsProcessingAlgorithm):
                 self._datasets = sorted(ds)
             except Exception:
                 self._years = []
-                self._datasets = list(_FALLBACK_DATASETS)
+                self._datasets = list(censo_join.DATASETS_FALLBACK)
         return self._years, self._datasets
 
     def initAlgorithm(self, config=None):
@@ -106,114 +104,76 @@ class JoinCenso(QgsProcessingAlgorithm):
 
         year = years[self.parameterAsEnum(parameters, self.YEAR, context)]
         dataset = datasets[self.parameterAsEnum(parameters, self.DATASET, context)]
-        join_field = self.parameterAsString(parameters, self.JOIN_FIELD, context)
-        prefix = self.parameterAsString(parameters, self.PREFIX, context) or ""
+        prefix = self.parameterAsString(parameters, self.PREFIX, context) or "censo_"
 
-        source = self.parameterAsSource(parameters, self.INPUT, context)
-        if source is None:
+        layer = self.parameterAsVectorLayer(parameters, self.INPUT, context)
+        if layer is None:
             raise QgsProcessingException(self.tr("Invalid tracts layer."))
-        if join_field not in [f.name() for f in source.fields()]:
-            raise QgsProcessingException(
-                self.tr("Field '{field}' does not exist in tracts layer.").format(field=join_field)
-            )
 
-        # 1) resolver + baixar o dataset do censobr
         try:
-            row = catalog_censo.select(year, dataset)
-        except ValueError as exc:
+            res_layer, relatorio = censo_join.anexar_censo(
+                layer,
+                year,
+                [dataset],
+                code_muni=None,
+                prefixo=prefix,
+                descartar_join_vazio=False,
+                context=context,
+                feedback=feedback,
+            )
+        except CensoJoinError as exc:
             raise QgsProcessingException(str(exc))
-        feedback.pushInfo(self.tr("censobr: {file}").format(file=row['file_name']))
-        try:
-            path = downloader.fetch_asset(
-                row["file_name"], row["download_url"], feedback=feedback
-            )
         except Exception as exc:
-            raise QgsProcessingException(
-                self.tr("censobr download failed: {error}").format(error=exc)
-            )
-        feedback.setProgress(40)
+            raise QgsProcessingException(str(exc))
 
-        # 2) ler como tabela (sem geometria)
-        censo = loader_v2.read_parquet_layer(path, f"censo_{year}_{dataset}")
-        if join_field not in [f.name() for f in censo.fields()]:
-            raise QgsProcessingException(
-                self.tr("The censobr dataset does not have the join key '{key}'. Fields: {fields}...").format(
-                    key=join_field,
-                    fields=', '.join(f.name() for f in censo.fields())[:200]
-                )
-            )
-        feedback.setProgress(55)
+        for info in relatorio.get("infos", []):
+            feedback.pushInfo(info)
+        for aviso in relatorio.get("avisos", []):
+            feedback.pushWarning(aviso)
 
-        # 3) normalizar a chave para TEXTO nos dois lados.
-        # A chave do geobr costuma ser numerica (double) e a do censobr texto;
-        # to_string(to_int(...)) leva ambos a "310620005000001" e elimina o
-        # mismatch de tipo (e o ".0" do double) que zera o join.
-        import processing  # lazy: plugin 'processing' so existe em runtime
-        t_in = source.fields().field(join_field).typeName()
-        t_ce = censo.fields().field(join_field).typeName()
+        if not relatorio.get("datasets_ok"):
+            detalhe = relatorio["avisos"][-1] if relatorio["avisos"] else ""
+            raise QgsProcessingException(
+                self.tr("Census data could not be joined.") + (" " + detalhe if detalhe else "")
+            )
+
+        joined = relatorio.get("casados", 0)
+        unjoin = relatorio.get("sem_par", 0)
         feedback.pushInfo(
-            self.tr("Normalizing key to text (tract={t_in}, census={t_ce})...").format(t_in=t_in, t_ce=t_ce)
+            self.tr("Tracts with census: {joined} | without match: {unjoin}").format(
+                joined=joined, unjoin=unjoin)
         )
-        key = "__geobr_jk"
-        formula = f'to_string(to_int("{join_field}"))'
-        fc_params = {
-            "FIELD_NAME": key, "FIELD_TYPE": 2,  # 2 = Texto (string)
-            "FIELD_LENGTH": 40, "FIELD_PRECISION": 0,
-            "FORMULA": formula, "OUTPUT": "memory:",
-        }
-        inp_norm = processing.run(
-            "native:fieldcalculator",
-            dict(fc_params, INPUT=parameters[self.INPUT]),
-            context=context, feedback=feedback, is_child_algorithm=True,
-        )["OUTPUT"]
-        censo_norm = processing.run(
-            "native:fieldcalculator",
-            dict(fc_params, INPUT=censo),
-            context=context, feedback=feedback, is_child_algorithm=True,
-        )["OUTPUT"]
-
-        # campos do censo a copiar (exclui a chave original e a auxiliar)
-        from qgis.core import QgsProcessingUtils
-        censo_lyr = QgsProcessingUtils.mapLayerFromString(censo_norm, context) \
-            if isinstance(censo_norm, str) else censo_norm
-        copy_fields = [
-            f.name() for f in censo_lyr.fields()
-            if f.name() not in (key, join_field)
-        ]
-
-        # 4) join pela chave normalizada
-        feedback.pushInfo(self.tr("Join by '{field}' (prefix '{prefix}')...").format(field=join_field, prefix=prefix))
-        res = processing.run(
-            "native:joinattributestable",
-            {
-                "INPUT": inp_norm, "FIELD": key,
-                "INPUT_2": censo_norm, "FIELD_2": key,
-                "FIELDS_TO_COPY": copy_fields, "METHOD": 1,
-                "DISCARD_NONMATCHING": False, "PREFIX": prefix,
-                "OUTPUT": "memory:",
-            },
-            context=context, feedback=feedback, is_child_algorithm=True,
-        )
-        joined = res.get("JOINED_COUNT")
-        unjoin = res.get("UNJOINABLE_COUNT")
-        if joined is not None:
-            feedback.pushInfo(self.tr("Tracts with census: {joined} | without match: {unjoin}").format(joined=joined, unjoin=unjoin))
-            if joined == 0:
-                feedback.pushWarning(
-                    self.tr(
-                        "No tracts matched with the census even after normalizing the "
-                        "key — check if the join field is the correct code_tract."
-                    )
+        if joined == 0:
+            feedback.pushWarning(
+                self.tr(
+                    "No tracts matched with the census even after normalizing the "
+                    "key — check if the join field is the correct code_tract."
                 )
+            )
 
-        # 5) remove a coluna auxiliar e materializa no OUTPUT
-        out = processing.run(
-            "native:deletecolumn",
-            {"INPUT": res["OUTPUT"], "COLUMN": [key],
-             "OUTPUT": parameters[self.OUTPUT]},
-            context=context, feedback=feedback, is_child_algorithm=True,
+        if not isinstance(res_layer, QgsVectorLayer):
+            res_layer = QgsProcessingUtils.mapLayerFromString(res_layer, context)
+        if res_layer is None:
+            raise QgsProcessingException(self.tr("Failed to join census data."))
+
+        # materializa no sink (mesmo padrao do base_read_algorithm: aceita
+        # memory:, TEMPORARY_OUTPUT, arquivo e definicao de saida do dialog)
+        sink, dest_id = self.parameterAsSink(
+            parameters,
+            self.OUTPUT,
+            context,
+            res_layer.fields(),
+            res_layer.wkbType(),
+            res_layer.crs() if res_layer.crs().isValid()
+            else QgsCoordinateReferenceSystem.fromEpsgId(EPSG_GEOBR),
         )
-        return {self.OUTPUT: out["OUTPUT"]}
+        if sink is None:
+            raise QgsProcessingException(self.tr("Could not create output."))
+
+        from qgis.core import QgsFeatureSink
+        for feature in res_layer.getFeatures():
+            sink.addFeature(feature, QgsFeatureSink.Flag.FastInsert)
+        return {self.OUTPUT: dest_id}
 
     # ------------------------------------------------------------------ metadata
     def name(self):

@@ -69,6 +69,10 @@ janela do QGIS.
   (favelas, terras quilombolas, locais de votação) são puladas com aviso se não
   houver o driver GDAL Parquet nem o `pyarrow` —
   veja [Instalação](../instalacao.md#opcional-parquet-algoritmos-v2-e-join_censo).
+- **Setores censitários já com dados do Censo.** O grupo *Attach Census tables to
+  census tracts (censobr)*, abaixo da árvore de fontes, anexa as tabelas do
+  censobr à camada `geobr_setores` antes de gravá-la no GeoPackage — veja o
+  [guia dos dados do Censo](censo.md).
 - **CRS.** Tudo sai em **SIRGAS 2000 / EPSG:4674**. Para medir área ou distância,
   reprojete para o fuso UTM correspondente (em Belo Horizonte, EPSG:31983).
 

@@ -7,11 +7,31 @@ definir o caminho de destino do GeoPackage e carregar os dados.
 from qgis.gui import QgsDockWidget
 from qgis.PyQt.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QTreeWidget, QTreeWidgetItem, QCheckBox, QPushButton, QFileDialog,
-    QLabel, QPlainTextEdit, QComboBox, QCompleter)
+    QLabel, QPlainTextEdit, QComboBox, QCompleter, QGroupBox, QListWidget,
+    QListWidgetItem)
 from qgis.PyQt.QtCore import Qt, QCoreApplication, QSettings
-from qgis.core import QgsProject
+from qgis.core import QgsProject, QgsProcessingFeedback
 from ..core.sources import SOURCES
-from ..core import diagnostico
+from ..core import diagnostico, catalog_censo, censo_join
+
+
+class _LogFeedback(QgsProcessingFeedback):
+    """Feedback que espelha as mensagens do motor no log do painel.
+
+    Sem isso o motor roda com feedback=None e avisos importantes (tamanho dos
+    downloads do censobr, backend Parquet ausente, join que casou 0 setores)
+    nunca chegam ao usuario do painel.
+    """
+
+    def __init__(self, log_widget):
+        super().__init__()
+        self._log = log_widget
+
+    def pushInfo(self, message):
+        self._log.appendPlainText(message)
+
+    def pushWarning(self, message):
+        self._log.appendPlainText(self.tr("Warning: {message}").format(message=message))
 
 _EIXO_NOMES = {
     "transportes": QCoreApplication.translate("GisBR", "1. Transport"),
@@ -103,6 +123,22 @@ class DiagnosticoDock(QgsDockWidget):
         self.tree.expandAll()
         layout.addWidget(self.tree)
 
+        # 2.1) Grupo Censo (censobr) (D7)
+        self.grp_censo = QGroupBox(self.tr("Attach Census tables to census tracts (censobr)"))
+        self.grp_censo.setCheckable(True)
+        self.grp_censo.setChecked(False)
+        grp_censo_layout = QVBoxLayout(self.grp_censo)
+
+        grp_censo_layout.addWidget(QLabel(self.tr("Census year:")))
+        self.cmb_censo_ano = QComboBox()
+        grp_censo_layout.addWidget(self.cmb_censo_ano)
+
+        grp_censo_layout.addWidget(QLabel(self.tr("Tables / Datasets:")))
+        self.lst_censo_datasets = QListWidget()
+        grp_censo_layout.addWidget(self.lst_censo_datasets)
+
+        layout.addWidget(self.grp_censo)
+
         # 3) Destino GeoPackage
         layout.addWidget(QLabel(self.tr("GeoPackage destination:")))
         gpkg_layout = QHBoxLayout()
@@ -144,6 +180,8 @@ class DiagnosticoDock(QgsDockWidget):
         self.txt_log = QPlainTextEdit()
         self.txt_log.setReadOnly(True)
         layout.addWidget(self.txt_log)
+
+        self._init_censo_ui()
 
         self.setWidget(central)
 
@@ -238,6 +276,105 @@ class DiagnosticoDock(QgsDockWidget):
         ext = layer.extent()
         return nome, (ext.xMinimum(), ext.yMinimum(), ext.xMaximum(), ext.yMaximum())
 
+    def _init_censo_ui(self):
+        self._censo_datasets_by_year = {}
+        years = []
+        try:
+            years = catalog_censo.available_years()
+            self._censo_datasets_by_year = catalog_censo.available_datasets_por_ano()
+        except Exception as exc:
+            years = [2000, 2010, 2022]
+            fallback_ds = list(censo_join.DATASETS_FALLBACK)
+            self._censo_datasets_by_year = {y: fallback_ds for y in years}
+            self.txt_log.appendPlainText(
+                self.tr("Failed to load censobr catalog ({error}); using fallback datasets.").format(error=exc)
+            )
+
+        if not years:
+            years = [2000, 2010, 2022]
+            fallback_ds = list(censo_join.DATASETS_FALLBACK)
+            self._censo_datasets_by_year = {y: fallback_ds for y in years}
+
+        years = sorted(list(years))
+
+        qs = QSettings()
+        saved_ano = qs.value("gisbr/censo_ano", None)
+        saved_ds = qs.value("gisbr/censo_datasets", None)
+
+        if saved_ds is None:
+            self._saved_checked_ds = {"Basico"}
+        elif isinstance(saved_ds, str):
+            # QSettings (IniFormat) devolve lista como string "A, B"
+            self._saved_checked_ds = {
+                p.strip() for p in saved_ds.split(",") if p.strip()}
+        else:
+            try:
+                self._saved_checked_ds = {str(p) for p in saved_ds}
+            except TypeError:
+                self._saved_checked_ds = set()
+
+        default_ano = years[-1]
+        try:
+            saved_ano_int = int(saved_ano) if saved_ano is not None else None
+        except (ValueError, TypeError):
+            saved_ano_int = None
+
+        target_ano = saved_ano_int if (saved_ano_int is not None and saved_ano_int in years) else default_ano
+
+        self.cmb_censo_ano.blockSignals(True)
+        self.cmb_censo_ano.clear()
+        target_idx = 0
+        for idx, y in enumerate(years):
+            self.cmb_censo_ano.addItem(str(y), y)
+            if y == target_ano:
+                target_idx = idx
+
+        self.cmb_censo_ano.setCurrentIndex(target_idx)
+        self.cmb_censo_ano.blockSignals(False)
+
+        self._repopular_censo_datasets(self._saved_checked_ds)
+
+        self.cmb_censo_ano.currentIndexChanged.connect(self._on_censo_ano_changed)
+        self.lst_censo_datasets.itemChanged.connect(self._on_censo_item_changed)
+
+    def _get_checked_censo_datasets(self):
+        checked = []
+        for i in range(self.lst_censo_datasets.count()):
+            item = self.lst_censo_datasets.item(i)
+            if item.checkState() == Qt.CheckState.Checked:
+                checked.append(item.text())
+        return checked
+
+    def _repopular_censo_datasets(self, initial_checked):
+        self.lst_censo_datasets.blockSignals(True)
+        self.lst_censo_datasets.clear()
+        ano = self.cmb_censo_ano.currentData()
+        ds_list = self._censo_datasets_by_year.get(ano, [])
+        for ds in ds_list:
+            item = QListWidgetItem(ds, self.lst_censo_datasets)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
+            if ds in initial_checked:
+                item.setCheckState(Qt.CheckState.Checked)
+            else:
+                item.setCheckState(Qt.CheckState.Unchecked)
+        self.lst_censo_datasets.blockSignals(False)
+
+    def _save_censo_settings(self):
+        qs = QSettings()
+        ano = self.cmb_censo_ano.currentData()
+        if ano is not None:
+            qs.setValue("gisbr/censo_ano", int(ano))
+        datasets = self._get_checked_censo_datasets()
+        qs.setValue("gisbr/censo_datasets", datasets)
+
+    def _on_censo_ano_changed(self):
+        checked_prev = set(self._get_checked_censo_datasets())
+        self._repopular_censo_datasets(checked_prev)
+        self._save_censo_settings()
+
+    def _on_censo_item_changed(self, item):
+        self._save_censo_settings()
+
     def _on_carregar(self):
         self.txt_log.clear()
         code = self.ed_muni.text().strip()
@@ -246,6 +383,15 @@ class DiagnosticoDock(QgsDockWidget):
         if not code or not gpkg or not ids:
             self.txt_log.appendPlainText(self.tr("Specify municipality, GeoPackage and at least 1 source."))
             return
+        censo_ano = None
+        censo_datasets = ()
+        if self.grp_censo.isChecked():
+            if "geobr_setores" not in ids:
+                self.txt_log.appendPlainText(
+                    self.tr("Notice: the Census option only applies to census tracts ('geobr_setores').")
+                )
+            censo_ano = self.cmb_censo_ano.currentData()
+            censo_datasets = tuple(self._get_checked_censo_datasets())
         try:
             if getattr(self, "_munis", None) and code in self._munis:
                 nome, bbox = self._munis[code]
@@ -258,7 +404,9 @@ class DiagnosticoDock(QgsDockWidget):
         res = diagnostico.carregar_fontes(
             ids, code_muni=code, nome_muni=nome, bbox=bbox, gpkg_path=gpkg,
             add_basemap=self.chk_satelite.isChecked(),
-            force=self.chk_atualizar.isChecked(), feedback=None)
+            force=self.chk_atualizar.isChecked(),
+            feedback=_LogFeedback(self.txt_log),
+            censo_ano=censo_ano, censo_datasets=censo_datasets)
         self.txt_log.appendPlainText(self.tr("OK: {layers}").format(layers=", ".join(res["ok"]) or "-"))
         for sid, msg in res["falhou"]:
             self.txt_log.appendPlainText(self.tr("FAILED {id}: {error}").format(id=sid, error=msg))

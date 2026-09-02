@@ -12,7 +12,7 @@ from qgis.core import QgsProject, QgsVectorLayer, QgsVectorFileWriter
 
 from .connectors import wfs, basemap, arcgis_rest, osm, local_file
 from .sources import SOURCES
-from . import osm_pipeline, poi_pipeline
+from . import catalog, catalog_censo, censo_join, osm_pipeline, poi_pipeline
 
 _UF_POR_CODIGO = {
     "11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16": "AP",
@@ -121,7 +121,7 @@ def _recorta_poligono(layer, poligono, layer_name):
         return _invalida(layer_name, "recorte por poligono: {}".format(exc))
 
 
-def _carrega_geobr(s, code_muni, layer_name):
+def _carrega_geobr(s, code_muni, layer_name, ano=None):
     """recorte 'code' filtra por code_muni; 'bbox' baixa nacional (sera recortado
     pelo poligono no carregar_fontes)."""
     import processing
@@ -131,13 +131,25 @@ def _carrega_geobr(s, code_muni, layer_name):
             return _invalida(layer_name, "requer driver Parquet ou pyarrow (fonte v2)")
     algo = s["algo"]
     code_param = str(code_muni) if s.get("recorte", "code") == "code" else "all"
+    params = {
+        "CODE": code_param, "SIMPLIFIED": True, "OUTPUT": "TEMPORARY_OUTPUT",
+    }
+    ano_invalido_msg = None
+    if ano is not None:
+        try:
+            years = catalog.available_years("census_tract")
+            idx = years.index(int(ano))
+            params["YEAR"] = idx
+        except Exception as exc:
+            ano_invalido_msg = "ano {} indisponivel para setores censitarios ({})".format(ano, exc)
     try:
-        out = processing.run("gisbr:{}".format(algo), {
-            "CODE": code_param, "SIMPLIFIED": True, "OUTPUT": "TEMPORARY_OUTPUT",
-        })["OUTPUT"]
+        out = processing.run("gisbr:{}".format(algo), params)["OUTPUT"]
     except Exception as exc:
         return _invalida(layer_name, "geobr {}: {}".format(algo, exc))
-    return _resolve_out(out, layer_name)
+    res_layer = _resolve_out(out, layer_name)
+    if res_layer is not None and ano_invalido_msg:
+        res_layer.ano_invalido_msg = ano_invalido_msg
+    return res_layer
 
 
 def _msg_arquivo_ausente(s, pasta):
@@ -163,7 +175,7 @@ def _msg_arquivo_ausente(s, pasta):
 
 
 def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path,
-                  feedback=None, caminho_manual=None):
+                  feedback=None, caminho_manual=None, censo_ano=None):
     proto = s.get("protocolo")
     srs = s.get("srs", "EPSG:4674")
     if proto == "wfs":
@@ -177,7 +189,8 @@ def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path,
                                        bbox=(bbox if usa_bbox else None),
                                        feedback=feedback)
     if proto == "geobr":
-        return _carrega_geobr(s, code_muni, layer_name)
+        ano = censo_ano if s.get("id") == "geobr_setores" else None
+        return _carrega_geobr(s, code_muni, layer_name, ano=ano)
     if proto == "arquivo":
         return local_file.fetch_layer(caminho_manual, layer_name, srs=srs,
                                       feedback=feedback)
@@ -185,7 +198,8 @@ def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path,
 
 
 def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
-                    add_basemap=False, force=False, feedback=None):
+                    add_basemap=False, force=False, feedback=None,
+                    *, censo_ano=None, censo_datasets=()):
     def log(m):
         if feedback is not None:
             feedback.pushInfo(m)
@@ -207,7 +221,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             link_layer_name = "osm_links_{}".format(code_muni)
             node_layer_name = "osm_nodes_{}".format(code_muni)
             if (not force) and link_layer_name in existentes and node_layer_name in existentes:
-                res["pulou"].append((sid, "ja existe no GeoPackage (osm_links_{}/osm_nodes_{})".format(code_muni, code_muni)))
+                res["pulou"].append((sid, "ja existe no GeoPackage (osm_links_{}/osm_nodes_{}) (marque 'Atualizar bases já baixadas' para rebaixar)".format(code_muni, code_muni)))
             else:
                 result = osm_pipeline.build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=force, feedback=feedback)
                 meta = result.get("metadata", {})
@@ -235,7 +249,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             poi_layer_name = "osm_pois_{}".format(code_muni)
             area_layer_name = "osm_pois_area_{}".format(code_muni)
             if (not force) and poi_layer_name in existentes and area_layer_name in existentes:
-                res["pulou"].append((sid, "ja existe no GeoPackage ({}/{})".format(poi_layer_name, area_layer_name)))
+                res["pulou"].append((sid, "ja existe no GeoPackage ({}/{}) (marque 'Atualizar bases já baixadas' para rebaixar)".format(poi_layer_name, area_layer_name)))
             else:
                 result = poi_pipeline.build_osm_municipal_pois(code_muni, nome_muni, gpkg_path, force=force, feedback=feedback)
                 meta = result.get("metadata", {})
@@ -276,7 +290,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
 
         layer_name = "{}_{}".format(s["id"], code_muni)
         if (not force) and layer_name in existentes:
-            res["pulou"].append((s["id"], "ja existe no GeoPackage ({})".format(layer_name)))
+            res["pulou"].append((s["id"], "ja existe no GeoPackage ({}) (marque 'Atualizar bases já baixadas' para rebaixar)".format(layer_name)))
             continue
 
         # arquivo de download manual ausente e 'pulou' (como requer_parquet):
@@ -292,7 +306,8 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
         cql, usa_bbox = _filtro_para(s, code_muni, nome_muni)
         layer = _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni,
                               gpkg_path, feedback=feedback,
-                              caminho_manual=caminho_manual)
+                              caminho_manual=caminho_manual,
+                              censo_ano=censo_ano)
         if layer is None or not layer.isValid():
             msg = getattr(layer, "error_msg", "camada invalida") if layer else "protocolo desconhecido"
             res["falhou"].append((s["id"], msg))
@@ -318,6 +333,39 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             if layer.featureCount() == 0:
                 res["pulou"].append((s["id"], "sem feicoes dentro do municipio (apos recorte)"))
                 continue
+
+        if s.get("id") == "geobr_setores":
+            ano_invalido_msg = getattr(layer, "ano_invalido_msg", None)
+            if ano_invalido_msg:
+                log("Aviso: {}".format(ano_invalido_msg))
+            elif censo_ano and censo_datasets:
+                # D10: tamanho do download ANTES de baixar
+                try:
+                    for _ds in censo_datasets:
+                        _row = catalog_censo.select(censo_ano, _ds)
+                        _size = _row.get("size", 0)
+                        log("[censo] {}{}".format(
+                            _row.get("file_name", "?"),
+                            " — {:.1f} MB (baixa uma vez; fica em cache)".format(
+                                _size / (1024.0 * 1024.0)) if _size else ""))
+                except Exception as exc:
+                    log("Aviso: catalogo censobr indisponivel ({})".format(exc))
+                try:
+                    joined_layer, rel = censo_join.anexar_censo(
+                        layer, censo_ano, censo_datasets, code_muni=code_muni,
+                        feedback=feedback
+                    )
+                    for _info in rel.get("infos", []):
+                        log(_info)
+                    for _aviso in rel.get("avisos", []):
+                        log("Aviso: {}".format(_aviso))
+                    if rel.get("datasets_ok"):
+                        log("censobr: setores casados: {} | sem correspondencia: {}".format(
+                            rel.get("casados", 0), rel.get("sem_par", 0)))
+                    if joined_layer is not None and getattr(joined_layer, "isValid", lambda: True)():
+                        layer = joined_layer
+                except Exception as exc:
+                    log("Aviso: {}".format(exc))
 
         ok, msg = _grava_gpkg(layer, gpkg_path, layer_name)
         if not ok:
