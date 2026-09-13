@@ -8,7 +8,7 @@ from qgis.gui import QgsDockWidget
 from qgis.PyQt.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QTreeWidget, QTreeWidgetItem, QCheckBox, QPushButton, QFileDialog,
     QLabel, QPlainTextEdit, QComboBox, QCompleter, QGroupBox, QListWidget,
-    QListWidgetItem)
+    QListWidgetItem, QTabWidget)
 from qgis.PyQt.QtCore import Qt, QCoreApplication, QSettings
 from qgis.core import QgsProject, QgsProcessingFeedback
 from ..core.sources import SOURCES
@@ -56,6 +56,8 @@ _UFS = [
     ("TO", "Tocantins"),
 ]
 
+TAB_LOCAL, TAB_FONTES, TAB_CENSO, TAB_SALVAR, TAB_LOG = 0, 1, 2, 3, 4
+
 
 class DiagnosticoDock(QgsDockWidget):
     def __init__(self, iface, parent=None):
@@ -67,6 +69,33 @@ class DiagnosticoDock(QgsDockWidget):
     def _build_ui(self):
         central = QWidget()
         layout = QVBoxLayout(central)
+
+        self.tabs = QTabWidget()
+        self.tabs.setUsesScrollButtons(True)
+
+        self.tabs.addTab(self._build_tab_local(), self.tr("Location"))
+        self.tabs.addTab(self._build_tab_fontes(), self.tr("Sources"))
+        self.tabs.addTab(self._build_tab_censo(), self.tr("Census"))
+        self.tabs.addTab(self._build_tab_salvar(), self.tr("Output"))
+        self.tabs.addTab(self._build_tab_log(), self.tr("Log"))
+
+        layout.addWidget(self.tabs, 1)
+
+        # 5) Botao Carregar
+        self.btn_carregar = QPushButton(self.tr("Load selected"))
+        self.btn_carregar.clicked.connect(self._on_carregar)
+        layout.addWidget(self.btn_carregar)
+
+        self._init_censo_ui()
+
+        self.tree.itemChanged.connect(self._on_tree_item_changed)
+        self._atualizar_aba_censo()
+
+        self.setWidget(central)
+
+    def _build_tab_local(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
 
         # 1.1) Estado (UF)
         layout.addWidget(QLabel(self.tr("State:")))
@@ -94,6 +123,13 @@ class DiagnosticoDock(QgsDockWidget):
         self.ed_muni = QLineEdit()
         self.ed_muni.setPlaceholderText(self.tr("Ex: 3106200"))
         layout.addWidget(self.ed_muni)
+
+        layout.addStretch()
+        return widget
+
+    def _build_tab_fontes(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
 
         # 2) Arvore de fontes
         layout.addWidget(QLabel(self.tr("Data sources:")))
@@ -123,6 +159,12 @@ class DiagnosticoDock(QgsDockWidget):
         self.tree.expandAll()
         layout.addWidget(self.tree)
 
+        return widget
+
+    def _build_tab_censo(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
         # 2.1) Grupo Censo (censobr) (D7)
         self.grp_censo = QGroupBox(self.tr("Attach Census tables to census tracts (censobr)"))
         self.grp_censo.setCheckable(True)
@@ -138,6 +180,12 @@ class DiagnosticoDock(QgsDockWidget):
         grp_censo_layout.addWidget(self.lst_censo_datasets)
 
         layout.addWidget(self.grp_censo)
+
+        return widget
+
+    def _build_tab_salvar(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
 
         # 3) Destino GeoPackage
         layout.addWidget(QLabel(self.tr("GeoPackage destination:")))
@@ -170,10 +218,13 @@ class DiagnosticoDock(QgsDockWidget):
         self.chk_atualizar = QCheckBox(self.tr("Update already-downloaded layers (re-download)"))
         layout.addWidget(self.chk_atualizar)
 
-        # 5) Botao Carregar
-        self.btn_carregar = QPushButton(self.tr("Load selected"))
-        self.btn_carregar.clicked.connect(self._on_carregar)
-        layout.addWidget(self.btn_carregar)
+        layout.addStretch()
+
+        return widget
+
+    def _build_tab_log(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
 
         # 6) PlainTextEdit para log
         layout.addWidget(QLabel(self.tr("Execution log:")))
@@ -181,9 +232,7 @@ class DiagnosticoDock(QgsDockWidget):
         self.txt_log.setReadOnly(True)
         layout.addWidget(self.txt_log)
 
-        self._init_censo_ui()
-
-        self.setWidget(central)
+        return widget
 
     def _on_choose_gpkg(self):
         path, _ = QFileDialog.getSaveFileName(
@@ -214,6 +263,22 @@ class DiagnosticoDock(QgsDockWidget):
                         ids.append(source_id)
         return ids
 
+    def _log(self, msg, focar=False):
+        self.txt_log.appendPlainText(msg)
+        if focar:
+            self.tabs.setCurrentIndex(TAB_LOG)
+
+    def _atualizar_aba_censo(self):
+        habilitada = "geobr_setores" in self._selected_source_ids()
+        self.tabs.setTabEnabled(TAB_CENSO, habilitada)
+        tooltip = "" if habilitada else self.tr(
+            "Select 'Setores censitarios (IBGE/geobr)' in the Sources tab to enable the Census options."
+        )
+        self.tabs.setTabToolTip(TAB_CENSO, tooltip)
+
+    def _on_tree_item_changed(self, item=None, column=0):
+        self._atualizar_aba_censo()
+
     def _listar_municipios(self, uf_sigla):
         """{code(str): (nome, bbox)} dos municipios da UF via read_municipality."""
         import processing
@@ -240,18 +305,18 @@ class DiagnosticoDock(QgsDockWidget):
         if not uf:
             self.cmb_muni.blockSignals(False)
             return
-        self.txt_log.appendPlainText(self.tr("Loading municipalities of {uf}...").format(uf=uf))
+        self._log(self.tr("Loading municipalities of {uf}...").format(uf=uf))
         try:
             self._munis = self._listar_municipios(uf)
         except Exception as exc:
-            self.txt_log.appendPlainText(self.tr("Failed to list municipalities: {error}").format(error=exc))
+            self._log(self.tr("Failed to list municipalities: {error}").format(error=exc), focar=True)
             self.cmb_muni.blockSignals(False)
             return
         for code in sorted(self._munis, key=lambda c: self._munis[c][0]):
             self.cmb_muni.addItem(self._munis[code][0], code)
         self.cmb_muni.setCurrentIndex(-1)
         self.cmb_muni.blockSignals(False)
-        self.txt_log.appendPlainText(self.tr("{count} municipalities loaded.").format(count=len(self._munis)))
+        self._log(self.tr("{count} municipalities loaded.").format(count=len(self._munis)))
 
     def _on_muni_changed(self):
         code = self.cmb_muni.currentData()
@@ -286,7 +351,7 @@ class DiagnosticoDock(QgsDockWidget):
             years = [2000, 2010, 2022]
             fallback_ds = list(censo_join.DATASETS_FALLBACK)
             self._censo_datasets_by_year = {y: fallback_ds for y in years}
-            self.txt_log.appendPlainText(
+            self._log(
                 self.tr("Failed to load censobr catalog ({error}); using fallback datasets.").format(error=exc)
             )
 
@@ -381,13 +446,13 @@ class DiagnosticoDock(QgsDockWidget):
         gpkg = self.ed_gpkg.text().strip()
         ids = self._selected_source_ids()
         if not code or not gpkg or not ids:
-            self.txt_log.appendPlainText(self.tr("Specify municipality, GeoPackage and at least 1 source."))
+            self._log(self.tr("Specify municipality, GeoPackage and at least 1 source."), focar=True)
             return
         censo_ano = None
         censo_datasets = ()
         if self.grp_censo.isChecked():
             if "geobr_setores" not in ids:
-                self.txt_log.appendPlainText(
+                self._log(
                     self.tr("Notice: the Census option only applies to census tracts ('geobr_setores').")
                 )
             censo_ano = self.cmb_censo_ano.currentData()
@@ -398,17 +463,17 @@ class DiagnosticoDock(QgsDockWidget):
             else:
                 nome, bbox = self._info_municipio(code)
         except Exception as exc:
-            self.txt_log.appendPlainText(self.tr("Failed to resolve municipality: {error}").format(error=exc))
+            self._log(self.tr("Failed to resolve municipality: {error}").format(error=exc), focar=True)
             return
-        self.txt_log.appendPlainText(self.tr("Municipality: {name} ({code})").format(name=nome, code=code))
+        self._log(self.tr("Municipality: {name} ({code})").format(name=nome, code=code), focar=True)
         res = diagnostico.carregar_fontes(
             ids, code_muni=code, nome_muni=nome, bbox=bbox, gpkg_path=gpkg,
             add_basemap=self.chk_satelite.isChecked(),
             force=self.chk_atualizar.isChecked(),
             feedback=_LogFeedback(self.txt_log),
             censo_ano=censo_ano, censo_datasets=censo_datasets)
-        self.txt_log.appendPlainText(self.tr("OK: {layers}").format(layers=", ".join(res["ok"]) or "-"))
+        self._log(self.tr("OK: {layers}").format(layers=", ".join(res["ok"]) or "-"))
         for sid, msg in res["falhou"]:
-            self.txt_log.appendPlainText(self.tr("FAILED {id}: {error}").format(id=sid, error=msg))
+            self._log(self.tr("FAILED {id}: {error}").format(id=sid, error=msg))
         for sid, msg in res["pulou"]:
-            self.txt_log.appendPlainText(self.tr("SKIPPED {id}: {reason}").format(id=sid, reason=msg))
+            self._log(self.tr("SKIPPED {id}: {reason}").format(id=sid, reason=msg))

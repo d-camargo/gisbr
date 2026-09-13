@@ -14,30 +14,26 @@ o painel é o caminho de quem está montando o diagnóstico do município.
 
 ## Passo a passo
 
-1. **Escolha UF e município** normalmente, como no
+1. **Escolha UF e município** na aba *Localização*, como no
    [guia do painel](diagnostico.md).
-2. **Marque `Setores censitarios (IBGE/geobr)`**, no eixo *3. Demografia* da árvore de
-   fontes. A opção do Censo age **só** sobre essa fonte; se ela não estiver
-   marcada, o painel avisa no log e não anexa nada.
-3. **Ligue o grupo "Attach Census tables to census tracts (censobr)"** — o
-   checkbox no título do grupo, logo abaixo da árvore de fontes. Ele vem
-   desmarcado.
-4. **Ano do censo** — o combo lista os anos que o censobr publica: **2000, 2010
+2. **Marque `Setores censitarios (IBGE/geobr)`**, no eixo *3. Demografia* da
+   árvore de fontes, na aba *Fontes de dados*. A opção do Censo age **só** sobre
+   essa fonte — e é ela que **habilita a aba Censo**: sem ela marcada, a aba fica
+   desabilitada e a dica explica o porquê.
+3. **Abra a aba *Censo* e ligue o grupo "Anexar tabelas do Censo aos setores
+   censitários (censobr)"** — o checkbox no título do grupo. Ele vem desmarcado.
+4. **Ano do Censo** — o combo lista os anos que o censobr publica: **2000, 2010
    e 2022**.
-5. **Tabelas** — a lista traz os conjuntos daquele ano (`Basico`, `Domicilio`,
-   `DomicilioRenda`, `Pessoa`/`Pessoas`, `PessoaRenda`, …), cada um com seu
-   checkbox. Pode marcar mais de um. O padrão é **`Basico`**, que é a menor
-   tabela e a que serve para quase todo diagnóstico.
-6. **Carregar selecionadas.** O log mostra o arquivo do censobr, o tamanho, e
+5. **Tabelas / Conjuntos** — a lista traz os conjuntos daquele ano (`Basico`,
+   `Domicilio`, `DomicilioRenda`, `Pessoa`/`Pessoas`, `PessoaRenda`, …), cada um
+   com seu checkbox. Pode marcar mais de um. O padrão é **`Basico`**, que é a
+   menor tabela e a que serve para quase todo diagnóstico.
+6. **Carregar selecionadas** — o botão fica no rodapé do painel, fora das abas.
+   O painel pula para a aba *Log*, que mostra o arquivo do censobr, o tamanho, e
    quantos setores casaram e quantos ficaram sem correspondência.
 
 A escolha de ano e tabelas fica salva entre sessões do QGIS. Trocar o ano
 repopula a lista de tabelas, mantendo marcado o que ainda existir no ano novo.
-
-!!! note "Rótulos ainda em inglês"
-    As traduções PT-BR desse grupo ainda não entraram no `.qm`, então o painel
-    mostra os rótulos em inglês: *Attach Census tables to census tracts
-    (censobr)*, *Census year*, *Tables / Datasets*.
 
 ## As colunas que aparecem
 

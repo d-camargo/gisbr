@@ -158,139 +158,194 @@
 <context>
     <name>DiagnosticoDock</name>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="131"/>
+        <location filename="../gui/diagnostico_dock.py" line="215"/>
         <source>Add satellite basemap</source>
         <translation>Adicionar imagem de satélite ao fundo</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="81"/>
+        <location filename="../gui/diagnostico_dock.py" line="137"/>
         <source>Axes and layers</source>
         <translation>Eixos e Camadas</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="79"/>
+        <location filename="../gui/diagnostico_dock.py" line="135"/>
         <source>Data sources:</source>
         <translation>Fontes de Dados:</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="75"/>
+        <location filename="../gui/diagnostico_dock.py" line="124"/>
         <source>Ex: 3106200</source>
         <translation>Ex: 3106200</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="143"/>
+        <location filename="../gui/diagnostico_dock.py" line="230"/>
         <source>Execution log:</source>
         <translation>Log de Execução:</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="264"/>
+        <location filename="../gui/diagnostico_dock.py" line="477"/>
         <source>FAILED {id}: {error}</source>
         <translation>FALHOU {id}: {error}</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="209"/>
+        <location filename="../gui/diagnostico_dock.py" line="312"/>
         <source>Failed to list municipalities: {error}</source>
         <translation>Falha ao listar municípios: {error}</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="255"/>
+        <location filename="../gui/diagnostico_dock.py" line="466"/>
         <source>Failed to resolve municipality: {error}</source>
         <translation>Falha ao resolver o município: {error}</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="107"/>
+        <location filename="../gui/diagnostico_dock.py" line="191"/>
         <source>GeoPackage destination:</source>
         <translation>GeoPackage de destino:</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="73"/>
+        <location filename="../gui/diagnostico_dock.py" line="122"/>
         <source>IBGE code (optional / filled by selection):</source>
         <translation>Código IBGE (opcional / preenchido pela seleção):</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="138"/>
+        <location filename="../gui/diagnostico_dock.py" line="85"/>
         <source>Load selected</source>
         <translation>Carregar selecionadas</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="205"/>
+        <location filename="../gui/diagnostico_dock.py" line="308"/>
         <source>Loading municipalities of {uf}...</source>
         <translation>Carregando municípios de {uf}...</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="236"/>
+        <location filename="../gui/diagnostico_dock.py" line="339"/>
         <source>Municipality {code} not found in geobr.</source>
         <translation>Município {code} não encontrado no geobr.</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="61"/>
+        <location filename="../gui/diagnostico_dock.py" line="110"/>
         <source>Municipality:</source>
         <translation>Município:</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="257"/>
+        <location filename="../gui/diagnostico_dock.py" line="468"/>
         <source>Municipality: {name} ({code})</source>
         <translation>Município: {name} ({code})</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="262"/>
+        <location filename="../gui/diagnostico_dock.py" line="475"/>
         <source>OK: {layers}</source>
         <translation>OK: {layers}</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="110"/>
+        <location filename="../gui/diagnostico_dock.py" line="194"/>
         <source>Path to .gpkg file</source>
         <translation>Caminho para arquivo .gpkg</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="266"/>
+        <location filename="../gui/diagnostico_dock.py" line="479"/>
         <source>SKIPPED {id}: {reason}</source>
         <translation>PULOU {id}: {reason}</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="151"/>
+        <location filename="../gui/diagnostico_dock.py" line="238"/>
         <source>Select GeoPackage</source>
         <translation>Selecionar GeoPackage</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="247"/>
+        <location filename="../gui/diagnostico_dock.py" line="449"/>
         <source>Specify municipality, GeoPackage and at least 1 source.</source>
         <translation>Informe município, GeoPackage e ao menos 1 fonte.</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="52"/>
+        <location filename="../gui/diagnostico_dock.py" line="101"/>
         <source>State:</source>
         <translation>Estado (UF):</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="134"/>
+        <location filename="../gui/diagnostico_dock.py" line="218"/>
         <source>Update already-downloaded layers (re-download)</source>
         <translation>Atualizar bases já baixadas (rebaixar)</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="216"/>
+        <location filename="../gui/diagnostico_dock.py" line="319"/>
         <source>{count} municipalities loaded.</source>
         <translation>{count} municípios carregados.</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="54"/>
+        <location filename="../gui/diagnostico_dock.py" line="103"/>
         <source>— select —</source>
         <translation>— selecione —</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="118"/>
+        <location filename="../gui/diagnostico_dock.py" line="202"/>
         <source>Manual downloads folder:</source>
         <translation>Pasta de downloads manuais:</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="123"/>
+        <location filename="../gui/diagnostico_dock.py" line="207"/>
         <source>Path to manual downloads folder (optional)</source>
         <translation>Caminho para a pasta de downloads manuais (opcional)</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="160"/>
+        <location filename="../gui/diagnostico_dock.py" line="247"/>
         <source>Select Manual Downloads Folder</source>
         <translation>Selecionar Pasta de Downloads Manuais</translation>
+    </message>
+    <message>
+        <location filename="../gui/diagnostico_dock.py" line="76"/>
+        <source>Location</source>
+        <translation>Localização</translation>
+    </message>
+    <message>
+        <location filename="../gui/diagnostico_dock.py" line="77"/>
+        <source>Sources</source>
+        <translation>Fontes de dados</translation>
+    </message>
+    <message>
+        <location filename="../gui/diagnostico_dock.py" line="78"/>
+        <source>Census</source>
+        <translation>Censo</translation>
+    </message>
+    <message>
+        <location filename="../gui/diagnostico_dock.py" line="79"/>
+        <source>Output</source>
+        <translation>Salvar</translation>
+    </message>
+    <message>
+        <location filename="../gui/diagnostico_dock.py" line="80"/>
+        <source>Log</source>
+        <translation>Log</translation>
+    </message>
+    <message>
+        <location filename="../gui/diagnostico_dock.py" line="169"/>
+        <source>Attach Census tables to census tracts (censobr)</source>
+        <translation>Anexar tabelas do Censo aos setores censitários (censobr)</translation>
+    </message>
+    <message>
+        <location filename="../gui/diagnostico_dock.py" line="174"/>
+        <source>Census year:</source>
+        <translation>Ano do Censo:</translation>
+    </message>
+    <message>
+        <location filename="../gui/diagnostico_dock.py" line="178"/>
+        <source>Tables / Datasets:</source>
+        <translation>Tabelas / Conjuntos:</translation>
+    </message>
+    <message>
+        <location filename="../gui/diagnostico_dock.py" line="274"/>
+        <source>Select &apos;Setores censitarios (IBGE/geobr)&apos; in the Sources tab to enable the Census options.</source>
+        <translation>Marque &apos;Setores censitarios (IBGE/geobr)&apos; na aba Fontes de dados para habilitar as opções do Censo.</translation>
+    </message>
+    <message>
+        <location filename="../gui/diagnostico_dock.py" line="354"/>
+        <source>Failed to load censobr catalog ({error}); using fallback datasets.</source>
+        <translation>Falha ao carregar catálogo do censobr ({error}); usando conjuntos de dados de fallback.</translation>
+    </message>
+    <message>
+        <location filename="../gui/diagnostico_dock.py" line="455"/>
+        <source>Notice: the Census option only applies to census tracts (&apos;geobr_setores&apos;).</source>
+        <translation>Aviso: a opção do Censo só se aplica a setores censitários (&apos;geobr_setores&apos;).</translation>
     </message>
 </context>
 <context>
@@ -360,22 +415,22 @@
 <context>
     <name>GisBR</name>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="17"/>
+        <location filename="../gui/diagnostico_dock.py" line="37"/>
         <source>1. Transport</source>
         <translation>1. Transportes</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="18"/>
+        <location filename="../gui/diagnostico_dock.py" line="38"/>
         <source>2. Drainage &amp; Sanitation</source>
         <translation>2. Saneamento e Drenagem</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="19"/>
+        <location filename="../gui/diagnostico_dock.py" line="39"/>
         <source>3. Demography</source>
         <translation>3. Demografia</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="20"/>
+        <location filename="../gui/diagnostico_dock.py" line="40"/>
         <source>4. Environment</source>
         <translation>4. Ambiental</translation>
     </message>
@@ -385,22 +440,22 @@
         <translation>5 grandes regiões (IBGE).</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="21"/>
+        <location filename="../gui/diagnostico_dock.py" line="41"/>
         <source>5. Education</source>
         <translation>5. Educação</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="22"/>
+        <location filename="../gui/diagnostico_dock.py" line="42"/>
         <source>6. Health</source>
         <translation>6. Saúde</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="23"/>
+        <location filename="../gui/diagnostico_dock.py" line="43"/>
         <source>7. Urban</source>
         <translation>7. Urbano</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="24"/>
+        <location filename="../gui/diagnostico_dock.py" line="44"/>
         <source>8. Administrative</source>
         <translation>8. Político-Administrativo</translation>
     </message>
@@ -465,7 +520,7 @@
         <translation>Favelas e comunidades urbanas (IBGE 2022). Só-v2.</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="42"/>
+        <location filename="../gui/diagnostico_dock.py" line="64"/>
         <source>GisBR — Diagnostic</source>
         <translation>GisBR — Diagnóstico</translation>
     </message>
@@ -685,12 +740,12 @@
         <translation>Áreas de ponderação do Censo.</translation>
     </message>
     <message>
-        <location filename="../core/diagnostico.py" line="152"/>
+        <location filename="../core/diagnostico.py" line="164"/>
         <source>file not found in the manual downloads folder ({folder}); this dataset requires a gov.br login, so download it from {url} and save it in that folder</source>
         <translation>arquivo não encontrado na pasta de downloads manuais ({folder}); este conjunto de dados requer login no gov.br, portanto baixe-o de {url} e salve-o nessa pasta</translation>
     </message>
     <message>
-        <location filename="../core/diagnostico.py" line="158"/>
+        <location filename="../core/diagnostico.py" line="170"/>
         <source>file not found in the manual downloads folder ({folder}); download the dataset from its official portal and save it in that folder</source>
         <translation>arquivo não encontrado na pasta de downloads manuais ({folder}); baixe o conjunto de dados do seu portal oficial e salve-o nessa pasta</translation>
     </message>
@@ -698,52 +753,52 @@
 <context>
     <name>JoinCenso</name>
     <message>
-        <location filename="../algorithms/join_censo.py" line="63"/>
+        <location filename="../algorithms/join_censo.py" line="61"/>
         <source>(censobr unavailable)</source>
         <translation>(censobr indisponível)</translation>
     </message>
     <message>
-        <location filename="../algorithms/join_censo.py" line="226"/>
+        <location filename="../algorithms/join_censo.py" line="186"/>
         <source>Census (censobr)</source>
         <translation>Censo (censobr)</translation>
     </message>
     <message>
-        <location filename="../algorithms/join_censo.py" line="65"/>
+        <location filename="../algorithms/join_censo.py" line="63"/>
         <source>Census tracts (geobr)</source>
         <translation>Setores censitários (geobr)</translation>
     </message>
     <message>
-        <location filename="../algorithms/join_censo.py" line="70"/>
+        <location filename="../algorithms/join_censo.py" line="68"/>
         <source>Census year</source>
         <translation>Ano do censo</translation>
     </message>
     <message>
         <location filename="../algorithms/join_censo.py" line="116"/>
         <source>Field &apos;{field}&apos; does not exist in tracts layer.</source>
-        <translation>Campo '{field}' não existe na camada de setores.</translation>
+        <translation type="obsolete">Campo '{field}' não existe na camada de setores.</translation>
     </message>
     <message>
-        <location filename="../algorithms/join_censo.py" line="114"/>
+        <location filename="../algorithms/join_censo.py" line="111"/>
         <source>Invalid tracts layer.</source>
         <translation>Camada de setores inválida.</translation>
     </message>
     <message>
         <location filename="../algorithms/join_censo.py" line="185"/>
         <source>Join by &apos;{field}&apos; (prefix &apos;{prefix}&apos;)...</source>
-        <translation>Join por '{field}' (prefixo '{prefix}')...</translation>
+        <translation type="obsolete">Join por '{field}' (prefixo '{prefix}')...</translation>
     </message>
     <message>
-        <location filename="../algorithms/join_censo.py" line="223"/>
+        <location filename="../algorithms/join_censo.py" line="183"/>
         <source>Join census data (censobr) to tracts</source>
         <translation>Juntar dados do censo (censobr) a setores</translation>
     </message>
     <message>
-        <location filename="../algorithms/join_censo.py" line="83"/>
+        <location filename="../algorithms/join_censo.py" line="81"/>
         <source>Join field (tract)</source>
         <translation>Campo-chave (setor)</translation>
     </message>
     <message>
-        <location filename="../algorithms/join_censo.py" line="232"/>
+        <location filename="../algorithms/join_censo.py" line="192"/>
         <source>Joins Census variables (censobr) to a census tracts layer from geobr, using the &apos;code_tract&apos; key.
 
 Typical workflow: read_census_tract (geobr) -&gt; this tool with the desired table (e.g. DomicilioRenda).</source>
@@ -752,54 +807,77 @@ Typical workflow: read_census_tract (geobr) -&gt; this tool with the desired tab
 Fluxo típico: read_census_tract (geobr) -&gt; esta ferramenta com a tabela desejada (ex: DomicilioRenda).</translation>
     </message>
     <message>
-        <location filename="../algorithms/join_censo.py" line="202"/>
+        <location filename="../algorithms/join_censo.py" line="147"/>
         <source>No tracts matched with the census even after normalizing the key — check if the join field is the correct code_tract.</source>
         <translation>Nenhum setor casou com o censo mesmo após normalizar a chave — confira se o campo-chave é o code_tract correto.</translation>
     </message>
     <message>
         <location filename="../algorithms/join_censo.py" line="154"/>
         <source>Normalizing key to text (tract={t_in}, census={t_ce})...</source>
-        <translation>Normalizando chave para texto (setor={t_in}, censo={t_ce})...</translation>
+        <translation type="obsolete">Normalizando chave para texto (setor={t_in}, censo={t_ce})...</translation>
     </message>
     <message>
-        <location filename="../algorithms/join_censo.py" line="89"/>
+        <location filename="../algorithms/join_censo.py" line="87"/>
         <source>Prefix for census fields</source>
         <translation>Prefixo nos campos do censo</translation>
     </message>
     <message>
         <location filename="../algorithms/join_censo.py" line="139"/>
         <source>The censobr dataset does not have the join key &apos;{key}&apos;. Fields: {fields}...</source>
-        <translation>O dataset do censobr não tem o campo-chave '{key}'. Campos: {fields}...</translation>
+        <translation type="obsolete">O dataset do censobr não tem o campo-chave '{key}'. Campos: {fields}...</translation>
     </message>
     <message>
-        <location filename="../algorithms/join_censo.py" line="95"/>
+        <location filename="../algorithms/join_censo.py" line="93"/>
         <source>Tracts + census</source>
         <translation>Setores + censo</translation>
     </message>
     <message>
-        <location filename="../algorithms/join_censo.py" line="200"/>
+        <location filename="../algorithms/join_censo.py" line="142"/>
         <source>Tracts with census: {joined} | without match: {unjoin}</source>
         <translation>Setores com censo: {joined} | sem match: {unjoin}</translation>
     </message>
     <message>
-        <location filename="../algorithms/join_censo.py" line="105"/>
+        <location filename="../algorithms/join_censo.py" line="103"/>
         <source>censobr catalog unavailable.</source>
         <translation>Catálogo do censobr indisponível.</translation>
     </message>
     <message>
-        <location filename="../algorithms/join_censo.py" line="76"/>
+        <location filename="../algorithms/join_censo.py" line="74"/>
         <source>censobr dataset</source>
         <translation>Dataset do censobr</translation>
     </message>
     <message>
         <location filename="../algorithms/join_censo.py" line="131"/>
         <source>censobr download failed: {error}</source>
-        <translation>Falha no download do censobr: {error}</translation>
+        <translation type="obsolete">Falha no download do censobr: {error}</translation>
     </message>
     <message>
         <location filename="../algorithms/join_censo.py" line="125"/>
         <source>censobr: {file}</source>
-        <translation>censobr: {file}</translation>
+        <translation type="obsolete">censobr: {file}</translation>
+    </message>
+    <message>
+        <location filename="../algorithms/join_censo.py" line="136"/>
+        <source>Census data could not be joined.</source>
+        <translation>Não foi possível juntar os dados do Censo.</translation>
+    </message>
+    <message>
+        <location filename="../algorithms/join_censo.py" line="157"/>
+        <source>Failed to join census data.</source>
+        <translation>Falha ao juntar os dados do Censo.</translation>
+    </message>
+    <message>
+        <location filename="../algorithms/join_censo.py" line="171"/>
+        <source>Could not create output.</source>
+        <translation>Não foi possível criar a saída.</translation>
+    </message>
+</context>
+<context>
+    <name>_LogFeedback</name>
+    <message>
+        <location filename="../gui/diagnostico_dock.py" line="34"/>
+        <source>Warning: {message}</source>
+        <translation>Aviso: {message}</translation>
     </message>
 </context>
 </TS>

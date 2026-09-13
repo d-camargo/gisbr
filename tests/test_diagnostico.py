@@ -140,6 +140,28 @@ def test_diagnostico_dock_censo_ui(qgis_app, monkeypatch):
     assert saved_ano is not None
     assert "Basico" in (saved_ds if isinstance(saved_ds, list) else [saved_ds])
 
+    # Test tab Censo enabled/disabled & tooltip (D3)
+    from gisbr.gui.diagnostico_dock import TAB_CENSO, TAB_LOG
+    assert not dock.tabs.isTabEnabled(TAB_CENSO)
+    assert "Select 'Setores censitarios" in dock.tabs.tabToolTip(TAB_CENSO)
+
+    # Find and check geobr_setores item -> enables tab Censo
+    setores_item = None
+    for i in range(dock.tree.topLevelItemCount()):
+        parent = dock.tree.topLevelItem(i)
+        for j in range(parent.childCount()):
+            child = parent.child(j)
+            if child.data(0, Qt.ItemDataRole.UserRole) == "geobr_setores":
+                setores_item = child
+                break
+
+    assert setores_item is not None
+    setores_item.setCheckState(0, Qt.CheckState.Checked)
+    assert dock.tabs.isTabEnabled(TAB_CENSO)
+    assert dock.tabs.tabToolTip(TAB_CENSO) == ""
+    setores_item.setCheckState(0, Qt.CheckState.Unchecked)
+    assert not dock.tabs.isTabEnabled(TAB_CENSO)
+
     captured_calls = []
     def mock_carregar_fontes(*args, **kwargs):
         captured_calls.append((args, kwargs))

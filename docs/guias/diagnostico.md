@@ -14,30 +14,56 @@ janela do QGIS.
 
 ## Passo a passo
 
-1. **Estado (UF)** — escolha a unidade da federação. Na primeira seleção o plugin
-   baixa a malha municipal do geobr para listar os municípios; isso leva alguns
-   segundos e o log avisa (*"Carregando municípios de …"*).
-2. **Município** — o combo aceita digitação: escreva parte do nome e escolha na
-   lista. O campo **Código IBGE** logo abaixo é preenchido sozinho pela seleção
-   (você também pode digitar o código de 7 dígitos direto, ex.: `3106200`).
-3. **Fontes de Dados** — a árvore *Eixos e Camadas* traz as fontes agrupadas nos
-   8 eixos, na ordem 1..8. Marque o checkbox de cada camada desejada. Não há
-   limite: pode marcar um eixo inteiro ou fontes soltas de eixos diferentes.
-4. **GeoPackage de destino** — o botão `...` abre o seletor de arquivo. Se você
-   digitar um caminho sem a extensão, o plugin acrescenta `.gpkg`. Aponte sempre
-   para o **mesmo** GeoPackage do município: ele é o acervo do diagnóstico, e é
-   o que permite ao plugin pular o que já foi baixado.
-5. **Pasta de downloads manuais** — só importa para as fontes que exigem login
-   gov.br (hoje, o INCRA/SIGEF). O padrão é a pasta *Downloads* do sistema. Veja
-   o [guia do SIGEF](sigef.md).
-6. **Adicionar imagem de satélite ao fundo** *(opcional)* — acrescenta o mosaico
-   Esri World Imagery **como último item** da árvore de camadas, ou seja, ao
-   fundo, sem cobrir o que foi baixado.
-7. **Atualizar bases já baixadas (rebaixar)** *(opcional)* — força o rebaixamento
-   das fontes que já existem no GeoPackage. Deixe **desmarcado** no uso normal.
-8. **Carregar selecionadas** — inicia. O **Log de Execução**, no rodapé do
-   painel, mostra o município resolvido e, ao final, três listas: `OK`,
-   `FALHOU` e `PULOU`, cada uma com o `id` da fonte e o motivo.
+O painel se divide em **cinco abas**, na ordem em que se usa: *Localização*,
+*Fontes de dados*, *Censo*, *Salvar* e *Log*. O botão **Carregar selecionadas**
+fica no **rodapé, fora das abas** — está sempre visível, seja qual for a aba
+aberta.
+
+### Localização
+
+- **Estado (UF)** — escolha a unidade da federação. Na primeira seleção o plugin
+  baixa a malha municipal do geobr para listar os municípios; isso leva alguns
+  segundos e o log avisa (*"Carregando municípios de …"*).
+- **Município** — o combo aceita digitação: escreva parte do nome e escolha na
+  lista. O campo **Código IBGE** logo abaixo é preenchido sozinho pela seleção
+  (você também pode digitar o código de 7 dígitos direto, ex.: `3106200`).
+
+### Fontes de dados
+
+- **Eixos e Camadas** — a árvore traz as fontes agrupadas nos 8 eixos, na ordem
+  1..8. Marque o checkbox de cada camada desejada. Não há limite: pode marcar um
+  eixo inteiro ou fontes soltas de eixos diferentes.
+
+### Censo
+
+- **Anexar tabelas do Censo aos setores censitários (censobr)** — esta aba só
+  **habilita** quando *Setores censitarios (IBGE/geobr)* está marcada na aba
+  *Fontes de dados*; enquanto não estiver, ela fica cinza e a dica da aba diz o
+  porquê. Habilitada, ela traz o ano do censo e as tabelas a anexar — o passo a
+  passo está no [guia dos dados do Censo](censo.md).
+
+### Salvar
+
+- **GeoPackage de destino** — o botão `...` abre o seletor de arquivo. Se você
+  digitar um caminho sem a extensão, o plugin acrescenta `.gpkg`. Aponte sempre
+  para o **mesmo** GeoPackage do município: ele é o acervo do diagnóstico, e é
+  o que permite ao plugin pular o que já foi baixado.
+- **Pasta de downloads manuais** — só importa para as fontes que exigem login
+  gov.br (hoje, o INCRA/SIGEF). O padrão é a pasta *Downloads* do sistema. Veja
+  o [guia do SIGEF](sigef.md).
+- **Adicionar imagem de satélite ao fundo** *(opcional)* — acrescenta o mosaico
+  Esri World Imagery **como último item** da árvore de camadas, ou seja, ao
+  fundo, sem cobrir o que foi baixado.
+- **Atualizar bases já baixadas (rebaixar)** *(opcional)* — força o rebaixamento
+  das fontes que já existem no GeoPackage. Deixe **desmarcado** no uso normal.
+
+### Log
+
+- **Log de Execução** — o painel **pula sozinho para esta aba** assim que a carga
+  começa. É aqui que aparece o município resolvido e, ao final, três listas:
+  `OK`, `FALHOU` e `PULOU`, cada uma com o `id` da fonte e o motivo.
+
+Com as abas preenchidas, clique em **Carregar selecionadas**, no rodapé.
 
 ## O que esperar do resultado
 
@@ -69,10 +95,10 @@ janela do QGIS.
   (favelas, terras quilombolas, locais de votação) são puladas com aviso se não
   houver o driver GDAL Parquet nem o `pyarrow` —
   veja [Instalação](../instalacao.md#opcional-parquet-algoritmos-v2-e-join_censo).
-- **Setores censitários já com dados do Censo.** O grupo *Attach Census tables to
-  census tracts (censobr)*, abaixo da árvore de fontes, anexa as tabelas do
-  censobr à camada `geobr_setores` antes de gravá-la no GeoPackage — veja o
-  [guia dos dados do Censo](censo.md).
+- **Setores censitários já com dados do Censo.** A aba **Censo** — que só habilita
+  com *Setores censitarios (IBGE/geobr)* marcada na aba *Fontes de dados* — anexa
+  as tabelas do censobr à camada `geobr_setores` antes de gravá-la no GeoPackage
+  — veja o [guia dos dados do Censo](censo.md).
 - **CRS.** Tudo sai em **SIRGAS 2000 / EPSG:4674**. Para medir área ou distância,
   reprojete para o fuso UTM correspondente (em Belo Horizonte, EPSG:31983).
 
