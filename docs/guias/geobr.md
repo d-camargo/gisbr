@@ -1,6 +1,6 @@
 # Espelho geobr / censobr
 
-Além do painel de diagnóstico, o GisBR é um **Processing Provider** chamado
+Além do painel de diagnóstico, o GISBR é um **Processing Provider** chamado
 `gisbr`: ele traz para dentro da Caixa de Ferramentas de Processamento os
 mesmos conjuntos de dados que os pacotes **[geobr](https://github.com/ipeaGIT/geobr)**
 e **[censobr](https://github.com/ipeaGIT/censobr)** (IPEA) oferecem em R e
@@ -10,7 +10,7 @@ Console Python.
 
 ## Onde eles ficam
 
-Abra *Processar → Caixa de Ferramentas* e procure o provedor **GisBR**. Os
+Abra *Processar → Caixa de Ferramentas* e procure o provedor **GISBR**. Os
 algoritmos estão em três grupos:
 
 | Grupo | O que tem |

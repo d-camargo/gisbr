@@ -1,6 +1,6 @@
-# GisBR
+# GISBR
 
-**GisBR** brings official Brazilian spatial data into QGIS: it is both a
+**GISBR** brings official Brazilian spatial data into QGIS: it is both a
 **geobr/censobr mirror** (IPEA), offering "1 line → 1 layer" access to IBGE
 datasets as Processing algorithms, and a **municipal diagnostic panel** that,
 given a municipality, loads the official layers a city needs in order to draft or
@@ -43,5 +43,5 @@ There is no `pip install` to use the plugin — the single exception is optional
 
 </div>
 
-GisBR is free software under **GPL-3.0**. The code lives at
+GISBR is free software under **GPL-3.0**. The code lives at
 [github.com/d-camargo/gisbr](https://github.com/d-camargo/gisbr).

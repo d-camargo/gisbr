@@ -5,13 +5,14 @@
 É o caminho normal de uso. No QGIS:
 
 1. *Complementos → Gerenciar e Instalar Complementos…*
-2. Aba **Todos**, procure por **GisBR**.
+2. Aba **Todos**, procure por **GISBR**.
 3. Clique em **Instalar Complemento**.
 
-O plugin aparece então em dois lugares: o menu/barra de ferramentas **GisBR**
-— na barra, o **ícone do plugin** com o rótulo **GisBR** ao lado —, que abre o
-painel de [diagnóstico de Plano Diretor](guias/diagnostico.md), e a
-**Caixa de Ferramentas de Processamento**, no provedor *GisBR*, com os
+O plugin aparece então em dois lugares: o menu/barra de ferramentas **GISBR**
+— na barra, o **ícone do plugin** com o rótulo **GISBR** ao lado; no menu,
+*Complementos → GISBR → GISBR* —, que abre o painel de
+[diagnóstico de Plano Diretor](guias/diagnostico.md), e a
+**Caixa de Ferramentas de Processamento**, no provedor *GISBR*, com os
 algoritmos [`read_*` do espelho geobr](guias/geobr.md).
 
 ## Instalação de desenvolvimento (symlink)
@@ -44,7 +45,7 @@ Recarregue com o **Plugin Reloader** ou reinicie o QGIS, e ative o plugin em
 
 ### Opcional: Parquet (algoritmos v2 e `join_censo`)
 
-O GisBR **funciona sem isto**. Toda a Fase 1 (os 26 algoritmos `read_*` sobre
+O GISBR **funciona sem isto**. Toda a Fase 1 (os 26 algoritmos `read_*` sobre
 GeoPackage) e o painel de diagnóstico não dependem de Parquet.
 
 O suporte a Parquet só é necessário para os algoritmos `read_*_v2` (backend

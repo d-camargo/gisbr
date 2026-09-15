@@ -1,6 +1,6 @@
-# GisBR
+# GISBR
 
-O **GisBR** traz dados espaciais oficiais do Brasil para dentro do QGIS: ele é ao
+O **GISBR** traz dados espaciais oficiais do Brasil para dentro do QGIS: ele é ao
 mesmo tempo um **espelho do geobr/censobr** (IPEA), com acesso "1 linha → 1 camada"
 aos dados do IBGE como algoritmos de Processamento, e um **painel de diagnóstico
 municipal** que, dado um município, sobe as camadas oficiais necessárias para
@@ -43,5 +43,5 @@ dados saem em **SIRGAS 2000 / EPSG:4674**.
 
 </div>
 
-O GisBR é software livre sob **GPL-3.0**. O código vive em
+O GISBR é software livre sob **GPL-3.0**. O código vive em
 [github.com/d-camargo/gisbr](https://github.com/d-camargo/gisbr).

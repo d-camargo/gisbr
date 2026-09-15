@@ -17,10 +17,6 @@ class GeobrPlugin:
         self.provider = GeobrProvider()
         QgsApplication.processingRegistry().addProvider(self.provider)
 
-    def tr(self, s):
-        from qgis.PyQt.QtCore import QCoreApplication
-        return QCoreApplication.translate("GeobrPlugin", s)
-
     def initGui(self):
         self.initProcessing()
         try:
@@ -33,11 +29,10 @@ class GeobrPlugin:
         self.dock = DiagnosticoDock(self.iface)
         self.iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
         self.dock.hide()
-        self.action = QAction(plugin_icon(), self.tr("Master Plan Diagnostic (GisBR)"), self.iface.mainWindow())
-        self.action.setIconText("GisBR")
+        self.action = QAction(plugin_icon(), "GISBR", self.iface.mainWindow())
         self.action.setCheckable(True)
         self.action.triggered.connect(self.dock.setUserVisible)
-        self.iface.addPluginToMenu("GisBR", self.action)
+        self.iface.addPluginToMenu("GISBR", self.action)
         self.iface.addToolBarIcon(self.action)
         barra = getattr(self.iface, "pluginToolBar", None)
         if barra is not None:
@@ -52,7 +47,7 @@ class GeobrPlugin:
                 QgsApplication.processingRegistry().removeProvider(self.provider)
             self.provider = None
         if getattr(self, "action", None) is not None:
-            self.iface.removePluginMenu("GisBR", self.action)
+            self.iface.removePluginMenu("GISBR", self.action)
             self.iface.removeToolBarIcon(self.action)
             self.action = None
         if getattr(self, "dock", None) is not None:

@@ -41,18 +41,16 @@ def test_geobr_provider_icon_valido(qgis_app):
 def test_action_rotulos(qgis_app):
     if qgis_app is None:
         pytest.skip("qgis app não disponível")
-    action = QAction(plugin_icon(), "Master Plan Diagnostic (GisBR)")
-    action.setIconText("GisBR")
-    assert action.iconText() == "GisBR"
-    assert action.text() == "Master Plan Diagnostic (GisBR)"
-    assert action.toolTip() == "Master Plan Diagnostic (GisBR)"
+    action = QAction(plugin_icon(), "GISBR")
+    assert action.iconText() == "GISBR"
+    assert action.text() == "GISBR"
+    assert action.toolTip() == "GISBR"
 
 
 def test_toolbar_button_style_override(qgis_app):
     if qgis_app is None:
         pytest.skip("qgis app não disponível")
-    action = QAction(plugin_icon(), "Master Plan Diagnostic (GisBR)")
-    action.setIconText("GisBR")
+    action = QAction(plugin_icon(), "GISBR")
     toolbar = QToolBar()
     toolbar.addAction(action)
     button = toolbar.widgetForAction(action)
@@ -60,3 +58,12 @@ def test_toolbar_button_style_override(qgis_app):
     button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
     assert button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonTextBesideIcon
     assert toolbar.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly
+
+
+def test_geobr_provider_id_e_nome(qgis_app):
+    if qgis_app is None:
+        pytest.skip("qgis app não disponível")
+    provider = GeobrProvider()
+    assert provider.name() == "GISBR"
+    assert provider.id() == "gisbr"
+

@@ -1,6 +1,6 @@
 # Rede, SSL e Certificados
 
-O **GisBR** conecta-se a diversos serviços geográficos e repositórios oficiais na nuvem (IPEA, IBGE, ANA, IBAMA, Overpass/OSM, GeoServers federais e estaduais) para carregar malhas territoriais e camadas temáticas de diagnóstico municipal. Esta página documenta como o plugin executa requisições de rede, lida com a cadeia de certificados SSL/TLS, gerencia *mirrors* e cache local, e lida com eventuais falhas de conexão.
+O **GISBR** conecta-se a diversos serviços geográficos e repositórios oficiais na nuvem (IPEA, IBGE, ANA, IBAMA, Overpass/OSM, GeoServers federais e estaduais) para carregar malhas territoriais e camadas temáticas de diagnóstico municipal. Esta página documenta como o plugin executa requisições de rede, lida com a cadeia de certificados SSL/TLS, gerencia *mirrors* e cache local, e lida com eventuais falhas de conexão.
 
 ---
 
@@ -11,7 +11,7 @@ O **GisBR** conecta-se a diversos serviços geográficos e repositórios oficiai
   - Proxies corporativos (HTTP, SOCKS5);
   - Configurações de timeout e reutilização de conexões (*Keep-Alive*);
   - Identificação via cabeçalho *User-Agent* customizado (ex.: `geobr-qgis/0.1`).
-- **Verificação estrita de SSL (sem atalhos inseguros)**: O GisBR **nunca** desativa a verificação de certificados SSL (não altera `PeerVerifyMode` para ignorar erros nem aceita certificados inválidos). Problemas de SSL em plataformas como o Windows são corrigidos exclusivamente fornecendo as Autoridades Certificadoras (CAs) confiáveis necessárias.
+- **Verificação estrita de SSL (sem atalhos inseguros)**: O GISBR **nunca** desativa a verificação de certificados SSL (não altera `PeerVerifyMode` para ignorar erros nem aceita certificados inválidos). Problemas de SSL em plataformas como o Windows são corrigidos exclusivamente fornecendo as Autoridades Certificadoras (CAs) confiáveis necessárias.
 
 ---
 
@@ -34,9 +34,9 @@ A cadeia de certificados entregue pelo servidor do IPEA é composta por:
 
 Embora o servidor envie os certificados intermediários, o *store* de CAs empacotado na instalação do Qt/OSGeo4W nem sempre possui a CA intermediária ou a CA raiz no repositório de confiança padrão.
 
-### Solução implementada no GisBR (`gisbr/core/ssl_support.py`)
+### Solução implementada no GISBR (`gisbr/core/ssl_support.py`)
 
-Em vez de desabilitar a checagem de SSL, o GisBR resolve o problema de forma segura através da **injeção aditiva de CAs**:
+Em vez de desabilitar a checagem de SSL, o GISBR resolve o problema de forma segura através da **injeção aditiva de CAs**:
 
 1. **Certificados empacotados**: Os certificados das CAs necessárias são armazenados em arquivos `.pem` na pasta `gisbr/core/certs/`.
 2. **Carregamento aditivo (`configure_request`)**: O módulo `gisbr/core/ssl_support.py` varre a pasta de certificados e injeta as CAs na requisição (`QNetworkRequest`), preservando as CAs do sistema operacional (`QSslConfiguration.systemCaCertificates()`).
@@ -48,7 +48,7 @@ Em vez de desabilitar a checagem de SSL, o GisBR resolve o problema de forma seg
 
 ### Downloads de dados (geobr e censobr)
 
-Para garantir alta disponibilidade e resiliência contra indisponibilidades temporárias no IPEA, o GisBR implementa uma **cadeia de mirrors com fallback automático**:
+Para garantir alta disponibilidade e resiliência contra indisponibilidades temporárias no IPEA, o GISBR implementa uma **cadeia de mirrors com fallback automático**:
 
 - **Dados v1 (GeoPackage)**:
   1. **Primário**: `http://www.ipea.gov.br/geobr/...`
@@ -70,7 +70,7 @@ Caso o servidor primário retorne erro de rede ou código HTTP $\ge 400$, o down
 
 ## 4. Comportamento de rede por conector
 
-Cada protocolo utilizado pelo GisBR no Diagnóstico Municipal gerencia sua própria comunicação de rede:
+Cada protocolo utilizado pelo GISBR no Diagnóstico Municipal gerencia sua própria comunicação de rede:
 
 | Protocolo | Mecanismo | Comportamento e Resiliência |
 |---|---|---|

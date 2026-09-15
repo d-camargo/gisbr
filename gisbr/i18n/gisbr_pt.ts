@@ -335,7 +335,7 @@
     <message>
         <location filename="../gui/diagnostico_dock.py" line="274"/>
         <source>Select &apos;Setores censitarios (IBGE/geobr)&apos; in the Sources tab to enable the Census options.</source>
-        <translation>Marque &apos;Setores censitarios (IBGE/geobr)&apos; na aba Fontes de dados para habilitar as opções do Censo.</translation>
+        <translation>Marque 'Setores censitarios (IBGE/geobr)' na aba Fontes de dados para habilitar as opções do Censo.</translation>
     </message>
     <message>
         <location filename="../gui/diagnostico_dock.py" line="354"/>
@@ -345,7 +345,7 @@
     <message>
         <location filename="../gui/diagnostico_dock.py" line="455"/>
         <source>Notice: the Census option only applies to census tracts (&apos;geobr_setores&apos;).</source>
-        <translation>Aviso: a opção do Censo só se aplica a setores censitários (&apos;geobr_setores&apos;).</translation>
+        <translation>Aviso: a opção do Censo só se aplica a setores censitários ('geobr_setores').</translation>
     </message>
 </context>
 <context>
@@ -397,19 +397,11 @@
     </message>
 </context>
 <context>
-    <name>GeobrPlugin</name>
-    <message>
-        <location filename="../geobr_qgis_plugin.py" line="35"/>
-        <source>Master Plan Diagnostic (GisBR)</source>
-        <translation>Diagnóstico Plano Diretor (GisBR)</translation>
-    </message>
-</context>
-<context>
     <name>GeobrProvider</name>
     <message>
-        <location filename="../provider.py" line="24"/>
-        <source>GisBR — official Brazilian spatial data (IBGE/IPEA)</source>
-        <translation>GisBR — dados espaciais oficiais do Brasil (IBGE/IPEA)</translation>
+        <location filename="../provider.py" line="23"/>
+        <source>GISBR — official Brazilian spatial data (IBGE/IPEA)</source>
+        <translation>GISBR — dados espaciais oficiais do Brasil (IBGE/IPEA)</translation>
     </message>
 </context>
 <context>
@@ -518,11 +510,6 @@
         <location filename="../algorithms/base_read_algorithm.py" line="82"/>
         <source>Favelas and urban communities (IBGE 2022). v2 only.</source>
         <translation>Favelas e comunidades urbanas (IBGE 2022). Só-v2.</translation>
-    </message>
-    <message>
-        <location filename="../gui/diagnostico_dock.py" line="64"/>
-        <source>GisBR — Diagnostic</source>
-        <translation>GisBR — Diagnóstico</translation>
     </message>
     <message>
         <location filename="../algorithms/base_read_algorithm.py" line="47"/>

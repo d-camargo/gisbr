@@ -2,12 +2,12 @@
 
 Algumas bases oficiais **não têm endpoint público**: só existem por download
 manual, feito por uma pessoa logada com a própria conta gov.br. É o caso das
-**parcelas certificadas do SIGEF/INCRA**. Para essas, o GisBR usa o protocolo
+**parcelas certificadas do SIGEF/INCRA**. Para essas, o GISBR usa o protocolo
 **`arquivo`**: você baixa o arquivo no navegador, aponta a pasta onde ele caiu, e
 o plugin trata a base como qualquer outra fonte do painel — recorte pelo
 polígono do município, GeoPackage, camada no projeto.
 
-!!! warning "O GisBR não pede, não guarda e não manipula credencial gov.br"
+!!! warning "O GISBR não pede, não guarda e não manipula credencial gov.br"
     O plugin nunca abre tela de login, nunca armazena usuário, senha ou token, e
     nunca envia credencial a lugar nenhum. A autenticação acontece **fora do
     QGIS**, no seu navegador, e o plugin só enxerga o arquivo que você já baixou.

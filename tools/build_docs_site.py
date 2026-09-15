@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Gera as páginas derivadas do site de documentação do GisBR.
+"""Gera as páginas derivadas do site de documentação do GISBR.
 
 Três páginas saem do CÓDIGO, nunca digitadas (decisão D3 do plano da rodada 9):
 
@@ -288,7 +288,7 @@ def main(argv=None):
     raiz_padrao = Path(__file__).resolve().parent.parent
     parser = argparse.ArgumentParser(
         description="Gera as páginas derivadas do site de documentação "
-                    "do GisBR (fontes, algoritmos, changelog).")
+                    "do GISBR (fontes, algoritmos, changelog).")
     parser.add_argument("-d", "--destino", default=None,
                         help="diretório destino (padrão: <raiz>/docs)")
     args = parser.parse_args(argv)

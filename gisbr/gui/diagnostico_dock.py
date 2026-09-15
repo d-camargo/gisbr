@@ -61,7 +61,7 @@ TAB_LOCAL, TAB_FONTES, TAB_CENSO, TAB_SALVAR, TAB_LOG = 0, 1, 2, 3, 4
 
 class DiagnosticoDock(QgsDockWidget):
     def __init__(self, iface, parent=None):
-        super().__init__(QCoreApplication.translate("GisBR", "GisBR — Diagnostic"), parent)
+        super().__init__("GISBR", parent)
         self.iface = iface
         self._munis = {}
         self._build_ui()

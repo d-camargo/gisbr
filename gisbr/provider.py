@@ -17,10 +17,10 @@ class GeobrProvider(QgsProcessingProvider):
         return "gisbr"
 
     def name(self):
-        return "GisBR"
+        return "GISBR"
 
     def longName(self):
-        return self.tr("GisBR — official Brazilian spatial data (IBGE/IPEA)")
+        return self.tr("GISBR — official Brazilian spatial data (IBGE/IPEA)")
 
     def icon(self):
         path = icon_path()

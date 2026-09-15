@@ -5,13 +5,14 @@
 This is the normal path. In QGIS:
 
 1. *Plugins → Manage and Install Plugins…*
-2. **All** tab, search for **GisBR**.
+2. **All** tab, search for **GISBR**.
 3. Click **Install Plugin**.
 
-The plugin then shows up in two places: the **GisBR** menu/toolbar — on the
-toolbar it is the **plugin icon** with the **GisBR** label beside it —, which
-opens the [Master Plan diagnostic panel](guias/diagnostico.md), and the
-**Processing Toolbox**, under the *GisBR* provider, with the
+The plugin then shows up in two places: the **GISBR** menu/toolbar — on the
+toolbar it is the **plugin icon** with the **GISBR** label beside it; in the
+menu, *Plugins → GISBR → GISBR* —, which opens the
+[Master Plan diagnostic panel](guias/diagnostico.md), and the
+**Processing Toolbox**, under the *GISBR* provider, with the
 [`read_*` geobr mirror algorithms](guias/geobr.md).
 
 ## Development install (symlink)
@@ -44,7 +45,7 @@ Reload with the **Plugin Reloader** or restart QGIS, then enable the plugin in
 
 ### Optional: Parquet (v2 algorithms and `join_censo`)
 
-GisBR **works without it**. All of Phase 1 (the 26 GeoPackage-based `read_*`
+GISBR **works without it**. All of Phase 1 (the 26 GeoPackage-based `read_*`
 algorithms) and the diagnostic panel do not depend on Parquet.
 
 Parquet support is only needed for the `read_*_v2` algorithms (the geobr v2.0.0

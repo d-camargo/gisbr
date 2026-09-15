@@ -1,6 +1,6 @@
 # Diagnóstico de Plano Diretor
 
-O painel de diagnóstico é a porta principal do GisBR: você escolhe **um
+O painel de diagnóstico é a porta principal do GISBR: você escolhe **um
 município**, marca as camadas oficiais que interessam e o plugin baixa cada uma
 já **filtrada e recortada por aquele município**, grava tudo num **GeoPackage** e
 adiciona as camadas ao projeto. É o atalho para montar a base cartográfica de
@@ -8,10 +8,11 @@ elaboração ou revisão de um Plano Diretor sem sair do QGIS.
 
 ## Abrir o painel
 
-Na barra de ferramentas, clique no botão do plugin — o **ícone do GisBR** com
-o rótulo **GisBR** ao lado. Pelo menu, o caminho segue com o nome completo:
-*Complementos → GisBR → Diagnóstico Plano Diretor (GisBR)*. O painel abre
-encaixado à direita da janela do QGIS.
+Na barra de ferramentas, clique no botão do plugin — o **ícone do GISBR** com
+o rótulo **GISBR** escrito ao lado. Pelo menu, o caminho é *Complementos →
+GISBR → GISBR*: o submenu e o item repetem o nome porque o plugin tem **um
+único ponto de entrada**, que é este painel. Ele abre encaixado à direita da
+janela do QGIS, com o título **GISBR**.
 
 ## Passo a passo
 

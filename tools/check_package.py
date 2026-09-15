@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # coding=utf-8
-"""Script de verificação do pacote ZIP de plugin QGIS (GisBR).
+"""Script de verificação do pacote ZIP de plugin QGIS (GISBR).
 
 Uso:
     python3 tools/check_package.py <caminho_para_pacote.zip>

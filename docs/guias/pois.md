@@ -11,7 +11,7 @@ Marque a fonte, escolha o município e clique em **Carregar selecionadas**.
 ## O que conta como POI
 
 O predicado é o do **osm2gmns** — a ferramenta que gera entradas para o modelo
-de transporte grid2demand —, copiado **verbatim** para que a saída do GisBR
+de transporte grid2demand —, copiado **verbatim** para que a saída do GISBR
 seja compatível (*drop-in*) com o que aquela ferramenta produz. É POI todo
 elemento com tag `building` **ou** `amenity`, mais os elementos com tag de via
 nos conjuntos abaixo:
@@ -32,7 +32,7 @@ oficial**. Trate-o como inventário de partida, não como cadastro municipal.
 
 ### Divergência declarada em relação ao osm2gmns
 
-O osm2gmns ignora nós soltos (só processa way/relation). O GisBR **inclui nós
+O osm2gmns ignora nós soltos (só processa way/relation). O GISBR **inclui nós
 com POI** — um `amenity=school` mapeado como ponto entra como feição, com
 `area = 0` e `osm_type = "node"`. Quem quiser reproduzir exatamente o
 comportamento do osm2gmns filtra a camada com `"osm_type" != 'node'`.
@@ -109,7 +109,7 @@ inteira da caixa envolvente do município — e pode levar minutos.
 
 ## Usar com o grid2demand
 
-O algoritmo **`gisbr:export_poi_gmns`** (Caixa de Ferramentas → *GisBR →
+O algoritmo **`gisbr:export_poi_gmns`** (Caixa de Ferramentas → *GISBR →
 Diagnóstico → Export POIs to GMNS / grid2demand poi.csv*) exporta a camada
 `osm_pois_*` para um `poi.csv` com o cabeçalho **exato** do osm2gmns:
 
@@ -128,14 +128,14 @@ processing.run("gisbr:export_poi_gmns", {
 })
 ```
 
-!!! warning "O GisBR entrega o `poi.csv` — o resto do fluxo é com você"
+!!! warning "O GISBR entrega o `poi.csv` — o resto do fluxo é com você"
     Com apenas o `poi.csv`, o grid2demand também espera `node.csv`/`link.csv`
     da rede — que a fonte `osm_vias` mais um export de rede **ainda não gera
-    automaticamente**. O GisBR entrega o `poi.csv`; o restante do fluxo do
+    automaticamente**. O GISBR entrega o `poi.csv`; o restante do fluxo do
     grid2demand (zonas em grade, taxas de viagem do ITE, produção/atração,
     modelo gravitacional, `agent.csv`) está **fora do plugin**.
 
-## O que o GisBR não faz
+## O que o GISBR não faz
 
 Para não haver dúvida sobre o escopo:
 
