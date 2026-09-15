@@ -29,14 +29,21 @@ class GeobrPlugin:
             from qgis.PyQt.QtWidgets import QAction
         from qgis.PyQt.QtCore import Qt
         from .gui.diagnostico_dock import DiagnosticoDock
+        from .plugin_icon import plugin_icon
         self.dock = DiagnosticoDock(self.iface)
         self.iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock)
         self.dock.hide()
-        self.action = QAction(self.tr("Master Plan Diagnostic (GisBR)"), self.iface.mainWindow())
+        self.action = QAction(plugin_icon(), self.tr("Master Plan Diagnostic (GisBR)"), self.iface.mainWindow())
+        self.action.setIconText("GisBR")
         self.action.setCheckable(True)
         self.action.triggered.connect(self.dock.setUserVisible)
         self.iface.addPluginToMenu("GisBR", self.action)
         self.iface.addToolBarIcon(self.action)
+        barra = getattr(self.iface, "pluginToolBar", None)
+        if barra is not None:
+            botao = barra().widgetForAction(self.action)
+            if botao is not None:
+                botao.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
 
     def unload(self):
         if self.provider is not None:

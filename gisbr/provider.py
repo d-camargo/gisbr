@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 """GeobrProvider: registra os algoritmos read_* na Caixa de Ferramentas."""
 
-import os
-
 from qgis.core import QgsProcessingProvider
 from qgis.PyQt.QtGui import QIcon
 
 from .algorithms import ALGORITHMS
+from .plugin_icon import icon_path
 
 
 class GeobrProvider(QgsProcessingProvider):
@@ -24,9 +23,5 @@ class GeobrProvider(QgsProcessingProvider):
         return self.tr("GisBR — official Brazilian spatial data (IBGE/IPEA)")
 
     def icon(self):
-        here = os.path.dirname(__file__)
-        for name in ("icon.svg", "icon.png"):  # SVG nitido em qualquer DPI
-            path = os.path.join(here, name)
-            if os.path.exists(path):
-                return QIcon(path)
-        return QgsProcessingProvider.icon(self)
+        path = icon_path()
+        return QIcon(path) if path else QgsProcessingProvider.icon(self)

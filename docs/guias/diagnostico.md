@@ -8,9 +8,10 @@ elaboração ou revisão de um Plano Diretor sem sair do QGIS.
 
 ## Abrir o painel
 
-Clique no botão **GisBR** na barra de ferramentas, ou vá em *Complementos →
-GisBR → Diagnóstico Plano Diretor (GisBR)*. O painel abre encaixado à direita da
-janela do QGIS.
+Na barra de ferramentas, clique no botão do plugin — o **ícone do GisBR** com
+o rótulo **GisBR** ao lado. Pelo menu, o caminho segue com o nome completo:
+*Complementos → GisBR → Diagnóstico Plano Diretor (GisBR)*. O painel abre
+encaixado à direita da janela do QGIS.
 
 ## Passo a passo
 

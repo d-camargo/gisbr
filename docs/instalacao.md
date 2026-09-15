@@ -8,8 +8,9 @@
 2. Aba **Todos**, procure por **GisBR**.
 3. Clique em **Instalar Complemento**.
 
-O plugin aparece então em dois lugares: o menu/barra de ferramentas **GisBR**,
-que abre o painel de [diagnóstico de Plano Diretor](guias/diagnostico.md), e a
+O plugin aparece então em dois lugares: o menu/barra de ferramentas **GisBR**
+— na barra, o **ícone do plugin** com o rótulo **GisBR** ao lado —, que abre o
+painel de [diagnóstico de Plano Diretor](guias/diagnostico.md), e a
 **Caixa de Ferramentas de Processamento**, no provedor *GisBR*, com os
 algoritmos [`read_*` do espelho geobr](guias/geobr.md).
 

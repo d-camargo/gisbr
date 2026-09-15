@@ -8,9 +8,10 @@ This is the normal path. In QGIS:
 2. **All** tab, search for **GisBR**.
 3. Click **Install Plugin**.
 
-The plugin then shows up in two places: the **GisBR** menu/toolbar, which opens
-the [Master Plan diagnostic panel](guias/diagnostico.md), and the **Processing
-Toolbox**, under the *GisBR* provider, with the
+The plugin then shows up in two places: the **GisBR** menu/toolbar — on the
+toolbar it is the **plugin icon** with the **GisBR** label beside it —, which
+opens the [Master Plan diagnostic panel](guias/diagnostico.md), and the
+**Processing Toolbox**, under the *GisBR* provider, with the
 [`read_*` geobr mirror algorithms](guias/geobr.md).
 
 ## Development install (symlink)
