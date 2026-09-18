@@ -37,6 +37,7 @@ EIXOS = {
     "saude": (6, "Saúde", "Health"),
     "urbano": (7, "Urbano", "Urban"),
     "pol-admin": (8, "Político-administrativo", "Administrative"),
+    "agropecuaria": (9, "Agropecuária", "Agriculture & Livestock"),
     # contexto: fora da contagem de eixos, como no painel
     "contexto": (None, "Contexto", "Context"),
 }

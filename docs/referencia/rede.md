@@ -42,6 +42,27 @@ Em vez de desabilitar a checagem de SSL, o GISBR resolve o problema de forma seg
 2. **Carregamento aditivo (`configure_request`)**: O módulo `gisbr/core/ssl_support.py` varre a pasta de certificados e injeta as CAs na requisição (`QNetworkRequest`), preservando as CAs do sistema operacional (`QSslConfiguration.systemCaCertificates()`).
 3. **Configuração global (`install_default_ca_certificates`)**: Registra as CAs na configuração SSL padrão do processo (`QSslConfiguration.setDefaultConfiguration`), permitindo que requisições sem `QNetworkRequest` explícita (como as camadas de Basemap XYZ do Esri World Imagery) também funcionem perfeitamente.
 
+### Cobertura de CAs e varredura TLS (`tools/check_sources_tls.py`)
+
+O script `tools/check_sources_tls.py` valida se todas as autoridades certificadoras raiz (CAs) necessárias pelos domínios do catálogo `SOURCES` e conectores externos estão presentes em `gisbr/core/certs/*.pem`.
+
+Resultado da varredura de cobertura TLS sobre os domínios do projeto:
+
+| Host / Domínio | Âncora TLS Resolvida | Status |
+|---|---|---|
+| `geo.anm.gov.br` | `USERTrust RSA Certification Authority` | OK |
+| `geoserver.car.gov.br` | `Sectigo Public Server Authentication Root R46` | OK |
+| `geoserver.meioambiente.mg.gov.br` | `ISRG Root X1` | OK |
+| `geoservicos.ibge.gov.br` | `GlobalSign Root CA` | OK |
+| `geoservicos.inde.gov.br` | `Sectigo Public Server Authentication Root R46` | OK |
+| `opendata.sgb.gov.br` | `GlobalSign Root R46` | OK |
+| `overpass-api.de` / mirrors | `ISRG Root X1` | OK |
+| `pamgia.ibama.gov.br` | `ISRG Root X1` | OK |
+| `storage.googleapis.com` | `GlobalSign Root CA` | OK |
+| `www.snirh.gov.br` | `USERTrust RSA Certification Authority` | OK |
+
+> **Nota:** O certificado `GlobalSign Root CA` foi acrescentado em `gisbr/core/certs/ca_roots.pem` para cobrir o download de arquivos Parquet via Google Cloud Storage (`storage.googleapis.com`) e os geosserviços do IBGE (`geoservicos.ibge.gov.br`).
+
 ---
 
 ## 3. Cadeia de mirrors e cache local

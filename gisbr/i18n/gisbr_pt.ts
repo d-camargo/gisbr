@@ -156,194 +156,207 @@
     </message>
 </context>
 <context>
+    <name>Catalog</name>
+    <message>
+        <location filename="../core/catalog.py" line="51"/>
+        <source>Could not remove the cached metadata file {path}: {error}</source>
+        <translation>Não foi possível remover o arquivo de metadados em cache {path}: {error}</translation>
+    </message>
+    <message>
+        <location filename="../core/catalog.py" line="66"/>
+        <source>Offline metadata copy used as fallback. Data might be outdated. (Error: {error})</source>
+        <translation>Cópia offline dos metadados utilizada como alternativa. Os dados podem estar desatualizados. (Erro: {error})</translation>
+    </message>
+</context>
+<context>
     <name>DiagnosticoDock</name>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="215"/>
+        <location filename="../gui/diagnostico_dock.py" line="226"/>
         <source>Add satellite basemap</source>
         <translation>Adicionar imagem de satélite ao fundo</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="137"/>
+        <location filename="../gui/diagnostico_dock.py" line="140"/>
         <source>Axes and layers</source>
         <translation>Eixos e Camadas</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="135"/>
+        <location filename="../gui/diagnostico_dock.py" line="138"/>
         <source>Data sources:</source>
         <translation>Fontes de Dados:</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="124"/>
+        <location filename="../gui/diagnostico_dock.py" line="127"/>
         <source>Ex: 3106200</source>
         <translation>Ex: 3106200</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="230"/>
+        <location filename="../gui/diagnostico_dock.py" line="241"/>
         <source>Execution log:</source>
         <translation>Log de Execução:</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="477"/>
+        <location filename="../gui/diagnostico_dock.py" line="530"/>
         <source>FAILED {id}: {error}</source>
         <translation>FALHOU {id}: {error}</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="312"/>
+        <location filename="../gui/diagnostico_dock.py" line="361"/>
         <source>Failed to list municipalities: {error}</source>
         <translation>Falha ao listar municípios: {error}</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="466"/>
+        <location filename="../gui/diagnostico_dock.py" line="518"/>
         <source>Failed to resolve municipality: {error}</source>
         <translation>Falha ao resolver o município: {error}</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="191"/>
+        <location filename="../gui/diagnostico_dock.py" line="202"/>
         <source>GeoPackage destination:</source>
         <translation>GeoPackage de destino:</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="122"/>
+        <location filename="../gui/diagnostico_dock.py" line="125"/>
         <source>IBGE code (optional / filled by selection):</source>
         <translation>Código IBGE (opcional / preenchido pela seleção):</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="85"/>
+        <location filename="../gui/diagnostico_dock.py" line="86"/>
         <source>Load selected</source>
         <translation>Carregar selecionadas</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="308"/>
+        <location filename="../gui/diagnostico_dock.py" line="357"/>
         <source>Loading municipalities of {uf}...</source>
         <translation>Carregando municípios de {uf}...</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="339"/>
+        <location filename="../gui/diagnostico_dock.py" line="388"/>
         <source>Municipality {code} not found in geobr.</source>
         <translation>Município {code} não encontrado no geobr.</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="110"/>
+        <location filename="../gui/diagnostico_dock.py" line="113"/>
         <source>Municipality:</source>
         <translation>Município:</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="468"/>
+        <location filename="../gui/diagnostico_dock.py" line="520"/>
         <source>Municipality: {name} ({code})</source>
         <translation>Município: {name} ({code})</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="475"/>
+        <location filename="../gui/diagnostico_dock.py" line="528"/>
         <source>OK: {layers}</source>
         <translation>OK: {layers}</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="194"/>
+        <location filename="../gui/diagnostico_dock.py" line="205"/>
         <source>Path to .gpkg file</source>
         <translation>Caminho para arquivo .gpkg</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="479"/>
+        <location filename="../gui/diagnostico_dock.py" line="532"/>
         <source>SKIPPED {id}: {reason}</source>
         <translation>PULOU {id}: {reason}</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="238"/>
+        <location filename="../gui/diagnostico_dock.py" line="249"/>
         <source>Select GeoPackage</source>
         <translation>Selecionar GeoPackage</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="449"/>
+        <location filename="../gui/diagnostico_dock.py" line="498"/>
         <source>Specify municipality, GeoPackage and at least 1 source.</source>
         <translation>Informe município, GeoPackage e ao menos 1 fonte.</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="101"/>
+        <location filename="../gui/diagnostico_dock.py" line="104"/>
         <source>State:</source>
         <translation>Estado (UF):</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="218"/>
+        <location filename="../gui/diagnostico_dock.py" line="229"/>
         <source>Update already-downloaded layers (re-download)</source>
         <translation>Atualizar bases já baixadas (rebaixar)</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="319"/>
+        <location filename="../gui/diagnostico_dock.py" line="368"/>
         <source>{count} municipalities loaded.</source>
         <translation>{count} municípios carregados.</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="103"/>
+        <location filename="../gui/diagnostico_dock.py" line="106"/>
         <source>— select —</source>
         <translation>— selecione —</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="202"/>
+        <location filename="../gui/diagnostico_dock.py" line="213"/>
         <source>Manual downloads folder:</source>
         <translation>Pasta de downloads manuais:</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="207"/>
+        <location filename="../gui/diagnostico_dock.py" line="218"/>
         <source>Path to manual downloads folder (optional)</source>
         <translation>Caminho para a pasta de downloads manuais (opcional)</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="247"/>
+        <location filename="../gui/diagnostico_dock.py" line="258"/>
         <source>Select Manual Downloads Folder</source>
         <translation>Selecionar Pasta de Downloads Manuais</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="76"/>
+        <location filename="../gui/diagnostico_dock.py" line="77"/>
         <source>Location</source>
         <translation>Localização</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="77"/>
+        <location filename="../gui/diagnostico_dock.py" line="78"/>
         <source>Sources</source>
         <translation>Fontes de dados</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="78"/>
+        <location filename="../gui/diagnostico_dock.py" line="79"/>
         <source>Census</source>
         <translation>Censo</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="79"/>
+        <location filename="../gui/diagnostico_dock.py" line="80"/>
         <source>Output</source>
         <translation>Salvar</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="80"/>
+        <location filename="../gui/diagnostico_dock.py" line="81"/>
         <source>Log</source>
         <translation>Log</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="169"/>
+        <location filename="../gui/diagnostico_dock.py" line="180"/>
         <source>Attach Census tables to census tracts (censobr)</source>
         <translation>Anexar tabelas do Censo aos setores censitários (censobr)</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="174"/>
+        <location filename="../gui/diagnostico_dock.py" line="185"/>
         <source>Census year:</source>
         <translation>Ano do Censo:</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="178"/>
+        <location filename="../gui/diagnostico_dock.py" line="189"/>
         <source>Tables / Datasets:</source>
         <translation>Tabelas / Conjuntos:</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="274"/>
+        <location filename="../gui/diagnostico_dock.py" line="285"/>
         <source>Select &apos;Setores censitarios (IBGE/geobr)&apos; in the Sources tab to enable the Census options.</source>
         <translation>Marque 'Setores censitarios (IBGE/geobr)' na aba Fontes de dados para habilitar as opções do Censo.</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="354"/>
+        <location filename="../gui/diagnostico_dock.py" line="403"/>
         <source>Failed to load censobr catalog ({error}); using fallback datasets.</source>
         <translation>Falha ao carregar catálogo do censobr ({error}); usando conjuntos de dados de fallback.</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="455"/>
+        <location filename="../gui/diagnostico_dock.py" line="504"/>
         <source>Notice: the Census option only applies to census tracts (&apos;geobr_setores&apos;).</source>
         <translation>Aviso: a opção do Censo só se aplica a setores censitários ('geobr_setores').</translation>
     </message>
@@ -727,14 +740,34 @@
         <translation>Áreas de ponderação do Censo.</translation>
     </message>
     <message>
-        <location filename="../core/diagnostico.py" line="164"/>
+        <location filename="../core/diagnostico.py" line="167"/>
         <source>file not found in the manual downloads folder ({folder}); this dataset requires a gov.br login, so download it from {url} and save it in that folder</source>
         <translation>arquivo não encontrado na pasta de downloads manuais ({folder}); este conjunto de dados requer login no gov.br, portanto baixe-o de {url} e salve-o nessa pasta</translation>
     </message>
     <message>
-        <location filename="../core/diagnostico.py" line="170"/>
+        <location filename="../core/diagnostico.py" line="173"/>
         <source>file not found in the manual downloads folder ({folder}); download the dataset from its official portal and save it in that folder</source>
         <translation>arquivo não encontrado na pasta de downloads manuais ({folder}); baixe o conjunto de dados do seu portal oficial e salve-o nessa pasta</translation>
+    </message>
+    <message>
+        <location filename="../gui/diagnostico_dock.py" line="45"/>
+        <source>9. Agriculture &amp; Livestock</source>
+        <translation>9. Agropecuária</translation>
+    </message>
+    <message>
+        <location filename="../gui/diagnostico_dock.py" line="166"/>
+        <source>MapBiomas year:</source>
+        <translation>Ano do MapBiomas:</translation>
+    </message>
+    <message>
+        <location filename="../core/diagnostico.py" line="188"/>
+        <source>source unavailable ({reason}); see official portal at {url}</source>
+        <translation>fonte indisponível ({reason}); veja o portal oficial em {url}</translation>
+    </message>
+    <message>
+        <location filename="../core/diagnostico.py" line="192"/>
+        <source>source unavailable ({reason})</source>
+        <translation>fonte indisponível ({reason})</translation>
     </message>
 </context>
 <context>

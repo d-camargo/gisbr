@@ -92,3 +92,29 @@ def test_log_focar(dock):
     dock._log("oi", focar=True)
     assert "oi" in dock.txt_log.toPlainText()
     assert dock.tabs.currentIndex() == TAB_LOG
+
+
+def test_mapbiomas_ano_combobox_habilita_deshabilita(dock):
+    assert dock.cmb_mapbiomas_ano.isEnabled() is False
+
+    item = _find_tree_item_by_user_data(dock.tree, "mapbiomas_cobertura")
+    assert item is not None
+
+    item.setCheckState(0, Qt.CheckState.Checked)
+    assert dock.cmb_mapbiomas_ano.isEnabled() is True
+
+    item.setCheckState(0, Qt.CheckState.Unchecked)
+    assert dock.cmb_mapbiomas_ano.isEnabled() is False
+
+
+def test_mapbiomas_ano_qsettings_persistencia(dock, monkeypatch):
+    _SETTINGS_STORE["gisbr/mapbiomas_ano"] = 2015
+    new_dock = DiagnosticoDock(iface=None)
+    assert new_dock.cmb_mapbiomas_ano.currentData() == 2015
+
+    idx_2020 = new_dock.cmb_mapbiomas_ano.findData(2020)
+    assert idx_2020 != -1
+    new_dock.cmb_mapbiomas_ano.setCurrentIndex(idx_2020)
+
+    assert _SETTINGS_STORE.get("gisbr/mapbiomas_ano") == 2020
+

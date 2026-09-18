@@ -1,0 +1,42 @@
+codigo,rotulo_pt,rotulo_en,cor_hex
+1,Floresta,Forest,#1f8d49
+3,Formação Florestal,Forest Formation,#1f8d49
+4,Formação Savânica,Savanna Formation,#7dc975
+5,Mangue,Mangrove,#04381d
+6,Floresta Alagável,Flooded Forest,#007785
+9,Silvicultura,Forest Plantation,#7a5900
+10,Formação Natural Não Florestal,Non Forest Natural Formation,#d6bc74
+11,Campo Alagado e Área Pantanosa,Wetland,#519799
+12,Formação Campestre,Grassland,#d6bc74
+14,Agropecuária,Farming,#ffffb2
+15,Pastagem,Pasture,#edde8e
+18,Agricultura,Agriculture,#e974ed
+19,Lavoura Temporária,Temporary Crop,#d5a6bd
+20,Cana,Sugar Cane,#db7093
+21,Mosaico de Usos,Mosaic of Uses,#ffefc3
+22,Área Não Vegetada,Non Vegetated Area,#d4271e
+23,"Praia, Duna e Areal","Beach, Dune and Sand Spot",#ffa07a
+24,Área Urbanizada,Urban Area,#d4271e
+25,Outras Áreas Não Vegetadas,Other Non Vegetated Areas,#db4d4f
+26,Corpo d'Água,Water Body,#2532e4
+27,Não Observado,Not Observed,#ffffff
+29,Afloramento Rochoso,Rocky Outcrop,#ad5100
+30,Mineração,Mining,#9c0027
+31,Aquicultura,Aquaculture,#091077
+32,Apicum,Salt Flat,#fc8114
+33,"Rio, Lago e Oceano","River, Lake and Ocean",#2532e4
+35,Dendê,Oil Palm,#9065d0
+36,Lavoura Perene,Perennial Crop,#d390e6
+39,Soja,Soybean,#f5b3c8
+40,Arroz,Rice,#c71585
+41,Outras Lavouras Temporárias,Other Temporary Crops,#f54ca9
+46,Café,Coffee,#d68fe2
+47,Citrus,Citrus,#9932cc
+48,Outras Lavouras Perenes,Other Perennial Crops,#e6ccff
+49,Restinga Arbórea,Wooded Restinga,#02d659
+50,Restinga Herbácea ou Arbustiva,Herbaceous Restinga,#ffaa5f
+62,Algodão,Cotton,#ff69b4
+75,Usina Fotovoltaica,Solar Power Plant,#757272
+77,Formação Herbáceo Arbustiva,Shrub Restinga,#86b074
+84,Marismas,Salt Marsh,#81dbbf
+91,Parque Eólico,Wind Farm,#403d3e

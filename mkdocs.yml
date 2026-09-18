@@ -75,6 +75,9 @@ nav:
       - Dados do Censo (censobr): guias/censo.md
       - Pontos de interesse (OSM): guias/pois.md
       - SIGEF e bases do INCRA: guias/sigef.md
+      - Dados agropecuários (IBGE): guias/agro.md
+      - Processos minerários (ANM/SIGMINE): guias/anm.md
+      - Cobertura do solo (MapBiomas): guias/mapbiomas.md
   - Referência:
       - Fontes de dados: referencia/fontes.md
       - Algoritmos: referencia/algoritmos.md

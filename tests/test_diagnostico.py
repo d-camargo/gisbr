@@ -207,3 +207,206 @@ def test_diagnostico_dock_censo_catalog_fallback(qgis_app, monkeypatch):
     assert dock.cmb_censo_ano.itemText(0) == "2000"
     assert dock.cmb_censo_ano.itemText(1) == "2010"
     assert dock.cmb_censo_ano.itemText(2) == "2022"
+
+
+def test_usou_bbox_ibge_tabular():
+    assert diagnostico._usou_bbox({"protocolo": "ibge_tabular"}, True) is False
+
+
+def test_carregar_fontes_ibge_tabular_sucesso(tmp_path, monkeypatch):
+    gpkg = str(tmp_path / "test_agro.gpkg")
+
+    muni_layer = create_nonempty_mem_layer()
+    monkeypatch.setattr(diagnostico.agro_pipeline, "_municipio_poligono", lambda code, name=None: muni_layer)
+
+    tbl_layer = QgsVectorLayer(
+        "None?field=var_id:string&field=var_nome:string&field=unidade:string&field=produto:string&field=periodo:string&field=valor:double",
+        "tbl", "memory"
+    )
+    dp = tbl_layer.dataProvider()
+    f = QgsFeature(tbl_layer.fields())
+    f.setAttributes(["109", "Área colhida", "Hectares", "Milho em grão", "2023", 1500.0])
+    dp.addFeatures([f])
+    tbl_layer.updateExtents()
+
+    monkeypatch.setattr(diagnostico.ibge_agregados, "fetch_layer", lambda *args, **kwargs: tbl_layer)
+    monkeypatch.setattr(diagnostico, "_layers_existentes", lambda path: set())
+    monkeypatch.setattr(diagnostico, "_grava_gpkg", lambda layer, path, name: (True, ""))
+    monkeypatch.setattr(QgsProject.instance(), "addMapLayer", lambda lyr: None)
+
+    orig_qgs_vl = QgsVectorLayer
+    def mock_qgs_vl(uri, name, provider):
+        if uri.startswith(gpkg):
+            return muni_layer
+        return orig_qgs_vl(uri, name, provider)
+
+    monkeypatch.setattr(diagnostico, "QgsVectorLayer", mock_qgs_vl)
+
+    res = diagnostico.carregar_fontes(["ibge_pam_temporarias"], 3106200, "Belo Horizonte", None, gpkg)
+    assert "ibge_pam_temporarias" in res["ok"]
+    assert len(res["falhou"]) == 0
+    assert len(res["pulou"]) == 0
+
+
+def test_carregar_fontes_ibge_tabular_sem_dado(tmp_path, monkeypatch):
+    gpkg = str(tmp_path / "test_agro_empty.gpkg")
+
+    muni_layer = create_nonempty_mem_layer()
+    monkeypatch.setattr(diagnostico.agro_pipeline, "_municipio_poligono", lambda code, name=None: muni_layer)
+
+    tbl_layer = QgsVectorLayer(
+        "None?field=var_id:string&field=var_nome:string&field=unidade:string&field=produto:string&field=periodo:string&field=valor:double",
+        "tbl", "memory"
+    )
+    dp = tbl_layer.dataProvider()
+    f = QgsFeature(tbl_layer.fields())
+    f.setAttributes(["109", "Área colhida", "Hectares", "Milho em grão", "2023", None])
+    dp.addFeatures([f])
+    tbl_layer.updateExtents()
+
+    monkeypatch.setattr(diagnostico.ibge_agregados, "fetch_layer", lambda *args, **kwargs: tbl_layer)
+    monkeypatch.setattr(diagnostico, "_layers_existentes", lambda path: set())
+
+    res = diagnostico.carregar_fontes(["ibge_pam_temporarias"], 3106200, "Belo Horizonte", None, gpkg)
+    assert len(res["ok"]) == 0
+    assert len(res["falhou"]) == 0
+    assert len(res["pulou"]) == 1
+    sid, msg = res["pulou"][0]
+    assert sid == "ibge_pam_temporarias"
+    assert "descartados" in msg or "sem valor" in msg or "sem produto" in msg
+
+
+def test_carregar_fontes_zip_remoto_indisponivel(tmp_path, monkeypatch):
+    gpkg = str(tmp_path / "test_zip_indisp.gpkg")
+    source_indisp = {
+        "id": "teste_zip_indisponivel",
+        "protocolo": "zip_remoto",
+        "indisponivel": "Host app.anm.gov.br indisponível (connection timed out)",
+        "origem_url": "https://app.anm.gov.br/",
+    }
+    monkeypatch.setattr(diagnostico, "SOURCES", [source_indisp])
+    monkeypatch.setattr(diagnostico, "_layers_existentes", lambda path: set())
+
+    def mock_fetch_layer(*args, **kwargs):
+        pytest.fail("zip_remoto.fetch_layer nao deveria ser chamado para fonte indisponivel")
+
+    monkeypatch.setattr(diagnostico.zip_remoto, "fetch_layer", mock_fetch_layer)
+
+    res = diagnostico.carregar_fontes(["teste_zip_indisponivel"], 3106200, "Belo Horizonte", None, gpkg)
+
+    assert len(res["ok"]) == 0
+    assert len(res["falhou"]) == 0
+    assert len(res["pulou"]) == 1
+    sid, msg = res["pulou"][0]
+    assert sid == "teste_zip_indisponivel"
+    assert "Host app.anm.gov.br indisponível" in msg
+    assert "https://app.anm.gov.br/" in msg
+
+
+def test_carregar_fontes_zip_remoto_feliz(tmp_path, monkeypatch):
+    gpkg = str(tmp_path / "test_zip_feliz.gpkg")
+    source_feliz = {
+        "id": "teste_zip_feliz",
+        "protocolo": "zip_remoto",
+        "url": "https://exemplo.gov.br/dados.zip",
+        "subset": "FASE = 'LAVRA'",
+        "srs": "EPSG:4674",
+        "filtro": {"tipo": "bbox"},
+    }
+    monkeypatch.setattr(diagnostico, "SOURCES", [source_feliz])
+    monkeypatch.setattr(diagnostico, "_layers_existentes", lambda path: set())
+
+    mem_layer = create_nonempty_mem_layer()
+    fetch_calls = []
+
+    def mock_fetch_layer(url, layer_name, srs="EPSG:4674", subset=None, feedback=None):
+        fetch_calls.append({"url": url, "layer_name": layer_name, "srs": srs, "subset": subset})
+        return mem_layer
+
+    monkeypatch.setattr(diagnostico.zip_remoto, "fetch_layer", mock_fetch_layer)
+
+    muni_layer = create_nonempty_mem_layer()
+    monkeypatch.setattr(diagnostico, "_municipio_poligono", lambda code: muni_layer)
+    monkeypatch.setattr(diagnostico, "_recorta_poligono", lambda layer, poly, name: layer)
+    monkeypatch.setattr(diagnostico, "_grava_gpkg", lambda layer, path, name: (True, ""))
+    monkeypatch.setattr(QgsProject.instance(), "addMapLayer", lambda lyr: None)
+
+    orig_qgs_vl = QgsVectorLayer
+    def mock_qgs_vl(uri, name, provider):
+        if uri.startswith(gpkg):
+            return mem_layer
+        return orig_qgs_vl(uri, name, provider)
+
+    monkeypatch.setattr(diagnostico, "QgsVectorLayer", mock_qgs_vl)
+
+    res = diagnostico.carregar_fontes(["teste_zip_feliz"], 3106200, "Belo Horizonte", None, gpkg)
+
+    assert "teste_zip_feliz" in res["ok"]
+    assert len(res["falhou"]) == 0
+    assert len(res["pulou"]) == 0
+
+    assert len(fetch_calls) == 1
+    assert fetch_calls[0]["url"] == "https://exemplo.gov.br/dados.zip"
+    assert fetch_calls[0]["subset"] == "FASE = 'LAVRA'"
+
+
+
+def test_carregar_fontes_raster_cog_skip_e_tree(tmp_path, monkeypatch):
+    gpkg = str(tmp_path / "test_raster.gpkg")
+    source_raster = {
+        "id": "mapbiomas_cobertura",
+        "protocolo": "raster_cog",
+        "endpoint": "http://example.com/cog.tif",
+        "ano": 2022
+    }
+    monkeypatch.setattr(diagnostico, "SOURCES", [source_raster])
+    monkeypatch.setattr(diagnostico, "_layers_existentes", lambda path: set())
+    
+    muni_layer = create_nonempty_mem_layer()
+    monkeypatch.setattr(diagnostico, "_municipio_poligono", lambda code: muni_layer)
+    
+    fetch_calls = []
+    
+    from qgis.core import QgsRasterLayer
+    def mock_fetch_raster(url, mask_layer, output_path, layer_name, feedback=None, lang="pt"):
+        fetch_calls.append(output_path)
+        with open(output_path, "wb") as f:
+            f.write(b"fake tif")
+        class DummyRaster:
+            def isValid(self):
+                return True
+        rl = DummyRaster()
+        return rl
+
+    monkeypatch.setattr(diagnostico.cog_raster, "fetch_layer", mock_fetch_raster)
+    
+    added_layers = []
+    def mock_addMapLayer(layer, addToLegend=True):
+        added_layers.append((layer, addToLegend))
+        return True
+        
+    monkeypatch.setattr(QgsProject.instance(), "addMapLayer", mock_addMapLayer)
+    
+    class MockRoot:
+        def addLayer(self, layer):
+            added_layers.append((layer, "root.addLayer"))
+            
+    monkeypatch.setattr(QgsProject.instance(), "layerTreeRoot", lambda: MockRoot())
+    
+    res1 = diagnostico.carregar_fontes(["mapbiomas_cobertura"], 3106200, "Contagem", None, gpkg)
+    assert "mapbiomas_cobertura" in res1["ok"]
+    assert len(res1["falhou"]) == 0
+    assert len(res1["pulou"]) == 0
+    assert len(fetch_calls) == 1
+    
+    tif_path = fetch_calls[0]
+    import os
+    assert tif_path == str(tmp_path / "mapbiomas_cobertura_2022_3106200.tif")
+    
+    assert any(x[1] == "root.addLayer" for x in added_layers)
+    
+    res2 = diagnostico.carregar_fontes(["mapbiomas_cobertura"], 3106200, "Contagem", None, gpkg)
+    assert len(res2["ok"]) == 0
+    assert len(res2["pulou"]) == 1
+    assert res2["pulou"][0][0] == "mapbiomas_cobertura"
+    assert "ja existe" in res2["pulou"][0][1]

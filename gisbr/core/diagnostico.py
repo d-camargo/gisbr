@@ -10,9 +10,10 @@ import os
 from qgis.PyQt.QtCore import QCoreApplication, QSettings, QStandardPaths
 from qgis.core import QgsProject, QgsVectorLayer, QgsVectorFileWriter
 
-from .connectors import wfs, basemap, arcgis_rest, osm, local_file
+from .connectors import wfs, basemap, arcgis_rest, osm, local_file, ibge_agregados, zip_remoto, cog_raster
 from .sources import SOURCES
-from . import catalog, catalog_censo, censo_join, osm_pipeline, poi_pipeline
+from . import (catalog, catalog_censo, censo_join, osm_pipeline, poi_pipeline,
+               agro_pipeline)
 
 _UF_POR_CODIGO = {
     "11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16": "AP",
@@ -22,7 +23,7 @@ _UF_POR_CODIGO = {
     "51": "MT", "52": "GO", "53": "DF",
 }
 
-_PROTOCOLOS = ("wfs", "arcgis", "geobr", "osm", "arquivo")
+_PROTOCOLOS = ("wfs", "arcgis", "geobr", "osm", "arquivo", "ibge_tabular", "zip_remoto")
 
 _QSETTINGS_PASTA_MANUAL = "gisbr/pasta_downloads_manuais"
 
@@ -53,6 +54,8 @@ def _filtro_para(s, code_muni, nome_muni):
 
 
 def _usou_bbox(s, usa_bbox):
+    if s.get("protocolo") == "ibge_tabular":
+        return False
     if s.get("protocolo") == "geobr":
         return s.get("recorte", "code") == "bbox"
     return usa_bbox
@@ -174,8 +177,26 @@ def _msg_arquivo_ausente(s, pasta):
     ).format(folder=pasta)
 
 
+def _msg_fonte_indisponivel(s):
+    """Aviso de 'pulou' quando a fonte possui a chave 'indisponivel'.
+
+    Formata motivo e origem_url para orientar o usuario (D8).
+    """
+    motivo = s.get("indisponivel")
+    url = s.get("origem_url")
+    if url:
+        return QCoreApplication.translate(
+            "GisBR",
+            "source unavailable ({reason}); see official portal at {url}"
+        ).format(reason=motivo, url=url)
+    return QCoreApplication.translate(
+        "GisBR",
+        "source unavailable ({reason})"
+    ).format(reason=motivo)
+
+
 def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path,
-                  feedback=None, caminho_manual=None, censo_ano=None):
+                  feedback=None, caminho_manual=None, censo_ano=None, nome_muni=None):
     proto = s.get("protocolo")
     srs = s.get("srs", "EPSG:4674")
     if proto == "wfs":
@@ -194,12 +215,40 @@ def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path,
     if proto == "arquivo":
         return local_file.fetch_layer(caminho_manual, layer_name, srs=srs,
                                       feedback=feedback)
+    if proto == "zip_remoto":
+        url = s.get("url") or s.get("endpoint") or s.get("origem_url")
+        subset = s.get("subset")
+        return zip_remoto.fetch_layer(url, layer_name, srs=srs, subset=subset,
+                                      feedback=feedback)
+    if proto == "ibge_tabular":
+        agregado = s["agregado"]
+        variaveis = s.get("variaveis", "all")
+        classificacao = s.get("classificacao")
+        periodo = s.get("periodo_default", "-1")
+        tbl = ibge_agregados.fetch_layer(
+            agregado, code_muni, layer_name,
+            variaveis=variaveis, periodo=periodo,
+            classificacao=classificacao, feedback=feedback
+        )
+        if tbl is None or not tbl.isValid():
+            return tbl
+        poly_layer, rel = agro_pipeline.tabela_para_camada(
+            tbl, code_muni, nome_muni=nome_muni,
+            layer_name=layer_name, feedback=feedback
+        )
+        if poly_layer is not None:
+            poly_layer.relatorio = rel
+            for prop in ("data_extracao", "fonte"):
+                val = tbl.customProperty(prop)
+                if val is not None:
+                    poly_layer.setCustomProperty(prop, val)
+        return poly_layer
     return None
 
 
 def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
                     add_basemap=False, force=False, feedback=None,
-                    *, censo_ano=None, censo_datasets=()):
+                    *, censo_ano=None, censo_datasets=(), mapbiomas_ano=None):
     def log(m):
         if feedback is not None:
             feedback.pushInfo(m)
@@ -212,6 +261,59 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
     existentes = _layers_existentes(gpkg_path)
     poligono = None
     poligono_tentado = False
+
+
+    raster_sources = [s for s in _por_id(source_ids) if s.get("protocolo") == "raster_cog"]
+    for s in raster_sources:
+        sid = s["id"]
+        if sid == "mapbiomas_cobertura" and mapbiomas_ano:
+            ano = mapbiomas_ano
+        else:
+            ano = s.get("ano_default") or s.get("ano", "")
+        gpkg_dir = os.path.dirname(gpkg_path) if gpkg_path else ""
+        tif_filename = "{}_{}_{}.tif".format(sid, ano, code_muni) if ano else "{}_{}.tif".format(sid, code_muni)
+        tif_path = os.path.join(gpkg_dir, tif_filename)
+
+        layer_name = "{}_{}".format(sid, code_muni)
+
+        if (not force) and os.path.exists(tif_path):
+            res["pulou"].append((sid, "ja existe ({}) (marque 'Atualizar bases já baixadas' para rebaixar)".format(tif_filename)))
+            continue
+
+        if not poligono_tentado:
+            poligono = _municipio_poligono(code_muni)
+            poligono_tentado = True
+        if poligono is None:
+            res["falhou"].append((sid, "nao obtive o poligono do municipio p/ recorte"))
+            continue
+
+        url_template = s.get("url_template")
+        if url_template and ano:
+            url = url_template.format(ano=ano)
+        else:
+            url = s.get("endpoint") or s.get("url") or s.get("origem_url")
+        rl = cog_raster.fetch_layer(
+            url,
+            poligono,
+            tif_path,
+            layer_name=layer_name,
+            feedback=feedback
+        )
+
+        if rl is None or not rl.isValid():
+            msg = getattr(rl, "error_msg", "camada raster invalida") if rl else "falha no conector cog_raster"
+            res["falhou"].append((sid, msg))
+            continue
+
+        proj = QgsProject.instance()
+        proj.addMapLayer(rl, False)
+        proj.layerTreeRoot().addLayer(rl)
+
+        res["ok"].append(sid)
+        log("OK: {}".format(layer_name))
+
+    raster_ids = set(s["id"] for s in raster_sources)
+    source_ids = [sid for sid in source_ids if sid not in raster_ids]
 
     # ponytail: OSM é special-case — despacha pipelines especificos por fonte (osm_vias, osm_pois, etc)
     osm_sources = [s for s in _por_id(source_ids) if s.get("protocolo") == "osm"]
@@ -293,6 +395,10 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             res["pulou"].append((s["id"], "ja existe no GeoPackage ({}) (marque 'Atualizar bases já baixadas' para rebaixar)".format(layer_name)))
             continue
 
+        if s.get("indisponivel"):
+            res["pulou"].append((s["id"], _msg_fonte_indisponivel(s)))
+            continue
+
         # arquivo de download manual ausente e 'pulou' (como requer_parquet):
         # o aviso diz qual pasta foi olhada e de onde baixar
         caminho_manual = None
@@ -307,7 +413,8 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
         layer = _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni,
                               gpkg_path, feedback=feedback,
                               caminho_manual=caminho_manual,
-                              censo_ano=censo_ano)
+                              censo_ano=censo_ano,
+                              nome_muni=nome_muni)
         if layer is None or not layer.isValid():
             msg = getattr(layer, "error_msg", "camada invalida") if layer else "protocolo desconhecido"
             res["falhou"].append((s["id"], msg))
@@ -317,6 +424,19 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
         if layer.featureCount() == 0:
             res["pulou"].append((s["id"], "sem feicoes para este municipio (base nao retornou nada)"))
             continue
+
+        rel = getattr(layer, "relatorio", None)
+        if rel and rel.get("produtos_aproveitados") == 0:
+            msg = "sem produtos com valor para este municipio"
+            if rel.get("avisos"):
+                msg = rel["avisos"][0]
+            res["pulou"].append((s["id"], msg))
+            log("Aviso: {} — {}".format(s["id"], msg))
+            continue
+
+        if rel and rel.get("avisos"):
+            for aviso in rel["avisos"]:
+                log("Aviso: {}".format(aviso))
 
         # fontes filtradas por bbox -> recorta pelo POLIGONO do municipio
         if _usou_bbox(s, usa_bbox):

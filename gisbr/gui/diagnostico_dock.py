@@ -42,6 +42,7 @@ _EIXO_NOMES = {
     "saude": QCoreApplication.translate("GisBR", "6. Health"),
     "urbano": QCoreApplication.translate("GisBR", "7. Urban"),
     "pol-admin": QCoreApplication.translate("GisBR", "8. Administrative"),
+    "agropecuaria": QCoreApplication.translate("GisBR", "9. Agriculture & Livestock"),
 }
 
 _UFS = [
@@ -87,9 +88,11 @@ class DiagnosticoDock(QgsDockWidget):
         layout.addWidget(self.btn_carregar)
 
         self._init_censo_ui()
+        self._init_mapbiomas_ui()
 
         self.tree.itemChanged.connect(self._on_tree_item_changed)
         self._atualizar_aba_censo()
+        self._atualizar_mapbiomas_ano()
 
         self.setWidget(central)
 
@@ -158,6 +161,14 @@ class DiagnosticoDock(QgsDockWidget):
 
         self.tree.expandAll()
         layout.addWidget(self.tree)
+
+        mapbiomas_layout = QHBoxLayout()
+        mapbiomas_label = QLabel(QCoreApplication.translate("GisBR", "MapBiomas year:"))
+        self.cmb_mapbiomas_ano = QComboBox()
+        mapbiomas_layout.addWidget(mapbiomas_label)
+        mapbiomas_layout.addWidget(self.cmb_mapbiomas_ano)
+        mapbiomas_layout.addStretch()
+        layout.addLayout(mapbiomas_layout)
 
         return widget
 
@@ -276,8 +287,46 @@ class DiagnosticoDock(QgsDockWidget):
         )
         self.tabs.setTabToolTip(TAB_CENSO, tooltip)
 
+    def _atualizar_mapbiomas_ano(self):
+        habilitado = "mapbiomas_cobertura" in self._selected_source_ids()
+        self.cmb_mapbiomas_ano.setEnabled(habilitado)
+
     def _on_tree_item_changed(self, item=None, column=0):
         self._atualizar_aba_censo()
+        self._atualizar_mapbiomas_ano()
+
+    def _init_mapbiomas_ui(self):
+        mapbiomas_src = next((s for s in SOURCES if s.get("id") == "mapbiomas_cobertura"), {})
+        years = mapbiomas_src.get("anos", list(range(1985, 2024)))
+        default_ano = mapbiomas_src.get("ano_default", 2023)
+
+        qs = QSettings()
+        saved_ano = qs.value("gisbr/mapbiomas_ano", None)
+        try:
+            saved_ano_int = int(saved_ano) if saved_ano is not None else None
+        except (ValueError, TypeError):
+            saved_ano_int = None
+
+        target_ano = saved_ano_int if (saved_ano_int is not None and saved_ano_int in years) else default_ano
+
+        self.cmb_mapbiomas_ano.blockSignals(True)
+        self.cmb_mapbiomas_ano.clear()
+        target_idx = 0
+        for idx, y in enumerate(years):
+            self.cmb_mapbiomas_ano.addItem(str(y), y)
+            if y == target_ano:
+                target_idx = idx
+
+        self.cmb_mapbiomas_ano.setCurrentIndex(target_idx)
+        self.cmb_mapbiomas_ano.blockSignals(False)
+
+        self.cmb_mapbiomas_ano.currentIndexChanged.connect(self._on_mapbiomas_ano_changed)
+        self._atualizar_mapbiomas_ano()
+
+    def _on_mapbiomas_ano_changed(self):
+        ano = self.cmb_mapbiomas_ano.currentData()
+        if ano is not None:
+            QSettings().setValue("gisbr/mapbiomas_ano", int(ano))
 
     def _listar_municipios(self, uf_sigla):
         """{code(str): (nome, bbox)} dos municipios da UF via read_municipality."""
@@ -457,6 +506,9 @@ class DiagnosticoDock(QgsDockWidget):
                 )
             censo_ano = self.cmb_censo_ano.currentData()
             censo_datasets = tuple(self._get_checked_censo_datasets())
+        mapbiomas_ano = None
+        if "mapbiomas_cobertura" in ids:
+            mapbiomas_ano = self.cmb_mapbiomas_ano.currentData()
         try:
             if getattr(self, "_munis", None) and code in self._munis:
                 nome, bbox = self._munis[code]
@@ -471,7 +523,8 @@ class DiagnosticoDock(QgsDockWidget):
             add_basemap=self.chk_satelite.isChecked(),
             force=self.chk_atualizar.isChecked(),
             feedback=_LogFeedback(self.txt_log),
-            censo_ano=censo_ano, censo_datasets=censo_datasets)
+            censo_ano=censo_ano, censo_datasets=censo_datasets,
+            mapbiomas_ano=mapbiomas_ano)
         self._log(self.tr("OK: {layers}").format(layers=", ".join(res["ok"]) or "-"))
         for sid, msg in res["falhou"]:
             self._log(self.tr("FAILED {id}: {error}").format(id=sid, error=msg))

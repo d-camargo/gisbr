@@ -5,12 +5,16 @@ Preenchido a partir de docs/diagnostico-plano-diretor/fontes-detalhe.md (T-007).
 Fase A: fontes WFS + basemap. As fontes ArcGIS REST entram na T-012.
 
 Cada fonte e um dict:
-  id, eixo, nome, protocolo ("wfs"|"arcgis"|"geobr"|"osm"|"arquivo"|"basemap"),
+  id, eixo, nome, protocolo ("wfs"|"arcgis"|"geobr"|"osm"|"arquivo"|"basemap"|"ibge_tabular"|"zip_remoto"|"raster_cog"),
   endpoint, type_name, srs, filtro, licenca.
 filtro: {"tipo": "cql_codigo", "campo": <str>}  -> CQL campo = <code_muni>
         {"tipo": "cql_nome",   "campo": <str>}  -> CQL campo = '<nome_muni>'
         {"tipo": "bbox"}                          -> filtro espacial por bbox
 type_name pode conter "{uf}" (substituido pela sigla da UF do municipio).
+
+Protocolo "ibge_tabular": dados tabulares do IBGE (PAM e Censo Agropecuário)
+servidos pela API v3 de Agregados. Chaves: agregado, variaveis, classificacao,
+periodo_default.
 
 Protocolo "arquivo" (download manual): fontes oficiais que so existem atras
 de login (ex.: gov.br) NAO tem endpoint — o conector procura um arquivo ja
@@ -94,6 +98,30 @@ SOURCES = [
      "endpoint": "https://geo.anm.gov.br/arcgis/rest/services/SIGMINE/dados_anm/MapServer",
      "layer_id": "0", "srs": "EPSG:4674",
      "filtro": {"tipo": "bbox"}, "licenca": "Publica"},
+    {"id": "anm_sigmine_req_pesquisa", "eixo": "ambiental",
+     "nome": "ANM/SIGMINE — Requerimento de pesquisa",
+     "protocolo": "zip_remoto", "subset": "FASE = 'REQUERIMENTO DE PESQUISA'",
+     "srs": "EPSG:4674", "filtro": {"tipo": "bbox"}, "licenca": "Publica",
+     "origem_url": "https://app.anm.gov.br/",
+     "indisponivel": "Host app.anm.gov.br indisponível (connection timed out)"},
+    {"id": "anm_sigmine_licenciamento", "eixo": "ambiental",
+     "nome": "ANM/SIGMINE — Licenciamento",
+     "protocolo": "zip_remoto", "subset": "FASE = 'LICENCIAMENTO'",
+     "srs": "EPSG:4674", "filtro": {"tipo": "bbox"}, "licenca": "Publica",
+     "origem_url": "https://app.anm.gov.br/",
+     "indisponivel": "Host app.anm.gov.br indisponível (connection timed out)"},
+    {"id": "anm_sigmine_concessao_lavra", "eixo": "ambiental",
+     "nome": "ANM/SIGMINE — Concessao de lavra",
+     "protocolo": "zip_remoto", "subset": "FASE = 'CONCESSÃO DE LAVRA'",
+     "srs": "EPSG:4674", "filtro": {"tipo": "bbox"}, "licenca": "Publica",
+     "origem_url": "https://app.anm.gov.br/",
+     "indisponivel": "Host app.anm.gov.br indisponível (connection timed out)"},
+    {"id": "anm_sigmine_lavra_garimpeira", "eixo": "ambiental",
+     "nome": "ANM/SIGMINE — Lavra garimpeira",
+     "protocolo": "zip_remoto", "subset": "FASE = 'LAVRA GARIMPEIRA'",
+     "srs": "EPSG:4674", "filtro": {"tipo": "bbox"}, "licenca": "Publica",
+     "origem_url": "https://app.anm.gov.br/",
+     "indisponivel": "Host app.anm.gov.br indisponível (connection timed out)"},
     {"id": "ibge_bdia_pedologia", "eixo": "ambiental", "nome": "IBGE/BDIA — Pedologia",
      "protocolo": "wfs", "endpoint": "https://geoservicos.ibge.gov.br/geoserver/ows",
      "type_name": "BDIA:pedo_area", "srs": "EPSG:4674",
@@ -110,6 +138,13 @@ SOURCES = [
      "protocolo": "wfs", "endpoint": "https://geoservicos.ibge.gov.br/geoserver/ows",
      "type_name": "BDIA:vege_area", "srs": "EPSG:4674",
      "filtro": {"tipo": "bbox"}, "licenca": "Publica"},
+    {"id": "mapbiomas_cobertura", "eixo": "ambiental",
+     "nome": "MapBiomas — Cobertura e uso da terra (Coleção 9)",
+     "protocolo": "raster_cog",
+     "url_template": "https://storage.googleapis.com/mapbiomas-public/initiatives/brasil/collection_9/lclu/coverage/brasil_coverage_{ano}.tif",
+     "srs": "EPSG:4326", "filtro": {"tipo": "bbox"},
+     "ano_default": 2023, "anos": list(range(1985, 2024)),
+     "licenca": "CC-BY-SA"},
     # --- Eixo 7: Urbano ---
     {"id": "ibge_areas_urbanizadas", "eixo": "urbano", "nome": "IBGE — Areas urbanizadas (2019)",
      "protocolo": "wfs", "endpoint": "https://geoservicos.ibge.gov.br/geoserver/ows",
@@ -196,6 +231,25 @@ SOURCES = [
      "protocolo": "geobr", "algo": "read_polling_places_v2", "recorte": "code", "requer_parquet": True},
     {"id": "geobr_quilombolas", "eixo": "ambiental", "nome": "Terras quilombolas (geobr v2)",
      "protocolo": "geobr", "algo": "read_quilombola_land_v2", "recorte": "bbox", "requer_parquet": True},
+    # --- Eixo 9: Agropecuária (IBGE Agregados v3) ---
+    {"id": "ibge_pam_temporarias", "eixo": "agropecuaria",
+     "nome": "IBGE — PAM Lavouras temporárias",
+     "protocolo": "ibge_tabular", "agregado": 1612,
+     "variaveis": ["109", "216", "214", "112", "215"],
+     "classificacao": {"81": "all"}, "periodo_default": "-1",
+     "licenca": "Publica"},
+    {"id": "ibge_pam_permanentes", "eixo": "agropecuaria",
+     "nome": "IBGE — PAM Lavouras permanentes",
+     "protocolo": "ibge_tabular", "agregado": 1613,
+     "variaveis": ["2313", "216", "214", "112", "215"],
+     "classificacao": {"82": "all"}, "periodo_default": "-1",
+     "licenca": "Publica"},
+    {"id": "ibge_censo_agro", "eixo": "agropecuaria",
+     "nome": "IBGE — Censo Agropecuário 2017",
+     "protocolo": "ibge_tabular", "agregado": 6881,
+     "variaveis": ["9587", "184"],
+     "classificacao": {"222": "all"}, "periodo_default": "2017",
+     "licenca": "Publica"},
     # --- Contexto ---
     {"id": "basemap_satelite", "eixo": "contexto", "nome": "Imagem de satelite (Esri)",
      "protocolo": "basemap"},
