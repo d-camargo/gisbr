@@ -210,6 +210,14 @@ não a bbox-retângulo) — senão vêm vizinhos (BH/Betim) e a mancha urbana tr
 
 ## 8. Proposta nova: ingestão municipal de vias OSM inspirada em OSM2GMNS/GMNS
 
+> **Nota (2026-09-19):** esta seção é a proposta de desenho que guiou a
+> primeira implementação; a topologia final divergiu em pontos importantes
+> do que está descrito abaixo — em especial, o recorte municipal **não** usa
+> `native:clip` (mantém o arco inteiro para preservar `from_node`/`to_node`)
+> e o schema de `osm_links`/`osm_nodes` não é o `link_id`/`mode_class`
+> proposto aqui. Estado atual e o porquê de cada divergência estão em
+> `OSM_ARQUITETURA.md`; guia do usuário em `docs/guias/vias.md`.
+
 Esta seção registra uma proposta arquitetural para uma futura função de OSM no
 GisBR. A referência conceitual é o fluxo do **OSM2GMNS/GMNS** (extrair, limpar,
 normalizar e montar rede), mas a implementação do GisBR deve continuar

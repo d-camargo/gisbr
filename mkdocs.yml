@@ -73,6 +73,7 @@ nav:
       - Diagnóstico de Plano Diretor: guias/diagnostico.md
       - Espelho geobr/censobr: guias/geobr.md
       - Dados do Censo (censobr): guias/censo.md
+      - Rede viária (OSM): guias/vias.md
       - Pontos de interesse (OSM): guias/pois.md
       - SIGEF e bases do INCRA: guias/sigef.md
       - Dados agropecuários (IBGE): guias/agro.md

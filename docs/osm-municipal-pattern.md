@@ -1,5 +1,13 @@
 # Padrão OSM Municipal — Ingestão de Vias (2026-07-03)
 
+> **Histórico.** Este documento descreve o desenho original da ingestão de
+> vias OSM (Fases 1–5, "1 way = 1 link", nós só de extremidade, recorte via
+> `native:clip`). A topologia mudou em 2026-09-19 (commits `fd0fc1b` e
+> `81741a1`): o pipeline agora quebra cada `way` em arcos pela topologia real
+> (`node_id` compartilhado) e roda verificação de conectividade separada por
+> rede veicular/pedestre. Veja o estado atual em `OSM_ARQUITETURA.md` e o
+> guia do usuário em `docs/guias/vias.md`.
+
 ## O que foi entregue
 
 Fase 1–3 de ingestão municipal de vias OSM via Overpass, na branch `feat/osm-municipal`.
