@@ -5,7 +5,10 @@ Rodam SEM QGIS (o modulo e stdlib pura):
     python3 -m pytest tests/test_osm_topologia.py -q
 """
 
+import pytest
+
 from gisbr.core.osm_topologia import (
+    classifica_modos,
     componentes,
     componentes_fortes,
     constroi_arcos,
@@ -31,9 +34,10 @@ def test_t_no_meio_de_way_vira_3_arcos_e_1_componente():
         _way(100, [1, 2, 3, 4, 5], {"highway": "residential"}),
         _way(200, [3, 6], {"highway": "residential"}),
     ]
-    arcos, n_orfaos = constroi_arcos(ways, nodes_dict)
+    arcos, n_orfaos, descartados = constroi_arcos(ways, nodes_dict)
 
     assert n_orfaos == 0
+    assert descartados == {}
     assert len(arcos) == 3
     # way A quebra em [1,2,3] e [3,4,5]; way B fica inteiro [3,6]
     segmentos = sorted(tuple(a["nodes"]) for a in arcos)
@@ -49,19 +53,21 @@ def test_no_orfao_contado_e_descartado():
     nodes_dict = _nodes_dict([1, 2, 3])
     # node 99 nao existe em nodes_dict
     ways = [_way(100, [1, 99, 2, 3], {"highway": "residential"})]
-    arcos, n_orfaos = constroi_arcos(ways, nodes_dict)
+    arcos, n_orfaos, descartados = constroi_arcos(ways, nodes_dict)
 
     assert n_orfaos == 1
     assert len(arcos) == 1
     assert arcos[0]["nodes"] == [1, 2, 3]
+    assert descartados == {}
 
 
 def test_arco_com_menos_de_2_nos_e_descartado():
     nodes_dict = _nodes_dict([1])
     ways = [_way(100, [1], {"highway": "residential"})]
-    arcos, n_orfaos = constroi_arcos(ways, nodes_dict)
+    arcos, n_orfaos, descartados = constroi_arcos(ways, nodes_dict)
     assert arcos == []
     assert n_orfaos == 0
+    assert descartados == {}
 
 
 def test_duas_componentes_gera_1_ilha():
@@ -74,7 +80,7 @@ def test_duas_componentes_gera_1_ilha():
         # ilha: isolada, 1 arco
         _way(4, [6, 7], {"highway": "residential"}),
     ]
-    arcos, _ = constroi_arcos(ways, nodes_dict)
+    arcos, _, _ = constroi_arcos(ways, nodes_dict)
     diag = diagnostica(arcos)
 
     assert len(diag["comp_tam"]) == 2
@@ -90,7 +96,7 @@ def test_duas_componentes_gera_1_ilha():
 def test_grau_e_ponta_solta():
     nodes_dict = _nodes_dict([1, 2, 3])
     ways = [_way(1, [1, 2, 3], {"highway": "residential"})]
-    arcos, _ = constroi_arcos(ways, nodes_dict)
+    arcos, _, _ = constroi_arcos(ways, nodes_dict)
     g = grau(arcos)
     assert g == {1: 1, 3: 1}
 
@@ -102,7 +108,7 @@ def test_grau_laco_soma_2():
     nodes_dict = _nodes_dict([1, 2, 3])
     # way fechado: 1-2-3-1 (from == to == 1)
     ways = [_way(1, [1, 2, 3, 1], {"highway": "residential"})]
-    arcos, _ = constroi_arcos(ways, nodes_dict)
+    arcos, _, _ = constroi_arcos(ways, nodes_dict)
     assert len(arcos) == 1  # nao quebra no laço
     g = grau(arcos)
     assert g[1] == 2
@@ -111,7 +117,7 @@ def test_grau_laco_soma_2():
 def test_laco_way_fechado_nao_quebra():
     nodes_dict = _nodes_dict([1, 2, 3, 4])
     ways = [_way(1, [1, 2, 3, 4, 1], {"highway": "residential"})]
-    arcos, _ = constroi_arcos(ways, nodes_dict)
+    arcos, _, _ = constroi_arcos(ways, nodes_dict)
     assert len(arcos) == 1
     assert arcos[0]["nodes"] == [1, 2, 3, 4, 1]
 
@@ -145,7 +151,7 @@ def test_beco_oneway_gera_mao_unica_sem_saida():
         _way(3, [4, 1], {"highway": "residential", "oneway": "no"}),
         _way(4, [2, 3], {"highway": "residential", "oneway": "yes"}),
     ]
-    arcos, _ = constroi_arcos(ways, nodes_dict)
+    arcos, _, _ = constroi_arcos(ways, nodes_dict)
     diag = diagnostica(arcos)
 
     # tudo numa unica componente fraca
@@ -164,7 +170,7 @@ def test_componentes_fortes_tarjan_iterativo_cadeia_5000_nos():
         _way(i, [i, i + 1], {"highway": "residential", "oneway": "no"})
         for i in range(1, n)
     ]
-    arcos, n_orfaos = constroi_arcos(ways, nodes_dict)
+    arcos, n_orfaos, _ = constroi_arcos(ways, nodes_dict)
     assert n_orfaos == 0
     assert len(arcos) == n - 1
 
@@ -172,3 +178,142 @@ def test_componentes_fortes_tarjan_iterativo_cadeia_5000_nos():
     # oneway "no" -> bidirecional -> toda a cadeia e uma unica SCC
     assert len(set(node_scc.values())) == 1
     assert len(node_scc) == n
+
+
+# --- classifica_modos ---------------------------------------------------
+
+def test_classifica_modos_primary_ambos():
+    assert classifica_modos({"highway": "primary"}) == {"veicular": True, "pedestre": True}
+
+
+def test_classifica_modos_motorway_so_veicular():
+    assert classifica_modos({"highway": "motorway"}) == {"veicular": True, "pedestre": False}
+
+
+def test_classifica_modos_footway_so_pedestre():
+    assert classifica_modos({"highway": "footway"}) == {"veicular": False, "pedestre": True}
+
+
+def test_classifica_modos_construction_nenhum():
+    assert classifica_modos({"highway": "construction"}) == {"veicular": False, "pedestre": False}
+
+
+def test_classifica_modos_area_yes_nenhum():
+    assert classifica_modos({"highway": "residential", "area": "yes"}) == {"veicular": False, "pedestre": False}
+
+
+def test_classifica_modos_access_no_nenhum():
+    assert classifica_modos({"highway": "residential", "access": "no"}) == {"veicular": False, "pedestre": False}
+
+
+def test_classifica_modos_access_no_foot_yes_so_pedestre():
+    assert classifica_modos({"highway": "residential", "access": "no", "foot": "yes"}) == \
+        {"veicular": False, "pedestre": True}
+
+
+def test_classifica_modos_motor_vehicle_no_em_residential_so_pedestre():
+    assert classifica_modos({"highway": "residential", "motor_vehicle": "no"}) == \
+        {"veicular": False, "pedestre": True}
+
+
+def test_classifica_modos_access_private_em_service_segue_veicular():
+    modos = classifica_modos({"highway": "service", "access": "private"})
+    assert modos["veicular"] is True
+
+
+def test_classifica_modos_highway_desconhecido_nenhum():
+    assert classifica_modos({"highway": "algo_nunca_visto"}) == {"veicular": False, "pedestre": False}
+
+
+def test_classifica_modos_vehicle_yes_nao_promove_footway():
+    # override so restaura/nega um modo cuja base ja permite; nao promove
+    # um highway fundamentalmente nao-veicular so por causa de vehicle=yes.
+    assert classifica_modos({"highway": "footway", "vehicle": "yes"}) == \
+        {"veicular": False, "pedestre": True}
+
+
+def test_classifica_modos_busway_nenhum():
+    # busway = faixa exclusiva de onibus/BRT, nao rede de carros — fica em
+    # HIGHWAY_DESCARTE (medido em Contagem/RMBH: 33 mao_unica_sem_saida
+    # espurios quando ainda contava como veicular).
+    assert classifica_modos({"highway": "busway"}) == {"veicular": False, "pedestre": False}
+
+
+# --- descartados na construcao de arcos ----------------------------------
+
+def test_descartados_contados_por_highway():
+    nodes_dict = _nodes_dict([1, 2, 3, 4, 5, 6, 7, 8])
+    ways = [
+        _way(1, [1, 2], {"highway": "residential"}),
+        _way(2, [3, 4], {"highway": "construction"}),
+        _way(3, [5, 6], {"highway": "construction"}),
+        _way(4, [7, 8], {"highway": "platform"}),
+    ]
+    arcos, n_orfaos, descartados = constroi_arcos(ways, nodes_dict)
+    assert len(arcos) == 1
+    assert arcos[0]["highway"] == "residential"
+    assert descartados == {"construction": 2, "platform": 1}
+
+
+def test_arco_carrega_flags_veicular_pedestre():
+    nodes_dict = _nodes_dict([1, 2, 3, 4])
+    ways = [
+        _way(1, [1, 2], {"highway": "residential"}),
+        _way(2, [3, 4], {"highway": "footway"}),
+    ]
+    arcos, _, _ = constroi_arcos(ways, nodes_dict)
+    por_way = {a["way_id"]: a for a in arcos}
+    assert por_way[1]["veicular"] is True and por_way[1]["pedestre"] is True
+    assert por_way[2]["veicular"] is False and por_way[2]["pedestre"] is True
+
+
+# --- footway solto nao vira ilha na rede veicular -------------------------
+
+def test_footway_solto_nao_vira_ilha_na_rede_veicular():
+    nodes_dict = _nodes_dict([1, 2, 3, 4, 5])
+    ways = [
+        _way(1, [1, 2, 3], {"highway": "residential"}),
+        # footway isolado: sem no compartilhado com a rede veicular
+        _way(2, [4, 5], {"highway": "footway"}),
+    ]
+    arcos, _, _ = constroi_arcos(ways, nodes_dict)
+
+    diag_v = diagnostica(arcos, "veicular")
+    assert len(diag_v["comp_tam"]) == 1
+    assert diag_v["ilhas"] == []
+
+    # na rede pedestre o footway solto SEGUE sendo uma componente separada
+    # (residential tambem eh pedestre, entao o footway forma ilha la)
+    diag_p = diagnostica(arcos, "pedestre")
+    assert len(diag_p["comp_tam"]) == 2
+    assert len(diag_p["ilhas"]) == 1
+
+
+# --- diagnostica(rede=...) -------------------------------------------------
+
+def test_diagnostica_rede_invalida_levanta_valueerror():
+    nodes_dict = _nodes_dict([1, 2])
+    ways = [_way(1, [1, 2], {"highway": "residential"})]
+    arcos, _, _ = constroi_arcos(ways, nodes_dict)
+    with pytest.raises(ValueError):
+        diagnostica(arcos, "invalida")
+
+
+def test_diagnostica_pedestre_ignora_oneway_mao_unica_sempre_vazia():
+    # mesmo grafo do teste de mao-unica-sem-saida veicular: na rede
+    # pedestre o oneway e ignorado (tudo "ambos"), entao nao ha beco
+    # sem saida.
+    nodes_dict = _nodes_dict([1, 2, 3, 4])
+    ways = [
+        _way(1, [1, 2], {"highway": "residential", "oneway": "no"}),
+        _way(2, [2, 4], {"highway": "residential", "oneway": "no"}),
+        _way(3, [4, 1], {"highway": "residential", "oneway": "no"}),
+        _way(4, [2, 3], {"highway": "residential", "oneway": "yes"}),
+    ]
+    arcos, _, _ = constroi_arcos(ways, nodes_dict)
+
+    diag_v = diagnostica(arcos, "veicular")
+    assert 3 in diag_v["mao_unica_sem_saida"]
+
+    diag_p = diagnostica(arcos, "pedestre")
+    assert diag_p["mao_unica_sem_saida"] == []

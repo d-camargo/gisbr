@@ -23,6 +23,11 @@ from .osm_topologia import constroi_arcos, diagnostica
 # Tolerância de "ponta quase conectada" (D — verificação geométrica a).
 TOL_PONTA_M = 10.0
 
+# Severidade estratificada por distância: erro de digitalização real fica
+# em poucos metros; a cauda de 7-10 m medida em Contagem é majoritariamente
+# via paralela que legitimamente não se liga (não é bug de traçado).
+TOL_PONTA_ALTA_M = 3.0
+
 _URI_TIPOS = {"int": "long", "double": "double", "string": "string"}
 
 _LINK_FIELDS = [
@@ -30,17 +35,19 @@ _LINK_FIELDS = [
     ("from_node", "int"), ("to_node", "int"),
     ("highway", "string"), ("name", "string"), ("oneway", "string"),
     ("bridge", "string"), ("tunnel", "string"), ("layer", "string"),
-    ("componente", "int"), ("componente_tam", "int"),
+    ("veicular", "int"), ("pedestre", "int"),
+    ("componente", "int"), ("componente_tam", "int"), ("componente_pe", "int"),
 ]
 
 _NODE_FIELDS = [
     ("node_id", "int"), ("x", "double"), ("y", "double"),
-    ("grau", "int"), ("componente", "int"),
+    ("grau", "int"), ("grau_pe", "int"),
+    ("componente", "int"), ("componente_pe", "int"),
 ]
 
 _PROBLEMA_FIELDS = [
     ("tipo", "string"), ("severidade", "string"), ("detalhe", "string"),
-    ("node_id", "int"), ("arc_id", "int"),
+    ("node_id", "int"), ("arc_id", "int"), ("rede", "string"),
 ]
 
 
@@ -85,21 +92,34 @@ def _arco_para_geometria(arco):
     return QgsGeometry(ls) if ls is not None else None
 
 
-def _cria_links_raw(arcos, diag, layer_name="osm_links_raw"):
-    """Cria a camada LineString de TODOS os arcos (antes do recorte municipal)."""
+def _cria_links_raw(arcos, diag_veicular, diag_pedestre, layer_name="osm_links_raw"):
+    """Cria a camada LineString de TODOS os arcos (antes do recorte municipal).
+
+    `componente`/`componente_tam` são da rede VEICULAR (-1/None se o arco
+    não é veicular); `componente_pe` é da rede pedestre (-1 se não pedestre).
+    """
     layer = QgsVectorLayer(_uri("LineString", _LINK_FIELDS), layer_name, "memory")
     campos = _fields(_LINK_FIELDS)
     layer.startEditing()
 
-    node_comp = diag["node_comp"]
-    comp_tam = diag["comp_tam"]
+    node_comp_v = diag_veicular["node_comp"]
+    comp_tam_v = diag_veicular["comp_tam"]
+    node_comp_p = diag_pedestre["node_comp"]
     for arco in arcos:
         geom = _arco_para_linestring(arco)
         if geom is None:
             continue
         feat = QgsFeature(campos)
         feat.setGeometry(QgsGeometry(geom))
-        comp = node_comp.get(arco["from_node"])
+        if arco["veicular"]:
+            comp = node_comp_v.get(arco["from_node"], -1)
+        else:
+            comp = -1
+        comp_tam = comp_tam_v.get(comp) if comp != -1 else None
+        if arco["pedestre"]:
+            comp_pe = node_comp_p.get(arco["from_node"], -1)
+        else:
+            comp_pe = -1
         feat["arc_id"] = arco["arc_id"]
         feat["way_id"] = arco["way_id"]
         feat["seq"] = arco["seq"]
@@ -111,8 +131,11 @@ def _cria_links_raw(arcos, diag, layer_name="osm_links_raw"):
         feat["bridge"] = arco["bridge"]
         feat["tunnel"] = arco["tunnel"]
         feat["layer"] = arco["layer"]
+        feat["veicular"] = 1 if arco["veicular"] else 0
+        feat["pedestre"] = 1 if arco["pedestre"] else 0
         feat["componente"] = comp
-        feat["componente_tam"] = comp_tam.get(comp)
+        feat["componente_tam"] = comp_tam
+        feat["componente_pe"] = comp_pe
         layer.addFeature(feat)
 
     layer.commitChanges()
@@ -150,8 +173,12 @@ def _filtra_arcos_por_poligono(links_raw, engine, layer_name="osm_links"):
     return layer
 
 
-def _cria_nodes_layer(osm_links, diag, nodes_dict, layer_name="osm_nodes"):
-    """Um ponto por node_id referenciado como from/to dos arcos mantidos."""
+def _cria_nodes_layer(osm_links, diag_veicular, diag_pedestre, nodes_dict, layer_name="osm_nodes"):
+    """Um ponto por node_id referenciado como from/to dos arcos mantidos.
+
+    `grau`/`componente` são da rede veicular; `grau_pe`/`componente_pe` da
+    rede pedestre (0/-1 quando o nó não participa daquela rede).
+    """
     node_ids = set()
     for feat in osm_links.getFeatures():
         node_ids.add(feat["from_node"])
@@ -161,8 +188,10 @@ def _cria_nodes_layer(osm_links, diag, nodes_dict, layer_name="osm_nodes"):
     campos = _fields(_NODE_FIELDS)
     layer.startEditing()
 
-    grau_map = diag["grau"]
-    comp_map = diag["node_comp"]
+    grau_map_v = diag_veicular["grau"]
+    comp_map_v = diag_veicular["node_comp"]
+    grau_map_p = diag_pedestre["grau"]
+    comp_map_p = diag_pedestre["node_comp"]
     for node_id in sorted(node_ids):
         if node_id not in nodes_dict:
             continue
@@ -172,8 +201,10 @@ def _cria_nodes_layer(osm_links, diag, nodes_dict, layer_name="osm_nodes"):
         feat["node_id"] = node_id
         feat["x"] = lon
         feat["y"] = lat
-        feat["grau"] = grau_map.get(node_id, 0)
-        feat["componente"] = comp_map.get(node_id)
+        feat["grau"] = grau_map_v.get(node_id, 0)
+        feat["grau_pe"] = grau_map_p.get(node_id, 0)
+        feat["componente"] = comp_map_v.get(node_id, -1)
+        feat["componente_pe"] = comp_map_p.get(node_id, -1)
         layer.addFeature(feat)
 
     layer.commitChanges()
@@ -207,8 +238,14 @@ def ponta_quase_conectada(arcos, diag, nodes_dict):
 
     Busca no índice espacial com bbox da tolerância (convertida em graus);
     distância real = ponto ao ponto mais próximo do arco
-    (`closestSegmentWithContext`), medida com `QgsDistanceArea` no elipsoide
+    (`geom.nearestPoint(...)`), medida com `QgsDistanceArea` no elipsoide
     do SIRGAS 2000. Uma ocorrência por nó (o arco mais próximo).
+
+    NÃO usar `closestSegmentWithContext`: medido devolvendo `(0.0, pt, ...)`
+    — o próprio ponto de busca como "ponto mais próximo" — quando `pt` cai
+    dentro do bbox de busca do arco mas fora da geometria dele, inflando
+    toda ponta cujo bbox de tolerância toca outro arco em falso positivo a
+    0,0 m.
 
     Devolve lista de dicts `{node_id, arc_id, way_id, distancia_m, detalhe}`.
     """
@@ -241,8 +278,8 @@ def ponta_quase_conectada(arcos, diag, nodes_dict):
             geom, arco = geom_por_arco[arc_id]
             if node_id == arco["from_node"] or node_id == arco["to_node"]:
                 continue  # arco incidente no próprio nó — ignora
-            _sqr_dist, ponto_proximo, _after, _left = geom.closestSegmentWithContext(pt)
-            dist_m = medidor.measureLine(pt, QgsPointXY(ponto_proximo))
+            ponto_proximo = geom.nearestPoint(QgsGeometry.fromPointXY(pt)).asPoint()
+            dist_m = medidor.measureLine(pt, ponto_proximo)
             if dist_m <= TOL_PONTA_M and (melhor is None or dist_m < melhor[0]):
                 melhor = (dist_m, arc_id, arco["way_id"])
         if melhor is not None:
@@ -345,10 +382,15 @@ def cruzamento_sem_no(arcos):
     return resultados
 
 
-def _monta_problemas(arcos, diag, nodes_dict, engine):
-    """Monta os registros de `osm_problemas`, filtrados aos pontos DENTRO
-    do polígono municipal (`engine` já preparado sobre a geometria do
-    município)."""
+def _monta_problemas(arcos_rede, diag, nodes_dict, engine, rede):
+    """Monta os registros de `osm_problemas` de UMA rede (`rede` =
+    "veicular"|"pedestre"), filtrados aos pontos DENTRO do polígono
+    municipal (`engine` já preparado sobre a geometria do município).
+
+    `arcos_rede`/`diag` já vêm filtrados para a rede pedida (ver
+    `diagnostica(arcos, rede)`). Na rede pedestre, `ponta_solta` NÃO é
+    emitido (becos de calçada são a norma); os demais tipos, sim.
+    """
     def dentro(x, y):
         return engine.contains(QgsPoint(x, y))
 
@@ -373,11 +415,12 @@ def _monta_problemas(arcos, diag, nodes_dict, engine):
             "tipo": tipo,
             "severidade": "baixa" if tipo == "ilha_borda" else "alta",
             "detalhe": "componente {}: {} arcos".format(comp_id, n_arcos),
-            "node_id": representante, "arc_id": None, "x": x, "y": y,
+            "node_id": representante, "arc_id": None, "x": x, "y": y, "rede": rede,
         })
 
-    # pontas de grau 1: quase conectada (alta) ou solta (baixa)
-    quase_conectadas_por_no = {p["node_id"]: p for p in ponta_quase_conectada(arcos, diag, nodes_dict)}
+    # pontas de grau 1: quase conectada (alta se <= TOL_PONTA_ALTA_M, senão
+    # media) ou solta (baixa, so fora da rede pedestre)
+    quase_conectadas_por_no = {p["node_id"]: p for p in ponta_quase_conectada(arcos_rede, diag, nodes_dict)}
     for node_id in diag["pontas_soltas"]:
         coord = nodes_dict.get(node_id)
         if coord is None:
@@ -387,41 +430,57 @@ def _monta_problemas(arcos, diag, nodes_dict, engine):
             continue
         if node_id in quase_conectadas_por_no:
             p = quase_conectadas_por_no[node_id]
+            severidade = "alta" if p["distancia_m"] <= TOL_PONTA_ALTA_M else "media"
             problemas.append({
-                "tipo": "ponta_quase_conectada", "severidade": "alta",
+                "tipo": "ponta_quase_conectada", "severidade": severidade,
                 "detalhe": p["detalhe"], "node_id": node_id, "arc_id": p["arc_id"],
-                "x": x, "y": y,
+                "x": x, "y": y, "rede": rede,
             })
-        else:
+        elif rede != "pedestre":
             problemas.append({
                 "tipo": "ponta_solta", "severidade": "baixa",
                 "detalhe": "", "node_id": node_id, "arc_id": None,
-                "x": x, "y": y,
+                "x": x, "y": y, "rede": rede,
             })
 
-    # mão única sem saída
+    # mão única sem saída / mão única de borda (sempre vazio para rede
+    # pedestre — diagnostica ja garante). Agrupado por SCC (mesmo padrão de
+    # ilha/ilha_borda): se algum nó da SCC está fora do polígono, o oneway
+    # atravessa a borda e a volta pode estar fora do bbox consultado — não
+    # dá pra afirmar que é de fato sem saída, então sai como "borda"
+    # (severidade baixa) em vez de "sem_saida" (severidade alta).
+    scc_map = diag["scc"]
+    nos_por_scc = {}
     for node_id in diag["mao_unica_sem_saida"]:
-        coord = nodes_dict.get(node_id)
-        if coord is None:
-            continue
-        x, y = coord
-        if not dentro(x, y):
-            continue
-        problemas.append({
-            "tipo": "mao_unica_sem_saida", "severidade": "alta",
-            "detalhe": "", "node_id": node_id, "arc_id": None,
-            "x": x, "y": y,
-        })
+        nos_por_scc.setdefault(scc_map.get(node_id), []).append(node_id)
+    for scc_id, nos_scc in nos_por_scc.items():
+        algum_fora = any(
+            not dentro(*nodes_dict[n]) for n in nos_scc if n in nodes_dict
+        )
+        tipo = "mao_unica_borda" if algum_fora else "mao_unica_sem_saida"
+        severidade = "baixa" if algum_fora else "alta"
+        for node_id in nos_scc:
+            coord = nodes_dict.get(node_id)
+            if coord is None:
+                continue
+            x, y = coord
+            if not dentro(x, y):
+                continue
+            problemas.append({
+                "tipo": tipo, "severidade": severidade,
+                "detalhe": "", "node_id": node_id, "arc_id": None,
+                "x": x, "y": y, "rede": rede,
+            })
 
     # cruzamento sem nó
-    for c in cruzamento_sem_no(arcos):
+    for c in cruzamento_sem_no(arcos_rede):
         x, y = c["x"], c["y"]
         if not dentro(x, y):
             continue
         problemas.append({
             "tipo": "cruzamento_sem_no", "severidade": "media",
             "detalhe": c["detalhe"], "node_id": None, "arc_id": c["arc_a"],
-            "x": x, "y": y,
+            "x": x, "y": y, "rede": rede,
         })
 
     return problemas
@@ -439,6 +498,7 @@ def _cria_problemas_layer(problemas, layer_name="osm_problemas"):
         feat["detalhe"] = p["detalhe"]
         feat["node_id"] = p["node_id"]
         feat["arc_id"] = p["arc_id"]
+        feat["rede"] = p["rede"]
         layer.addFeature(feat)
     layer.commitChanges()
     return layer
@@ -508,9 +568,13 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
     nodes_dict = _build_nodes_dict(payload)
     log(f"OSM: {len(ways)} ways encontrados, {len(nodes_dict)} nós")
 
-    arcos, n_orfaos = constroi_arcos(ways, nodes_dict)
+    arcos, n_orfaos, descartados = constroi_arcos(ways, nodes_dict)
     if n_orfaos:
         log(f"OSM: {n_orfaos} refs de nó órfãs descartadas")
+    if descartados:
+        log("OSM: descartados " + ", ".join(
+            "{}: {}".format(hw or "(vazio)", n) for hw, n in sorted(descartados.items())
+        ))
 
     if not arcos:
         log("OSM: nenhum way com highway encontrado no bbox")
@@ -518,8 +582,10 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
                 "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "bbox": bbox, "municipio_layer": municipio.name(),
                              "erro": "nenhum way com highway encontrado no bbox", "sem_vias": True}}
 
-    diag = diagnostica(arcos)
-    log(f"OSM: {len(arcos)} arcos, {len(diag['comp_tam'])} componentes")
+    diag_veicular = diagnostica(arcos, "veicular")
+    diag_pedestre = diagnostica(arcos, "pedestre")
+    log(f"OSM: {len(arcos)} arcos — veicular: {len(diag_veicular['comp_tam'])} componentes, "
+        f"pedestre: {len(diag_pedestre['comp_tam'])} componentes")
 
     mun_geom = _geometria_municipio(municipio)
     if mun_geom is None:
@@ -531,7 +597,7 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
     engine = QgsGeometry.createGeometryEngine(mun_geom.constGet())
     engine.prepareGeometry()
 
-    osm_links_raw = _cria_links_raw(arcos, diag)
+    osm_links_raw = _cria_links_raw(arcos, diag_veicular, diag_pedestre)
     log(f"OSM: {osm_links_raw.featureCount()} arcos no bbox")
 
     # RECORTE — mudança deliberada: NÃO native:clip (cortaria o arco e
@@ -546,22 +612,32 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
 
     log(f"OSM: {osm_links.featureCount()} arcos dentro do município (arco inteiro, sem clip)")
 
-    osm_nodes = _cria_nodes_layer(osm_links, diag, nodes_dict)
+    osm_nodes = _cria_nodes_layer(osm_links, diag_veicular, diag_pedestre, nodes_dict)
     log(f"OSM: {osm_nodes.featureCount()} nós (from/to dos arcos mantidos)")
 
-    # Verificações geométricas/topológicas sobre TODOS os arcos (antes do
-    # filtro por município); só entram problemas com o ponto dentro do
-    # polígono.
-    problemas = _monta_problemas(arcos, diag, nodes_dict, engine)
+    # Verificações geométricas/topológicas RODAM DUAS VEZES (veicular e
+    # pedestre), cada uma só sobre os arcos da própria rede — sobre TODOS
+    # os arcos (antes do filtro por município); só entram problemas com o
+    # ponto dentro do polígono.
+    arcos_veiculares = [a for a in arcos if a["veicular"]]
+    arcos_pedestres = [a for a in arcos if a["pedestre"]]
+    problemas = (
+        _monta_problemas(arcos_veiculares, diag_veicular, nodes_dict, engine, "veicular")
+        + _monta_problemas(arcos_pedestres, diag_pedestre, nodes_dict, engine, "pedestre")
+    )
     osm_problemas = _cria_problemas_layer(problemas)
 
-    contagem_tipos = {}
+    contagem_tipos = {"veicular": {}, "pedestre": {}}
     for p in problemas:
-        contagem_tipos[p["tipo"]] = contagem_tipos.get(p["tipo"], 0) + 1
-    if contagem_tipos:
-        log("OSM: verificação — " + ", ".join("{}: {}".format(k, v) for k, v in sorted(contagem_tipos.items())))
-    else:
-        log("OSM: verificação — nenhum problema encontrado")
+        contagem_tipos[p["rede"]][p["tipo"]] = contagem_tipos[p["rede"]].get(p["tipo"], 0) + 1
+    for rede_nome in ("veicular", "pedestre"):
+        c = contagem_tipos[rede_nome]
+        if c:
+            log("OSM: verificação ({}) — ".format(rede_nome) + ", ".join(
+                "{}: {}".format(k, v) for k, v in sorted(c.items())
+            ))
+        else:
+            log("OSM: verificação ({}) — nenhum problema encontrado".format(rede_nome))
 
     # ponytail: gravar em GeoPackage (reutiliza _grava_gpkg existente)
     from .diagnostico import _grava_gpkg
@@ -588,7 +664,11 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
             "nodes": osm_nodes.featureCount(),
             "arcos": len(arcos),
             "orfaos": n_orfaos,
-            "componentes": len(diag["comp_tam"]),
+            "descartados": descartados,
+            "componentes": {
+                "veicular": len(diag_veicular["comp_tam"]),
+                "pedestre": len(diag_pedestre["comp_tam"]),
+            },
             "verificacao": contagem_tipos,
             "gpkg_ok": ok_links and ok_nodes and ok_problemas,
         },

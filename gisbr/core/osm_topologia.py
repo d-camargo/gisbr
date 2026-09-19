@@ -24,10 +24,94 @@ _ONEWAY_AMBOS = {"no", "false", "0"}
 # junction que implica sentido único quando oneway está ausente/vazio
 _JUNCTION_ONEWAY_IMPLICITA = {"roundabout", "circular"}
 
+# highway de obra/projeto/plataforma/área — nunca vira arco de rede alguma.
+# `busway` entrou aqui (não é HIGHWAY_VEICULAR): é faixa exclusiva de
+# ônibus/BRT, não rede de carros — medido em Contagem/RMBH gerando 33 nós
+# de mao_unica_sem_saida espúrios quando ainda contava como veicular.
+HIGHWAY_DESCARTE = {
+    "proposed", "construction", "abandoned", "disused", "dismantled", "razed",
+    "planned", "raceway", "platform", "rest_area", "services", "bus_stop",
+    "elevator", "emergency_bay", "escape", "via_ferrata", "corridor",
+    "bus_guideway", "busway",
+}
+
+# highway que forma a rede veicular (carros/caminhões).
+HIGHWAY_VEICULAR = {
+    "motorway", "motorway_link", "trunk", "trunk_link", "primary",
+    "primary_link", "secondary", "secondary_link", "tertiary",
+    "tertiary_link", "unclassified", "residential", "living_street",
+    "service", "road", "track",
+}
+
+# highway que forma a rede a pé: a malha veicular exceto as vias de alta
+# velocidade (motorway/trunk, onde pedestre é proibido), mais as vias
+# dedicadas a pedestre/ciclista.
+HIGHWAY_PEDESTRE = (
+    HIGHWAY_VEICULAR - {"motorway", "motorway_link", "trunk", "trunk_link"}
+) | {"footway", "pedestrian", "path", "steps", "cycleway", "bridleway"}
+
+_OVERRIDE_PERMITE = {"yes", "designated", "permissive", "destination"}
+
+
+def classifica_modos(tags: Dict[str, Any]) -> Dict[str, bool]:
+    """Classifica um way OSM em `{"veicular": bool, "pedestre": bool}`.
+
+    1. `highway` em `HIGHWAY_DESCARTE`, ou `area == "yes"` → ambos `False`
+       (obra/projeto/plataforma/área nunca vira arco de rede).
+    2. Base: `veicular = highway in HIGHWAY_VEICULAR`,
+       `pedestre = highway in HIGHWAY_PEDESTRE`; `highway` desconhecido
+       (fora dos dois conjuntos e fora do descarte) → ambos `False`.
+    3. `access == "no"` tira dos dois modos, salvo override positivo do
+       modo (item 4). `access == "private"` NÃO tira nada: `service`
+       privado é comum e conecta condomínios/pátios à rede — descartá-lo
+       apagaria essas conexões reais.
+    4. Overrides do modo, com precedência sobre `access` (podem restaurar o
+       que `access=no` tirou, ou negar mesmo sem `access=no`):
+       veicular ← `motor_vehicle`, na ausência `vehicle`
+       ("no" → `False`; "yes"/"designated"/"permissive"/"destination" →
+       `True` somente se `highway` já está na base veicular — o override
+       não promove um `highway` fundamentalmente não-veicular).
+       pedestre ← `foot` (mesma regra, base pedestre). `sidewalk` não
+       altera nada (é atributo de acostamento, não de modo).
+    """
+    highway = str((tags or {}).get("highway") or "").strip().lower()
+    area = str((tags or {}).get("area") or "").strip().lower()
+
+    if highway in HIGHWAY_DESCARTE or area == "yes":
+        return {"veicular": False, "pedestre": False}
+
+    base_veicular = highway in HIGHWAY_VEICULAR
+    base_pedestre = highway in HIGHWAY_PEDESTRE
+    veicular = base_veicular
+    pedestre = base_pedestre
+
+    access = str((tags or {}).get("access") or "").strip().lower()
+    if access == "no":
+        veicular = False
+        pedestre = False
+
+    motor_val = (tags or {}).get("motor_vehicle") or (tags or {}).get("vehicle")
+    if motor_val:
+        v = str(motor_val).strip().lower()
+        if v == "no":
+            veicular = False
+        elif v in _OVERRIDE_PERMITE and base_veicular:
+            veicular = True
+
+    foot_val = (tags or {}).get("foot")
+    if foot_val:
+        v = str(foot_val).strip().lower()
+        if v == "no":
+            pedestre = False
+        elif v in _OVERRIDE_PERMITE and base_pedestre:
+            pedestre = True
+
+    return {"veicular": veicular, "pedestre": pedestre}
+
 
 def constroi_arcos(ways: Sequence[Dict[str, Any]],
                     nodes_dict: Dict[int, Tuple[float, float]]
-                    ) -> Tuple[List[Dict[str, Any]], int]:
+                    ) -> Tuple[List[Dict[str, Any]], int, Dict[str, int]]:
     """Quebra cada way OSM em arcos pela topologia real (node_id compartilhado).
 
     `ways`: lista de dicts do Overpass (`id`, `nodes`, `tags`).
@@ -38,11 +122,15 @@ def constroi_arcos(ways: Sequence[Dict[str, Any]],
     primeiro/último nó OU qualquer nó cuja contagem de aparições em TODOS os
     ways (após descartar órfãos) seja >= 2. Arco com < 2 nós é descartado.
 
-    Devolve `(arcos, n_orfaos)`; cada arco é um dict com `arc_id` (inteiro
+    Cada way é classificado por `classifica_modos`; way com os dois modos
+    `False` NÃO gera arco algum (contado em `descartados`, por `highway`).
+
+    Devolve `(arcos, n_orfaos, descartados)`; `descartados` é
+    `{highway: n_ways}`. Cada arco é um dict com `arc_id` (inteiro
     sequencial a partir de 1), `way_id`, `seq` (ordem dentro do way, 0..),
     `from_node`, `to_node`, `nodes` (lista de node_ids), `coords` (lista de
     (lon, lat)), `highway`, `name`, `oneway`, `junction`, `bridge`, `tunnel`,
-    `layer` (strings, "" se ausente).
+    `layer` (strings, "" se ausente), `veicular`, `pedestre` (bool).
     """
     n_orfaos = 0
     ways_filtrados = []  # [(way, [node_id, ...])]
@@ -60,10 +148,20 @@ def constroi_arcos(ways: Sequence[Dict[str, Any]],
         for node_id in nos:
             contagem[node_id] = contagem.get(node_id, 0) + 1
 
+    descartados: Dict[str, int] = {}
     arcos: List[Dict[str, Any]] = []
     arc_id = 1
     for way, nos in ways_filtrados:
         if len(nos) < 2:
+            continue
+
+        tags = way.get("tags") or {}
+        way_id = way.get("id")
+        highway = str(tags.get("highway") or "")
+
+        modos = classifica_modos(tags)
+        if not modos["veicular"] and not modos["pedestre"]:
+            descartados[highway] = descartados.get(highway, 0) + 1
             continue
 
         pontos_quebra = {0, len(nos) - 1}
@@ -71,9 +169,6 @@ def constroi_arcos(ways: Sequence[Dict[str, Any]],
             if contagem.get(node_id, 0) >= 2:
                 pontos_quebra.add(i)
         pontos_quebra_ordenados = sorted(pontos_quebra)
-
-        tags = way.get("tags") or {}
-        way_id = way.get("id")
 
         seq = 0
         for idx in range(len(pontos_quebra_ordenados) - 1):
@@ -90,18 +185,20 @@ def constroi_arcos(ways: Sequence[Dict[str, Any]],
                 "to_node": segmento[-1],
                 "nodes": segmento,
                 "coords": [nodes_dict[n] for n in segmento],
-                "highway": str(tags.get("highway") or ""),
+                "highway": highway,
                 "name": str(tags.get("name") or ""),
                 "oneway": str(tags.get("oneway") or ""),
                 "junction": str(tags.get("junction") or ""),
                 "bridge": str(tags.get("bridge") or ""),
                 "tunnel": str(tags.get("tunnel") or ""),
                 "layer": str(tags.get("layer") or ""),
+                "veicular": modos["veicular"],
+                "pedestre": modos["pedestre"],
             })
             arc_id += 1
             seq += 1
 
-    return arcos, n_orfaos
+    return arcos, n_orfaos, descartados
 
 
 def sentido(arco: Dict[str, Any]) -> str:
@@ -272,8 +369,19 @@ def componentes_fortes(arcos: Sequence[Dict[str, Any]]) -> Dict[int, int]:
     return node_scc
 
 
-def diagnostica(arcos: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
-    """Consolida grau/componentes/SCC em diagnóstico da rede.
+def diagnostica(arcos: Sequence[Dict[str, Any]], rede: str = "veicular") -> Dict[str, Any]:
+    """Consolida grau/componentes/SCC em diagnóstico de UMA rede (veicular
+    ou pedestre).
+
+    `rede`: `"veicular"` ou `"pedestre"` — filtra `arcos` por `arco[rede]`
+    ser `True` antes de qualquer cálculo (arco não pertence à rede pedida,
+    fica de fora inteiro). `rede` fora desses dois valores levanta
+    `ValueError`.
+
+    Para `rede="pedestre"`, o sentido dirigido (`oneway`) é ignorado — a
+    malha a pé é sempre bidirecional — então o SCC é calculado sobre o
+    grafo simétrico e `mao_unica_sem_saida` sai sempre vazio (não faz
+    sentido "sentido único sem saída" numa rede sem sentido).
 
     Devolve dict com `grau`, `node_comp`, `comp_tam`, `scc`, e as listas
     `pontas_soltas` (nós de grau 1), `mao_unica_sem_saida` (nós da
@@ -281,15 +389,26 @@ def diagnostica(arcos: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     `(comp_id, n_arcos, node_id_representante)` para comp_id != 0,
     representante = menor node_id da componente).
     """
-    g = grau(arcos)
-    node_comp, comp_tam = componentes(arcos)
-    scc = componentes_fortes(arcos)
+    if rede not in ("veicular", "pedestre"):
+        raise ValueError("rede invalida: {!r} (use 'veicular' ou 'pedestre')".format(rede))
 
+    arcos_rede = [a for a in arcos if a.get(rede)]
+
+    g = grau(arcos_rede)
+    node_comp, comp_tam = componentes(arcos_rede)
     pontas_soltas = [n for n, d in g.items() if d == 1]
 
-    mao_unica_sem_saida = [
-        n for n, c in node_comp.items() if c == 0 and scc.get(n) != 0
-    ]
+    if rede == "pedestre":
+        # forca "ambos" (oneway="no" esta em _ONEWAY_AMBOS) — a malha a pe
+        # nao tem sentido dirigido; SCC vira so informativo.
+        arcos_scc = [dict(a, oneway="no") for a in arcos_rede]
+        scc = componentes_fortes(arcos_scc)
+        mao_unica_sem_saida: List[int] = []
+    else:
+        scc = componentes_fortes(arcos_rede)
+        mao_unica_sem_saida = [
+            n for n, c in node_comp.items() if c == 0 and scc.get(n) != 0
+        ]
 
     nos_por_comp: Dict[int, List[int]] = {}
     for node_id, comp_id in node_comp.items():
