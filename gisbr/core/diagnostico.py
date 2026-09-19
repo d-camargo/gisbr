@@ -341,6 +341,12 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
                     if osm_nodes.isValid():
                         QgsProject.instance().addMapLayer(osm_nodes)
                         log("OK: osm_nodes (GPKG)")
+                    # osm_problemas é aditivo: GPKGs antigos (pre-verificacao
+                    # topologica) nao tem essa camada, e isso nao falha a fonte.
+                    osm_problemas = QgsVectorLayer("{}|layername=osm_problemas_{}".format(gpkg_path, code_muni), "osm_problemas - {}".format(nome_muni or code_muni), "ogr")
+                    if osm_problemas.isValid():
+                        QgsProject.instance().addMapLayer(osm_problemas)
+                        log("OK: osm_problemas (GPKG)")
                     if osm_links.isValid() and osm_nodes.isValid():
                         res["ok"].append(sid)
                     else:
