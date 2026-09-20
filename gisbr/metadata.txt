@@ -3,13 +3,13 @@
 [general]
 name=GISBR
 qgisMinimumVersion=3.16
-description=Load official Brazilian spatial data (IBGE/IPEA geobr + censobr) and run a municipal Master Plan diagnostic with 54 data sources across 9 axes in QGIS, using only the native QGIS API.
-version=0.10.0
+description=Load official Brazilian spatial data (IBGE/IPEA geobr + censobr), build an OSM road network with real topology and connectivity checks, and run a municipal Master Plan diagnostic with 54 data sources across 9 axes, using only the native QGIS API.
+version=0.11.0
 author=Diego Camargo
 email=dg.camargo@proton.me
 supportsQt6=True
 
-about=GISBR brings the "one line -> one layer" access of the geobr/censobr packages (IPEA) into QGIS as a Processing provider, using only the native QGIS/Qt API and the Python standard library (no geopandas/requests/pandas). Phase 1: legacy GeoPackage backend (geobr v1.7.0), fully native. Phase 2: Parquet backend (geobr v2.0.0) read via the GDAL Parquet driver or a pyarrow fallback, plus a join with census tables from censobr. On top of the geobr mirror, GISBR adds a municipal Master Plan diagnostic: a dock panel (state -> municipality) that loads 54 official data sources organized in 9 axes (transport, sanitation, demography, environment, education, health, urban, administrative, agriculture) from WFS, ArcGIS REST, Overpass, IBGE Agregados v3 and COG raster services, clipped to the municipality polygon and saved to a local GeoPackage, with an optional Esri World Imagery satellite basemap. Data in SIRGAS 2000 / EPSG:4674. Licensed under GPL-3.0.
+about=GISBR brings the "one line -> one layer" access of the geobr/censobr packages (IPEA) into QGIS as a Processing provider, using only the native QGIS/Qt API and the Python standard library (no geopandas/requests/pandas). Phase 1: legacy GeoPackage backend (geobr v1.7.0), fully native. Phase 2: Parquet backend (geobr v2.0.0) read via the GDAL Parquet driver or a pyarrow fallback, plus a join with census tables from censobr. On top of the geobr mirror, GISBR adds a municipal Master Plan diagnostic: a dock panel (state -> municipality) that loads 54 official data sources organized in 9 axes (transport, sanitation, demography, environment, education, health, urban, administrative, agriculture) from WFS, ArcGIS REST, Overpass, IBGE Agregados v3 and COG raster services, clipped to the municipality polygon and saved to a local GeoPackage, with an optional Esri World Imagery satellite basemap. The OSM road network is built from the real OpenStreetMap topology, splitting ways into arcs at shared node_ids and keeping the vehicle and pedestrian networks separate. A connectivity check layer flags islands, dangling and near-connected dead ends, one-way traps and node-less crossings, each with a type and a severity. The road network is also available as a Processing algorithm (gisbr:osm_network) and loads in the background, without freezing QGIS. Data in SIRGAS 2000 / EPSG:4674. Licensed under GPL-3.0.
 
 tracker=https://github.com/d-camargo/gisbr/issues
 repository=https://github.com/d-camargo/gisbr
@@ -18,6 +18,27 @@ homepage=https://github.com/d-camargo/gisbr
 hasProcessingProvider=yes
 
 changelog=
+    0.11.0
+    - The OSM road network is now built from the real OSM topology: ways are
+      split into arcs at shared node_ids, so junctions in the middle of a
+      way are no longer lost; the osm_links/osm_nodes schema changed
+      accordingly (arc_id, from_node/to_node, component, degree).
+    - New osm_problemas_<code> layer with a connectivity check: types ilha,
+      ilha_borda, ponta_quase_conectada, ponta_solta, mao_unica_sem_saida,
+      mao_unica_borda and cruzamento_sem_no, each with a severity and the
+      network it belongs to.
+    - The vehicle network is now separated from the pedestrian network, and
+      highway types that are not real links (construction, platform,
+      busway, area=yes, etc.) are discarded.
+    - New link attributes for transport modelling: maxspeed,
+      velocidade_kmh, comprimento_m.
+    - New gisbr:osm_network Processing algorithm (LINKS/NODES/PROBLEMAS
+      outputs), so other plugins can consume the road network via
+      processing.run().
+    - The road network now loads in a background QgsTask: progress bar,
+      working Cancel button, QGIS no longer freezes during the download.
+    - Municipal clipping now keeps whole arcs that cross the boundary
+      (instead of native:clip), to preserve from_node/to_node.
     0.10.0
     - New 9th diagnostic axis (Agriculture & Livestock) featuring IBGE Agregados v3 data (PAM temporary and permanent crops, and Census of Agriculture 2017).
     - MapBiomas Brasil Collection 9 land cover and land use raster integration via Cloud Optimized GeoTIFF (COG).

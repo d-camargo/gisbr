@@ -11,8 +11,18 @@ Três páginas saem do CÓDIGO, nunca digitadas (decisão D3 do plano da rodada 
   o mesmo parser do plugins.qgis.org)
 
 Stdlib pura, sem QGIS: é a condição do runner do GitHub Actions. As páginas
-geradas NÃO vão para o git (D4) — rode este script antes de qualquer
-``mkdocs build`` / ``mkdocs serve`` (o Makefile e o workflow fazem isso).
+do site geradas acima NÃO vão para o git (D4) — rode este script antes de
+qualquer ``mkdocs build`` / ``mkdocs serve`` (o Makefile e o workflow fazem
+isso).
+
+Além das três páginas do site, este script também escreve o
+``CHANGELOG.md`` da RAIZ do repositório (não do ``docs/``), a partir do
+mesmo ``changelog=`` de ``gisbr/metadata.txt``. Esse arquivo tem destino
+diferente das páginas do site: o ``qgis-plugin-ci`` o lê do repositório na
+hora de empacotar/publicar (``qgispluginci/changelog.py``/``release.py``),
+então ele É versionado (ao contrário de ``docs/changelog.md``, que é
+puramente insumo do build do mkdocs). Nunca edite ``CHANGELOG.md`` à
+mão — rode este script.
 
 Uso:
 
@@ -265,11 +275,44 @@ def _render_changelog(texto):
 
 
 # ---------------------------------------------------------------------------
+# CHANGELOG.md da raiz do repo — mesma fonte, cabeçalho e destino diferentes
+# ---------------------------------------------------------------------------
+
+_CHANGELOG_RAIZ_CABECALHO = (
+    "# Changelog\n\n"
+    "Generated from the `changelog` block of `gisbr/metadata.txt` by "
+    "`tools/build_docs_site.py` — do not edit by hand.\n"
+)
+
+
+def _render_changelog_raiz(texto):
+    """metadata.txt changelog -> CHANGELOG.md da raiz do repositório.
+
+    Formato "Keep a Changelog" o suficiente para o ``qgis-plugin-ci``
+    (``ChangelogParser``) reconhecer o arquivo: um ``# Changelog`` no topo e
+    uma seção ``## <versao>`` por versão. Reaproveita o mesmo
+    ``_parse_changelog`` de ``docs/changelog.md``; só o cabeçalho muda.
+    """
+    linhas = [_CHANGELOG_RAIZ_CABECALHO]
+    for _, versao, corpo in _parse_changelog(texto):
+        linhas.append("\n## %s\n\n" % versao)
+        linhas.append("\n".join(corpo).strip())
+        linhas.append("\n")
+    return "".join(linhas)
+
+
+# ---------------------------------------------------------------------------
 # Interface
 # ---------------------------------------------------------------------------
 
 def gerar(raiz, destino):
-    """Gera as 6 páginas derivadas. Retorna a lista do que foi escrito."""
+    """Gera as páginas derivadas do site (em ``destino``) e o CHANGELOG.md
+    da raiz do repositório (sempre em ``raiz``, independente de ``destino``).
+
+    Retorna a lista do que foi escrito em ``destino`` (as páginas do site;
+    o CHANGELOG.md da raiz não entra nessa lista — tem outro consumidor,
+    o ``qgis-plugin-ci``, não o mkdocs).
+    """
     raiz, destino = Path(raiz), Path(destino)
     sources = _load_sources(raiz)
     v1, v2 = _load_constants(raiz)
@@ -288,6 +331,10 @@ def gerar(raiz, destino):
         caminho.parent.mkdir(parents=True, exist_ok=True)
         caminho.write_text(conteudo, encoding="utf-8")
         escritas.append(pagina)
+
+    (raiz / "CHANGELOG.md").write_text(
+        _render_changelog_raiz(changelog), encoding="utf-8")
+
     return escritas
 
 
@@ -304,6 +351,7 @@ def main(argv=None):
     escritas = gerar(raiz_padrao, destino)
     print("%d páginas geradas em %s: %s"
           % (len(escritas), destino, ", ".join(escritas)))
+    print("CHANGELOG.md gerado em %s" % (raiz_padrao / "CHANGELOG.md"))
     return 0
 
 

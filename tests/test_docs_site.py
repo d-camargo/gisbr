@@ -82,7 +82,10 @@ def test_changelog_traz_versao_corrente_primeiro(tmp_path):
     secoes = [linha[3:] for linha in texto.splitlines()
               if linha.startswith("## ")]
     assert secoes[0] == versao
-    assert versao == "0.10.0"  # D8: a rodada do site não bumpa o plugin
+    # a versão corrente do pacote nesta rodada (osm_network + mudança de
+    # esquema de osm_links/osm_nodes: release de feature, não de docs — D8
+    # só vale para rodadas que mexem só em docs/, não é o caso aqui)
+    assert versao == "0.11.0"
 
 
 def test_destino_alternativo(tmp_path):
@@ -90,3 +93,19 @@ def test_destino_alternativo(tmp_path):
     escritas = gerar(RAIZ, saida)
     assert len(escritas) == 5
     assert (saida / "changelog.md").exists()
+
+
+def test_changelog_raiz_e_gerado(tmp_path):
+    gerar(RAIZ, tmp_path)
+    caminho = RAIZ / "CHANGELOG.md"
+    assert caminho.exists()
+    texto = caminho.read_text(encoding="utf-8")
+    assert texto.startswith(
+        "# Changelog\n\n"
+        "Generated from the `changelog` block of `gisbr/metadata.txt` by "
+        "`tools/build_docs_site.py` — do not edit by hand.\n")
+    parser = configparser.ConfigParser()
+    with open(RAIZ / "gisbr" / "metadata.txt", encoding="utf-8") as fh:
+        parser.read_file(fh)
+    versao = parser["general"]["version"]
+    assert ("## %s" % versao) in texto
