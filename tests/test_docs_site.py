@@ -82,10 +82,11 @@ def test_changelog_traz_versao_corrente_primeiro(tmp_path):
     secoes = [linha[3:] for linha in texto.splitlines()
               if linha.startswith("## ")]
     assert secoes[0] == versao
-    # a versão corrente do pacote nesta rodada (osm_network + mudança de
-    # esquema de osm_links/osm_nodes: release de feature, não de docs — D8
-    # só vale para rodadas que mexem só em docs/, não é o caso aqui)
-    assert versao == "0.11.0"
+    # a versão corrente do pacote nesta rodada (plano `so_veicular`: uma rede
+    # por execução, ponta_solta fora por padrão, mão única agrupada — release
+    # de feature, não de docs — D8 só vale para rodadas que mexem só em
+    # docs/, não é o caso aqui)
+    assert versao == "0.12.0"
 
 
 def test_destino_alternativo(tmp_path):

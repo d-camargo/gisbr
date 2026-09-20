@@ -18,6 +18,7 @@ from qgis.core import (
     QgsProcessingAlgorithm,
     QgsProcessingException,
     QgsProcessingParameterBoolean,
+    QgsProcessingParameterEnum,
     QgsProcessingParameterFeatureSink,
     QgsProcessingParameterFile,
     QgsProcessingParameterString,
@@ -41,9 +42,15 @@ class OsmNetwork(QgsProcessingAlgorithm):
     CODE = "CODE"
     FORCE = "FORCE"
     CACHE_DIR = "CACHE_DIR"
+    REDE = "REDE"
+    PONTAS_SOLTAS = "PONTAS_SOLTAS"
     LINKS = "LINKS"
     NODES = "NODES"
     PROBLEMAS = "PROBLEMAS"
+
+    # Opções do parâmetro REDE, na mesma ordem do índice do enum (0 =
+    # veicular, default).
+    _REDE_OPCOES = ["veicular", "pedestre"]
 
     def tr(self, string):
         return QCoreApplication.translate("OsmNetwork", string)
@@ -70,7 +77,11 @@ class OsmNetwork(QgsProcessingAlgorithm):
             "real OSM topology (same core as the diagnostic panel, "
             "gisbr/core/osm_pipeline.py), without writing to a GeoPackage. "
             "Links carry cost attributes (maxspeed, velocidade_kmh, "
-            "comprimento_m) for routing consumers such as the logis plugin."
+            "comprimento_m) for routing consumers such as the logis plugin. "
+            "REDE selects the vehicle or pedestrian network (default: "
+            "vehicle); PONTAS_SOLTAS includes dead-end nodes (ponta_solta) "
+            "in the problems layer (default: off, since a dead end is "
+            "normal, not an error)."
         )
 
     def flags(self):
@@ -101,6 +112,21 @@ class OsmNetwork(QgsProcessingAlgorithm):
                 self.tr("Overpass cache folder (optional; default: ~/.cache/gisbr-diagnostico)"),
                 behavior=QgsProcessingParameterFile.Behavior.Folder,
                 optional=True,
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterEnum(
+                self.REDE,
+                self.tr("Network"),
+                options=self._REDE_OPCOES,
+                defaultValue=0,
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterBoolean(
+                self.PONTAS_SOLTAS,
+                self.tr("Include dead ends (ponta_solta)"),
+                defaultValue=False,
             )
         )
         self.addParameter(
@@ -140,9 +166,12 @@ class OsmNetwork(QgsProcessingAlgorithm):
         force = self.parameterAsBool(parameters, self.FORCE, context)
         cache_dir_str = self.parameterAsFile(parameters, self.CACHE_DIR, context)
         cache_dir = Path(cache_dir_str) if cache_dir_str else None
+        rede = self._REDE_OPCOES[self.parameterAsEnum(parameters, self.REDE, context)]
+        pontas_soltas = self.parameterAsBool(parameters, self.PONTAS_SOLTAS, context)
 
         result = osm_pipeline.build_osm_network_layers(
-            code, cache_dir=cache_dir, force=force, feedback=feedback
+            code, cache_dir=cache_dir, force=force, feedback=feedback,
+            rede=rede, incluir_pontas_soltas=pontas_soltas
         )
         metadata = result.get("metadata", {})
         layers = result.get("layers", {})

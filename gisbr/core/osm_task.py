@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """`OsmNetworkTask`: calcula a rede viária OSM em segundo plano (`QgsTask`).
 
-Passo 2 do plano `osm_qgstask`. `run()` chama `compute_osm_network`
-(`core/osm_pipeline.py`) — dados puros, nenhuma `QgsVectorLayer`/
-`QgsProject` aqui dentro. `bbox`/`mun_geom` chegam JÁ resolvidos pela
-thread principal (`osm_pipeline.resolve_municipio`, chamado pelo painel
-ANTES de despachar a task — ver `gui/diagnostico_dock.py`). Quem monta as
-camadas é o painel, na thread principal, depois que `finished()` emite o
-sinal `concluida`.
+`run()` chama `compute_osm_network` (`core/osm_pipeline.py`) — dados puros,
+nenhuma `QgsVectorLayer`/`QgsProject` aqui dentro, porque nenhuma das duas
+é segura fora da thread principal do Qt. `bbox`/`mun_geom` chegam JÁ
+resolvidos pela thread principal (`osm_pipeline.resolve_municipio`, chamado
+pelo painel ANTES de despachar a task — ver `gui/diagnostico_dock.py`).
+Quem monta as camadas é o painel, na thread principal, depois que
+`finished()` emite o sinal `concluida`.
 """
 from qgis.core import QgsProcessingFeedback, QgsTask
 from qgis.PyQt.QtCore import pyqtSignal

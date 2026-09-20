@@ -25,12 +25,11 @@ class _LogFeedback(QgsProcessingFeedback):
     downloads do censobr, backend Parquet ausente, join que casou 0 setores)
     nunca chegam ao usuario do painel.
 
-    Passo 6b (progresso visivel): `progress_bar` e opcional — sem ela, o
-    comportamento segue igual ao de antes (so log). Com ela, `setProgress`/
-    `setProgressText` atualizam a barra e chamam `processEvents()` para a
-    interface repintar durante o carregamento sincrono (e para o botao
-    "Cancelar" do 6c conseguir reagir a clique no meio da chamada) — mesmo
-    truque em `pushInfo`.
+    `progress_bar` e opcional — sem ela, o comportamento segue igual ao de
+    antes (so log). Com ela, `setProgress`/`setProgressText` atualizam a
+    barra e chamam `processEvents()` para a interface repintar durante o
+    carregamento sincrono (e para o botao "Cancelar" conseguir reagir a
+    clique no meio da chamada) — mesmo truque em `pushInfo`.
     """
 
     def __init__(self, log_widget, progress_bar=None):
@@ -91,10 +90,11 @@ class DiagnosticoDock(QgsDockWidget):
         self.iface = iface
         self._munis = {}
         self._feedback_atual = None
-        # Passo 3 do plano `osm_qgstask`: fonte `osm_vias` roda em segundo
-        # plano via `OsmNetworkTask`; `_task_osm` é a task viva (ou `None`),
-        # e `_osm_code`/`_osm_nome`/`_osm_gpkg` guardam o contexto que
-        # `_on_osm_concluida(dados)` precisa (a task só devolve `dados`).
+        # Fonte `osm_vias` roda em segundo plano via `OsmNetworkTask` (não
+        # trava a UI enquanto baixa/calcula a rede); `_task_osm` é a task
+        # viva (ou `None`), e `_osm_code`/`_osm_nome`/`_osm_gpkg` guardam o
+        # contexto que `_on_osm_concluida(dados)` precisa (a task só devolve
+        # `dados`).
         self._task_osm = None
         self._osm_code = None
         self._osm_nome = None
@@ -277,8 +277,8 @@ class DiagnosticoDock(QgsDockWidget):
         self.txt_log.setReadOnly(True)
         layout.addWidget(self.txt_log)
 
-        # 6.1) Barra de progresso (Passo 6b) + botao Cancelar (Passo 6c) —
-        # escondidos fora da execucao.
+        # 6.1) Barra de progresso + botao Cancelar — escondidos fora da
+        # execucao.
         progress_layout = QHBoxLayout()
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
@@ -545,14 +545,14 @@ class DiagnosticoDock(QgsDockWidget):
             self._log(self.tr("Specify municipality, GeoPackage and at least 1 source."), focar=True)
             return
         # Mesma normalização que `diagnostico.carregar_fontes` faz por
-        # dentro — precisa acontecer aqui também porque `osm_vias` (Passo 3
-        # do plano `osm_qgstask`) não passa mais por `carregar_fontes`, e as
-        # duas trilhas têm de gravar no MESMO arquivo .gpkg.
+        # dentro — precisa acontecer aqui também porque `osm_vias` não passa
+        # mais por `carregar_fontes`, e as duas trilhas têm de gravar no
+        # MESMO arquivo .gpkg.
         if not gpkg.lower().endswith(".gpkg"):
             gpkg = gpkg + ".gpkg"
-        # Passo 3 do plano `osm_qgstask`: `osm_vias` sai do carregamento
-        # síncrono e vira `OsmNetworkTask` (QgsTask) — as demais fontes
-        # continuam por `diagnostico.carregar_fontes` como sempre.
+        # `osm_vias` roda como `OsmNetworkTask` (QgsTask, em segundo plano,
+        # sem travar a UI) — as demais fontes continuam por
+        # `diagnostico.carregar_fontes` como sempre (síncronas).
         osm_vias_selecionada = "osm_vias" in ids
         ids_sincronas = [sid for sid in ids if sid != "osm_vias"]
         censo_ano = None
@@ -617,8 +617,9 @@ class DiagnosticoDock(QgsDockWidget):
             self._iniciar_osm_vias(code, nome, gpkg, force=self.chk_atualizar.isChecked())
 
     def _iniciar_osm_vias(self, code, nome, gpkg, force):
-        """Resolve o município na thread principal e despacha
-        `OsmNetworkTask` — Passo 3 do plano `osm_qgstask`."""
+        """Resolve o município na thread principal (`processing.run` e
+        `QgsVectorLayer` não são seguros fora dela) e despacha
+        `OsmNetworkTask` já com `bbox`/`mun_geom` prontos."""
         if self._task_osm is not None:
             # Guarda contra clique duplo em "Load selected": o botão volta a
             # ficar habilitado no `finally` do trecho síncrono antes da task

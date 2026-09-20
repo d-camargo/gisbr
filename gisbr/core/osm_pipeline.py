@@ -36,10 +36,14 @@ _LINK_FIELDS = [
     ("highway", "string"), ("name", "string"), ("oneway", "string"),
     ("bridge", "string"), ("tunnel", "string"), ("layer", "string"),
     ("veicular", "int"), ("pedestre", "int"),
-    ("componente", "int"), ("componente_tam", "int"), ("componente_pe", "int"),
-    # Passo 2 do plano `osm_network`: atributos de custo p/ o logis parar de
-    # calcular por conta propria (`_parse_speed`/`_calcular_comprimento_metros`
-    # em ~/projects/logis/logis/core/network/osm_pipeline.py). `comprimento_m`
+    # `componente`/`componente_tam` sao GENERICOS: refletem a rede que
+    # rodou nesta execucao (ver `metadata["rede"]` em `compute_osm_network`),
+    # nao mais fixos em veicular com um par `_pe` — cada execucao roda uma
+    # unica rede, entao nao ha por que carregar os dois pares sempre.
+    ("componente", "int"), ("componente_tam", "int"),
+    # atributos de custo p/ o logis parar de calcular por conta propria
+    # (`_parse_speed`/`_calcular_comprimento_metros` em
+    # ~/projects/logis/logis/core/network/osm_pipeline.py). `comprimento_m`
     # e do ARCO INTEIRO (mesma geometria de `osm_links`), inclusive quando o
     # arco cruza a divisa municipal — nao e recortado na fronteira.
     ("maxspeed", "string"), ("velocidade_kmh", "double"), ("comprimento_m", "double"),
@@ -47,8 +51,10 @@ _LINK_FIELDS = [
 
 _NODE_FIELDS = [
     ("node_id", "int"), ("x", "double"), ("y", "double"),
-    ("grau", "int"), ("grau_pe", "int"),
-    ("componente", "int"), ("componente_pe", "int"),
+    # `grau`/`componente` GENERICOS, da rede que rodou nesta execucao — nao
+    # mais fixos em veicular com um par `grau_pe`/`componente_pe`.
+    ("grau", "int"),
+    ("componente", "int"),
 ]
 
 _PROBLEMA_FIELDS = [
@@ -58,7 +64,8 @@ _PROBLEMA_FIELDS = [
 
 
 def _reporta_progresso(feedback, pct, texto=None):
-    """Passo 6a: `feedback` e sempre opcional — protege TODAS as chamadas."""
+    """`feedback` é sempre opcional — protege todas as chamadas para quem
+    roda o núcleo sem UI (script, teste, chamada direta sem painel)."""
     if feedback is None:
         return
     if texto is not None:
@@ -114,19 +121,21 @@ def _arco_para_geometria(arco):
     return QgsGeometry(ls) if ls is not None else None
 
 
-def _cria_links_raw(arcos, diag_veicular, diag_pedestre, layer_name="osm_links_raw"):
+def _cria_links_raw(arcos, diag, rede, layer_name="osm_links_raw"):
     """Cria a camada LineString de TODOS os arcos (antes do recorte municipal).
 
-    `componente`/`componente_tam` são da rede VEICULAR (-1/None se o arco
-    não é veicular); `componente_pe` é da rede pedestre (-1 se não pedestre).
+    `componente`/`componente_tam` são da rede que RODOU nesta execução
+    (`rede`, `diag` = `diagnostica(arcos_todos, rede)` — ver
+    `compute_osm_network`) — -1/None se o arco não pertence a ela.
+    `veicular`/`pedestre` seguem vindo de graça da classificação do arco
+    (`classifica_modos`), independente de `rede`.
     """
     layer = QgsVectorLayer(_uri("LineString", _LINK_FIELDS), layer_name, "memory")
     campos = _fields(_LINK_FIELDS)
     layer.startEditing()
 
-    node_comp_v = diag_veicular["node_comp"]
-    comp_tam_v = diag_veicular["comp_tam"]
-    node_comp_p = diag_pedestre["node_comp"]
+    node_comp = diag["node_comp"]
+    comp_tam = diag["comp_tam"]
     medidor = _medidor_area()
     for arco in arcos:
         geom = _arco_para_linestring(arco)
@@ -135,15 +144,11 @@ def _cria_links_raw(arcos, diag_veicular, diag_pedestre, layer_name="osm_links_r
         qgeom = QgsGeometry(geom)
         feat = QgsFeature(campos)
         feat.setGeometry(qgeom)
-        if arco["veicular"]:
-            comp = node_comp_v.get(arco["from_node"], -1)
+        if arco.get(rede):
+            comp = node_comp.get(arco["from_node"], -1)
         else:
             comp = -1
-        comp_tam = comp_tam_v.get(comp) if comp != -1 else None
-        if arco["pedestre"]:
-            comp_pe = node_comp_p.get(arco["from_node"], -1)
-        else:
-            comp_pe = -1
+        comp_tam_val = comp_tam.get(comp) if comp != -1 else None
         feat["arc_id"] = arco["arc_id"]
         feat["way_id"] = arco["way_id"]
         feat["seq"] = arco["seq"]
@@ -158,8 +163,7 @@ def _cria_links_raw(arcos, diag_veicular, diag_pedestre, layer_name="osm_links_r
         feat["veicular"] = 1 if arco["veicular"] else 0
         feat["pedestre"] = 1 if arco["pedestre"] else 0
         feat["componente"] = comp
-        feat["componente_tam"] = comp_tam
-        feat["componente_pe"] = comp_pe
+        feat["componente_tam"] = comp_tam_val
         feat["maxspeed"] = arco.get("maxspeed", "")
         feat["velocidade_kmh"] = velocidade_kmh(arco)
         feat["comprimento_m"] = medidor.measureLength(qgeom)
@@ -172,11 +176,10 @@ def _cria_links_raw(arcos, diag_veicular, diag_pedestre, layer_name="osm_links_r
 def _filtra_arcos(arcos, engine):
     """Mantém o arco INTEIRO se intersecta o polígono do município.
 
-    Sucessora de `_filtra_arcos_por_poligono` (Passo 1 do plano
-    `osm_qgstask`): opera sobre uma LISTA de arcos — dados puros, nunca uma
-    `QgsVectorLayer` — porque roda dentro de `compute_osm_network`, que uma
-    `QgsTask` pode chamar fora da thread principal. Devolve a lista dos
-    arcos mantidos, na mesma ordem.
+    Sucessora de `_filtra_arcos_por_poligono`: opera sobre uma LISTA de
+    arcos — dados puros, nunca uma `QgsVectorLayer` — porque roda dentro de
+    `compute_osm_network`, que uma `QgsTask` pode chamar fora da thread
+    principal. Devolve a lista dos arcos mantidos, na mesma ordem.
 
     Mudança deliberada em relação ao `native:clip`: clip cortaria o arco e
     deixaria `from_node`/`to_node` apontando para um nó fora da geometria
@@ -197,16 +200,16 @@ def _filtra_arcos(arcos, engine):
     return mantidos
 
 
-def _cria_nodes_layer(arcos, diag_veicular, diag_pedestre, nodes_dict, layer_name="osm_nodes"):
+def _cria_nodes_layer(arcos, diag, nodes_dict, layer_name="osm_nodes"):
     """Um ponto por node_id referenciado como from/to dos arcos mantidos.
 
-    Passo 1 do plano `osm_qgstask`: `arcos` passou a ser a LISTA de arcos
-    mantidos (dados puros), não mais a camada `osm_links` — o node_id é lido
-    direto do dict do arco (`from_node`/`to_node`), sem depender de
-    `QgsVectorLayer.getFeatures()`.
+    `arcos` é a LISTA de arcos mantidos (dados puros), não a camada
+    `osm_links` — o node_id é lido direto do dict do arco
+    (`from_node`/`to_node`), sem depender de `QgsVectorLayer.getFeatures()`.
 
-    `grau`/`componente` são da rede veicular; `grau_pe`/`componente_pe` da
-    rede pedestre (0/-1 quando o nó não participa daquela rede).
+    `grau`/`componente` são GENÉRICOS, da rede que rodou nesta execução
+    (`diag`, ver `compute_osm_network`) — não mais fixos em veicular com um
+    par `grau_pe`/`componente_pe`.
     """
     node_ids = set()
     for arco in arcos:
@@ -217,10 +220,8 @@ def _cria_nodes_layer(arcos, diag_veicular, diag_pedestre, nodes_dict, layer_nam
     campos = _fields(_NODE_FIELDS)
     layer.startEditing()
 
-    grau_map_v = diag_veicular["grau"]
-    comp_map_v = diag_veicular["node_comp"]
-    grau_map_p = diag_pedestre["grau"]
-    comp_map_p = diag_pedestre["node_comp"]
+    grau_map = diag["grau"]
+    comp_map = diag["node_comp"]
     for node_id in sorted(node_ids):
         if node_id not in nodes_dict:
             continue
@@ -230,10 +231,8 @@ def _cria_nodes_layer(arcos, diag_veicular, diag_pedestre, nodes_dict, layer_nam
         feat["node_id"] = node_id
         feat["x"] = lon
         feat["y"] = lat
-        feat["grau"] = grau_map_v.get(node_id, 0)
-        feat["grau_pe"] = grau_map_p.get(node_id, 0)
-        feat["componente"] = comp_map_v.get(node_id, -1)
-        feat["componente_pe"] = comp_map_p.get(node_id, -1)
+        feat["grau"] = grau_map.get(node_id, 0)
+        feat["componente"] = comp_map.get(node_id, -1)
         layer.addFeature(feat)
 
     layer.commitChanges()
@@ -276,8 +275,8 @@ def ponta_quase_conectada(arcos, diag, nodes_dict, feedback=None, faixa=None):
     toda ponta cujo bbox de tolerância toca outro arco em falso positivo a
     0,0 m.
 
-    Passo 6a: `feedback`/`faixa` (tupla `(lo, hi)`) são opcionais — a cada
-    ~200 nós reporta progresso interpolado dentro de `faixa` e verifica
+    `feedback`/`faixa` (tupla `(lo, hi)`) são opcionais — a cada ~200 nós
+    reporta progresso interpolado dentro de `faixa` e verifica
     `feedback.isCanceled()`; se cancelado, interrompe o laço e devolve os
     achados parciais (quem decide abortar o pipeline é o chamador).
 
@@ -371,8 +370,8 @@ def cruzamento_sem_no(arcos, feedback=None, faixa=None):
     e != "no", ou se `layer` difere (vazio = "0"). Um registro por ponto de
     interseção (par A-B/B-A deduplicado).
 
-    Passo 6a: `feedback`/`faixa` (tupla `(lo, hi)`) são opcionais — a cada
-    ~200 arcos reporta progresso interpolado dentro de `faixa` e verifica
+    `feedback`/`faixa` (tupla `(lo, hi)`) são opcionais — a cada ~200 arcos
+    reporta progresso interpolado dentro de `faixa` e verifica
     `feedback.isCanceled()`; se cancelado, interrompe o laço e devolve os
     achados parciais (quem decide abortar o pipeline é o chamador).
 
@@ -436,19 +435,36 @@ def cruzamento_sem_no(arcos, feedback=None, faixa=None):
     return resultados
 
 
-def _monta_problemas(arcos_rede, diag, nodes_dict, engine, rede, feedback=None, faixa=None):
+def _monta_problemas(arcos_rede, diag, nodes_dict, engine, rede,
+                      incluir_pontas_soltas=False, feedback=None, faixa=None):
     """Monta os registros de `osm_problemas` de UMA rede (`rede` =
     "veicular"|"pedestre"), filtrados aos pontos DENTRO do polígono
     municipal (`engine` já preparado sobre a geometria do município).
 
     `arcos_rede`/`diag` já vêm filtrados para a rede pedida (ver
-    `diagnostica(arcos, rede)`). Na rede pedestre, `ponta_solta` NÃO é
-    emitido (becos de calçada são a norma); os demais tipos, sim.
+    `diagnostica(arcos, rede)`).
 
-    Passo 6a: `faixa` (tupla `(lo, hi)`) é dividida ao meio entre os dois
-    laços longos — `ponta_quase_conectada` (primeira metade) e
-    `cruzamento_sem_no` (segunda metade) — que reportam progresso e checam
+    Por padrão (`incluir_pontas_soltas=False`) `ponta_solta` NÃO é emitido —
+    beco sem saída/entrada de garagem/acesso de condomínio é o normal da
+    malha viária, não um erro, e em Contagem eram 2593 dos ~3,9 mil pontos
+    da camada, afogando o que de fato pede atenção. A contagem NUNCA é
+    descartada muda: quantas seriam listadas sai no segundo item da tupla
+    devolvida (`ponta_solta_nao_listadas`). `incluir_pontas_soltas=True`
+    restaura a listagem. Na rede pedestre `ponta_solta` nunca é emitido nem
+    contado (becos de calçada são a norma, não pedem contagem à parte).
+
+    `mao_unica_sem_saida`/`mao_unica_borda` saem UM PONTO POR GRUPO (SCC),
+    não um por nó — a armadilha (o sentido único sem volta) é do grupo, não
+    de cada nó dele; um ponto por nó era ruído redundante. O representante é
+    o menor `node_id` do grupo que esteja dentro do polígono, e `detalhe`
+    ganha "N nós" (tamanho do grupo).
+
+    `faixa` (tupla `(lo, hi)`) é dividida ao meio entre os dois laços
+    longos — `ponta_quase_conectada` (primeira metade) e `cruzamento_sem_no`
+    (segunda metade) — que reportam progresso e checam
     `feedback.isCanceled()` por conta própria.
+
+    Devolve `(problemas, ponta_solta_nao_listadas)`.
     """
     meio = _interpola(faixa, 0.5) if faixa is not None else None
     faixa_pontas = (faixa[0], meio) if faixa is not None else None
@@ -457,6 +473,7 @@ def _monta_problemas(arcos_rede, diag, nodes_dict, engine, rede, feedback=None, 
         return engine.contains(QgsPoint(x, y))
 
     problemas = []
+    ponta_solta_nao_listadas = 0
 
     # ilha / ilha_borda
     nos_por_comp = {}
@@ -500,18 +517,24 @@ def _monta_problemas(arcos_rede, diag, nodes_dict, engine, rede, feedback=None, 
                 "x": x, "y": y, "rede": rede,
             })
         elif rede != "pedestre":
-            problemas.append({
-                "tipo": "ponta_solta", "severidade": "baixa",
-                "detalhe": "", "node_id": node_id, "arc_id": None,
-                "x": x, "y": y, "rede": rede,
-            })
+            if incluir_pontas_soltas:
+                problemas.append({
+                    "tipo": "ponta_solta", "severidade": "baixa",
+                    "detalhe": "", "node_id": node_id, "arc_id": None,
+                    "x": x, "y": y, "rede": rede,
+                })
+            else:
+                ponta_solta_nao_listadas += 1
 
     # mão única sem saída / mão única de borda (sempre vazio para rede
     # pedestre — diagnostica ja garante). Agrupado por SCC (mesmo padrão de
     # ilha/ilha_borda): se algum nó da SCC está fora do polígono, o oneway
     # atravessa a borda e a volta pode estar fora do bbox consultado — não
     # dá pra afirmar que é de fato sem saída, então sai como "borda"
-    # (severidade baixa) em vez de "sem_saida" (severidade alta).
+    # (severidade baixa) em vez de "sem_saida" (severidade alta). UM PONTO
+    # POR GRUPO — a armadilha, não o nó — representado pelo menor `node_id`
+    # do grupo que esteja dentro do polígono (grupo sem nenhum nó dentro
+    # não gera ponto algum).
     scc_map = diag["scc"]
     nos_por_scc = {}
     for node_id in diag["mao_unica_sem_saida"]:
@@ -520,20 +543,21 @@ def _monta_problemas(arcos_rede, diag, nodes_dict, engine, rede, feedback=None, 
         algum_fora = any(
             not dentro(*nodes_dict[n]) for n in nos_scc if n in nodes_dict
         )
+        nos_dentro = sorted(
+            n for n in nos_scc if n in nodes_dict and dentro(*nodes_dict[n])
+        )
+        if not nos_dentro:
+            continue
+        representante = nos_dentro[0]
+        x, y = nodes_dict[representante]
         tipo = "mao_unica_borda" if algum_fora else "mao_unica_sem_saida"
         severidade = "baixa" if algum_fora else "alta"
-        for node_id in nos_scc:
-            coord = nodes_dict.get(node_id)
-            if coord is None:
-                continue
-            x, y = coord
-            if not dentro(x, y):
-                continue
-            problemas.append({
-                "tipo": tipo, "severidade": severidade,
-                "detalhe": "", "node_id": node_id, "arc_id": None,
-                "x": x, "y": y, "rede": rede,
-            })
+        problemas.append({
+            "tipo": tipo, "severidade": severidade,
+            "detalhe": "{} nós".format(len(nos_scc)),
+            "node_id": representante, "arc_id": None,
+            "x": x, "y": y, "rede": rede,
+        })
 
     # cruzamento sem nó
     for c in cruzamento_sem_no(arcos_rede, feedback=feedback, faixa=faixa_cruzamentos):
@@ -546,7 +570,7 @@ def _monta_problemas(arcos_rede, diag, nodes_dict, engine, rede, feedback=None, 
             "x": x, "y": y, "rede": rede,
         })
 
-    return problemas
+    return problemas, ponta_solta_nao_listadas
 
 
 def _cria_problemas_layer(problemas, layer_name="osm_problemas"):
@@ -603,10 +627,10 @@ def resolve_municipio(code_muni, nome_muni=None):
     `processing.run("gisbr:read_municipality")`) e sua geometria unida
     (`_geometria_municipio`).
 
-    Passo 1 do plano `osm_qgstask`: separado de `build_osm_network_layers`
-    para poder rodar ANTES de despachar `OsmNetworkTask` (`core/osm_task.py`)
-    — a tarefa em segundo plano recebe `bbox`/`mun_geom` já prontos e nunca
-    chama `processing.run`/toca `QgsVectorLayer` fora da thread principal.
+    Separado de `build_osm_network_layers` para poder rodar ANTES de
+    despachar `OsmNetworkTask` (`core/osm_task.py`) — a tarefa em segundo
+    plano recebe `bbox`/`mun_geom` já prontos e nunca chama
+    `processing.run`/toca `QgsVectorLayer` fora da thread principal.
 
     Devolve:
     - `(None, None, None)` se o município não pôde ser resolvido
@@ -628,29 +652,39 @@ def resolve_municipio(code_muni, nome_muni=None):
     return municipio, bbox, mun_geom
 
 
-def compute_osm_network(code_muni, nome_muni, bbox, mun_geom, cache_dir=None, force=False, feedback=None):
+def compute_osm_network(code_muni, nome_muni, bbox, mun_geom, cache_dir=None, force=False,
+                         feedback=None, rede="veicular", incluir_pontas_soltas=False):
     """Núcleo SEM `QgsVectorLayer`/`QgsProject` — dados puros, seguros para
-    uma `QgsTask` calcular fora da thread principal (Passo 1 do plano
-    `osm_qgstask`).
+    uma `QgsTask` calcular fora da thread principal.
 
     Recebe `bbox` e `mun_geom` JÁ resolvidos (ver `resolve_municipio`, que
     roda na thread principal); `mun_geom` pode vir `None` (geometria
     municipal inválida) — a checagem só é feita DEPOIS de confirmar que há
     vias no bbox (mesma ordem de sempre, ver abaixo). Faz a consulta/cache
-    do Overpass, `constroi_arcos`, `diagnostica` das duas redes, o filtro
-    pelo polígono municipal (`_filtra_arcos` — lista de arcos, nunca uma
-    camada) e a verificação geométrica/topológica (`_monta_problemas`).
+    do Overpass, `constroi_arcos`, `diagnostica` (de UMA rede — verificar as
+    duas redes sempre custava o dobro da etapa mais cara do carregamento
+    sem uso para quem só quer roteirização de veículos), o filtro pelo
+    polígono municipal (`_filtra_arcos` — lista de arcos, nunca uma camada)
+    e a verificação geométrica/topológica (`_monta_problemas`).
     `QgsGeometry`, `QgsSpatialIndex`, `QgsDistanceArea` (usados pelas duas
     últimas etapas) são seguros numa tarefa de fundo; só `QgsVectorLayer`/
     `QgsProject` não são — por isso as camadas são montadas depois, por
     `montar_camadas(dados)`, sempre na thread principal.
 
+    `rede` (`"veicular"` ou `"pedestre"`, default `"veicular"`) escolhe qual
+    rede roda — `diagnostica`, o filtro dos arcos usados na verificação e
+    `_monta_problemas` usam a mesma; `rede` fora desses dois valores levanta
+    `ValueError`. `metadata["rede"]` registra qual rodou (inclusive nos
+    caminhos de erro/cancelamento). `incluir_pontas_soltas` (default
+    `False`, beco sem saída é o normal da malha, não erro) repassa para
+    `_monta_problemas`.
+
     Devolve um dict de dados puros:
-    `{"raw_cache", "arcos_todos", "arcos", "diag_veicular", "diag_pedestre",
-      "nodes_dict", "problemas", "metadata"}`.
+    `{"raw_cache", "arcos_todos", "arcos", "diag", "nodes_dict", "problemas",
+      "metadata"}`.
 
     - Falha no Overpass, ou nenhum way com highway no bbox (`sem_vias`):
-      `arcos_todos`/`arcos`/diagnósticos/`problemas` vêm `None`, e
+      `arcos_todos`/`arcos`/`diag`/`problemas` vêm `None`, e
       `metadata["erro"]` explica a causa (`metadata["sem_vias"] = True` no
       segundo caso).
     - Geometria municipal inválida (`mun_geom is None`), **só reportado
@@ -660,19 +694,22 @@ def compute_osm_network(code_muni, nome_muni, bbox, mun_geom, cache_dir=None, fo
     - Nenhum arco intersecta o polígono municipal: `arcos_todos` vem
       preenchido (para `osm_links_raw`), `arcos` vem `[]`.
     - `feedback.isCanceled()` interrompe a verificação geométrica:
-      `metadata["cancelado"] = True`, `arcos_todos`/`arcos`/diagnósticos
+      `metadata["cancelado"] = True`, `arcos_todos`/`arcos`/`diag`
       ficam prontos, só `problemas` vem `None`.
     - Caminho feliz: todas as chaves preenchidas.
     """
+    if rede not in ("veicular", "pedestre"):
+        raise ValueError("rede invalida: {!r} (use 'veicular' ou 'pedestre')".format(rede))
+
     def log(msg):
         if feedback is not None:
             feedback.pushInfo(msg)
 
-    base_meta = {"code_muni": str(code_muni), "nome_muni": nome_muni, "bbox": bbox}
+    base_meta = {"code_muni": str(code_muni), "nome_muni": nome_muni, "bbox": bbox, "rede": rede}
 
     def dados_vazios(raw_cache, metadata):
         return {"raw_cache": raw_cache, "arcos_todos": None, "arcos": None,
-                "diag_veicular": None, "diag_pedestre": None, "nodes_dict": None,
+                "diag": None, "nodes_dict": None,
                 "problemas": None, "metadata": metadata}
 
     if cache_dir is None:
@@ -718,15 +755,14 @@ def compute_osm_network(code_muni, nome_muni, bbox, mun_geom, cache_dir=None, fo
         return dados_vazios(str(cache_path), dict(
             base_meta, erro="nenhum way com highway encontrado no bbox", sem_vias=True))
 
-    diag_veicular = diagnostica(arcos_todos, "veicular")
-    diag_pedestre = diagnostica(arcos_todos, "pedestre")
-    log(f"OSM: {len(arcos_todos)} arcos — veicular: {len(diag_veicular['comp_tam'])} componentes, "
-        f"pedestre: {len(diag_pedestre['comp_tam'])} componentes")
+    diag = diagnostica(arcos_todos, rede)
+    log(f"OSM: {len(arcos_todos)} arcos — {rede}: {len(diag['comp_tam'])} componentes")
     _reporta_progresso(feedback, 35)
 
     # Geometria municipal inválida: checado SÓ AQUI (depois do `sem_vias`
-    # acima) — mesma ordem de antes da divisão em `resolve_municipio`
-    # (Passo 1 do plano `osm_qgstask`, condição do Diego).
+    # acima) — condição do Diego: "sem vias no bbox" tem prioridade sobre
+    # "geometria do município inválida", mesmo com a geometria calculada
+    # cedo em `resolve_municipio`.
     if mun_geom is None:
         log("OSM: municipio sem geometria valida")
         return dados_vazios(str(cache_path), dict(base_meta, erro="municipio sem geometria valida"))
@@ -744,64 +780,56 @@ def compute_osm_network(code_muni, nome_muni, bbox, mun_geom, cache_dir=None, fo
     if not arcos:
         log("OSM: nenhum arco intersecta o polígono municipal")
         return {"raw_cache": str(cache_path), "arcos_todos": arcos_todos, "arcos": [],
-                "diag_veicular": diag_veicular, "diag_pedestre": diag_pedestre,
+                "diag": diag,
                 "nodes_dict": nodes_dict, "problemas": None,
                 "metadata": dict(base_meta, erro="nenhum arco intersecta o poligono municipal")}
 
     log(f"OSM: {len(arcos)} arcos dentro do município (arco inteiro, sem clip)")
     _reporta_progresso(feedback, 55)
 
-    # Verificações geométricas/topológicas RODAM DUAS VEZES (veicular e
-    # pedestre), cada uma só sobre os arcos da própria rede — sobre TODOS
-    # os arcos (antes do filtro por município); só entram problemas com o
-    # ponto dentro do polígono. Faixa 55-90 dividida ao meio entre as duas
-    # redes; `_monta_problemas` subdivide sua metade entre os dois laços
-    # longos (ver docstring dela).
+    # Verificação geométrica/topológica roda UMA VEZ, só sobre os arcos da
+    # rede escolhida (antes rodava duas vezes, veicular e pedestre, a cada
+    # carregamento — o dobro do custo da etapa mais cara do carregamento,
+    # sem uso pra quem só quer a rede veicular) — sobre TODOS os arcos
+    # (antes do filtro por município); só entram problemas com o ponto
+    # dentro do polígono. `_monta_problemas` subdivide a faixa 55-90 entre os
+    # dois laços longos (ver docstring dela).
     _reporta_progresso(feedback, 55, "Verificação geométrica")
-    arcos_veiculares = [a for a in arcos_todos if a["veicular"]]
-    arcos_pedestres = [a for a in arcos_todos if a["pedestre"]]
-    problemas_veicular = _monta_problemas(
-        arcos_veiculares, diag_veicular, nodes_dict, engine, "veicular",
-        feedback=feedback, faixa=(55, 72.5))
+    arcos_rede = [a for a in arcos_todos if a.get(rede)]
+    problemas, ponta_solta_nao_listadas = _monta_problemas(
+        arcos_rede, diag, nodes_dict, engine, rede,
+        incluir_pontas_soltas=incluir_pontas_soltas, feedback=feedback, faixa=(55, 90))
     if feedback is not None and feedback.isCanceled():
         return {"raw_cache": str(cache_path), "arcos_todos": arcos_todos, "arcos": arcos,
-                "diag_veicular": diag_veicular, "diag_pedestre": diag_pedestre,
+                "diag": diag,
                 "nodes_dict": nodes_dict, "problemas": None,
                 "metadata": dict(base_meta, cancelado=True)}
-    problemas_pedestre = _monta_problemas(
-        arcos_pedestres, diag_pedestre, nodes_dict, engine, "pedestre",
-        feedback=feedback, faixa=(72.5, 90))
-    if feedback is not None and feedback.isCanceled():
-        return {"raw_cache": str(cache_path), "arcos_todos": arcos_todos, "arcos": arcos,
-                "diag_veicular": diag_veicular, "diag_pedestre": diag_pedestre,
-                "nodes_dict": nodes_dict, "problemas": None,
-                "metadata": dict(base_meta, cancelado=True)}
-    problemas = problemas_veicular + problemas_pedestre
 
     _reporta_progresso(feedback, 90, "Verificação concluída")
 
-    contagem_tipos = {"veicular": {}, "pedestre": {}}
+    contagem_tipos = {}
     for p in problemas:
-        contagem_tipos[p["rede"]][p["tipo"]] = contagem_tipos[p["rede"]].get(p["tipo"], 0) + 1
-    for rede_nome in ("veicular", "pedestre"):
-        c = contagem_tipos[rede_nome]
-        if c:
-            log("OSM: verificação ({}) — ".format(rede_nome) + ", ".join(
-                "{}: {}".format(k, v) for k, v in sorted(c.items())
-            ))
-        else:
-            log("OSM: verificação ({}) — nenhum problema encontrado".format(rede_nome))
+        contagem_tipos[p["tipo"]] = contagem_tipos.get(p["tipo"], 0) + 1
+    if contagem_tipos:
+        log("OSM: verificação ({}) — ".format(rede) + ", ".join(
+            "{}: {}".format(k, v) for k, v in sorted(contagem_tipos.items())
+        ))
+    else:
+        log("OSM: verificação ({}) — nenhum problema encontrado".format(rede))
+    if ponta_solta_nao_listadas:
+        log("OSM: {} becos sem saida (ponta_solta) nao listados (use INCLUIR_PONTAS_SOLTAS)".format(
+            ponta_solta_nao_listadas))
 
     metadata = dict(base_meta,
         arcos=len(arcos_todos), orfaos=n_orfaos, descartados=descartados,
-        componentes={"veicular": len(diag_veicular["comp_tam"]), "pedestre": len(diag_pedestre["comp_tam"])},
-        verificacao=contagem_tipos,
+        componentes={rede: len(diag["comp_tam"])},
+        verificacao={rede: contagem_tipos, "ponta_solta_nao_listadas": ponta_solta_nao_listadas},
     )
 
     return {
         "raw_cache": str(cache_path),
         "arcos_todos": arcos_todos, "arcos": arcos,
-        "diag_veicular": diag_veicular, "diag_pedestre": diag_pedestre,
+        "diag": diag,
         "nodes_dict": nodes_dict, "problemas": problemas,
         "metadata": metadata,
     }
@@ -809,8 +837,8 @@ def compute_osm_network(code_muni, nome_muni, bbox, mun_geom, cache_dir=None, fo
 
 def montar_camadas(dados):
     """Thread principal: monta as quatro `QgsVectorLayer` a partir do dict
-    de dados puros devolvido por `compute_osm_network` (Passo 1 do plano
-    `osm_qgstask`). Nunca chamar fora da thread principal.
+    de dados puros devolvido por `compute_osm_network`. Nunca chamar fora
+    da thread principal.
 
     Devolve `{"osm_links_raw", "osm_links", "osm_nodes", "osm_problemas"}`,
     cada uma `None` quando os dados correspondentes não existem — mesma
@@ -818,24 +846,28 @@ def montar_camadas(dados):
     `arcos_todos` mas sem `arcos` (nenhum arco no polígono, ou geometria
     municipal inválida), só `osm_links_raw` é construída; sem `problemas`
     (cancelado), as três primeiras saem e `osm_problemas` fica `None`.
+
+    `rede` sai de `metadata["rede"]` (default `"veicular"`, para dicts
+    antigos/sintéticos de teste sem essa chave) e é repassada a
+    `_cria_links_raw` (campos `componente`/`componente_tam` genéricos).
     """
     metadata = dados.get("metadata") or {}
     arcos_todos = dados.get("arcos_todos")
     if not arcos_todos:
         return _vazio(metadata.get("code_muni"), metadata.get("nome_muni"))
 
-    diag_veicular = dados["diag_veicular"]
-    diag_pedestre = dados["diag_pedestre"]
+    diag = dados["diag"]
     nodes_dict = dados["nodes_dict"]
+    rede = metadata.get("rede", "veicular")
 
-    osm_links_raw = _cria_links_raw(arcos_todos, diag_veicular, diag_pedestre)
+    osm_links_raw = _cria_links_raw(arcos_todos, diag, rede)
 
     arcos = dados.get("arcos")
     if not arcos:
         return {"osm_links_raw": osm_links_raw, "osm_links": None, "osm_nodes": None, "osm_problemas": None}
 
-    osm_links = _cria_links_raw(arcos, diag_veicular, diag_pedestre, layer_name="osm_links")
-    osm_nodes = _cria_nodes_layer(arcos, diag_veicular, diag_pedestre, nodes_dict)
+    osm_links = _cria_links_raw(arcos, diag, rede, layer_name="osm_links")
+    osm_nodes = _cria_nodes_layer(arcos, diag, nodes_dict)
 
     problemas = dados.get("problemas")
     osm_problemas = _cria_problemas_layer(problemas) if problemas is not None else None
@@ -847,35 +879,42 @@ def osm_vias_ja_existe(existentes, code_muni):
     """`True` se `osm_links_<code_muni>` E `osm_nodes_<code_muni>` já estão
     em `existentes` (ver `diagnostico._layers_existentes(gpkg_path)`).
 
-    Extraído de `carregar_fontes` (Passo 3 do plano `osm_qgstask`) para o
-    painel (`gui/diagnostico_dock.py`, caminho `OsmNetworkTask`) e o motor
-    (`core/diagnostico.py::carregar_fontes`, caminho síncrono) checarem a
-    mesma regra de "já existe no GeoPackage" sem duplicar a lógica.
+    Extraído de `carregar_fontes` para o painel (`gui/diagnostico_dock.py`,
+    caminho `OsmNetworkTask`) e o motor (`core/diagnostico.py::carregar_fontes`,
+    caminho síncrono) checarem a mesma regra de "já existe no GeoPackage"
+    sem duplicar a lógica.
     """
     return ("osm_links_{}".format(code_muni) in existentes
             and "osm_nodes_{}".format(code_muni) in existentes)
 
 
-def build_osm_network_layers(code_muni, nome_muni=None, cache_dir=None, force=False, feedback=None):
+def build_osm_network_layers(code_muni, nome_muni=None, cache_dir=None, force=False, feedback=None,
+                              rede="veicular", incluir_pontas_soltas=False):
     """Monta as camadas OSM (links/nós/problemas) do município EM MEMÓRIA.
 
     Composição, na thread principal, de `resolve_municipio` (resolve
-    município/bbox/geometria) + `compute_osm_network` (dados puros, Passo 1
-    do plano `osm_qgstask` — o mesmo núcleo que `OsmNetworkTask` roda em
-    segundo plano) + `montar_camadas` (materializa as `QgsVectorLayer`).
-    Faz tudo, inclusive o cache do Overpass em `cache_dir` (default
-    `~/.cache/gisbr-diagnostico`, criado se não existir), mas NÃO grava
-    GeoPackage. Devolve o MESMO formato de dict de sempre (`raw_cache`,
-    `layers`, `metadata`), sem `gpkg_ok`.
+    município/bbox/geometria) + `compute_osm_network` (dados puros — o
+    mesmo núcleo que `OsmNetworkTask` roda em segundo plano) +
+    `montar_camadas` (materializa as `QgsVectorLayer`). Faz tudo, inclusive
+    o cache do Overpass em `cache_dir` (default `~/.cache/gisbr-diagnostico`,
+    criado se não existir), mas NÃO grava GeoPackage. Devolve o MESMO
+    formato de dict de sempre (`raw_cache`, `layers`, `metadata`), sem
+    `gpkg_ok`.
 
-    Passo 6a — `feedback` (um `QgsProcessingFeedback`, sempre opcional) reporta
+    `rede`/`incluir_pontas_soltas` (ambos com default que preserva o
+    comportamento normal — veicular, sem pontas soltas) são só repassados a
+    `compute_osm_network`. É o algoritmo `gisbr:osm_network` quem expõe os
+    dois como parâmetro (`REDE`/`PONTAS_SOLTAS`); o painel e
+    `build_osm_municipal_network` continuam usando o default.
+
+    `feedback` (um `QgsProcessingFeedback`, sempre opcional) reporta
     progresso via `setProgressText`/`setProgress` em faixas fixas:
 
     | Faixa  | Etapa                                            |
     |--------|---------------------------------------------------|
     | 0–5    | resolver município                                |
     | 5–25   | consulta ao Overpass (ou cache)                   |
-    | 25–35  | `constroi_arcos` + `diagnostica` das duas redes   |
+    | 25–35  | `constroi_arcos` + `diagnostica` (rede escolhida) |
     | 35–55  | filtro dos arcos pelo polígono municipal          |
     | 55–90  | verificação geométrica (pontas/cruzamentos)       |
     | 90–100 | montar as camadas (`montar_camadas`)              |
@@ -894,7 +933,8 @@ def build_osm_network_layers(code_muni, nome_muni=None, cache_dir=None, force=Fa
     _reporta_progresso(feedback, 5)
 
     dados = compute_osm_network(code_muni, nome_muni, bbox, mun_geom,
-                                 cache_dir=cache_dir, force=force, feedback=feedback)
+                                 cache_dir=cache_dir, force=force, feedback=feedback,
+                                 rede=rede, incluir_pontas_soltas=incluir_pontas_soltas)
 
     _reporta_progresso(feedback, 90, "Montando camadas")
     layers = montar_camadas(dados)
@@ -912,22 +952,26 @@ def build_osm_network_layers(code_muni, nome_muni=None, cache_dir=None, force=Fa
     return {"raw_cache": dados["raw_cache"], "layers": layers, "metadata": metadata}
 
 
-def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, feedback=None):
+def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, feedback=None,
+                                 rede="veicular"):
     """Constrói as camadas de topologia OSM (links/nós/problemas) do município
     e grava no GeoPackage.
 
-    Casca do Passo 1 do plano `osm_network`: monta as camadas via
-    `build_osm_network_layers` (cache em `Path(os.path.dirname(gpkg_path))`,
-    mesma pasta do GPKG — igual ao comportamento de antes) e grava as três
-    no GeoPackage. **Assinatura e retorno inalterados** em relação à versão
-    anterior à divisão — `gisbr/core/diagnostico.py` não muda.
+    Casca fina: monta as camadas via `build_osm_network_layers` (cache em
+    `Path(os.path.dirname(gpkg_path))`, mesma pasta do GPKG — igual ao
+    comportamento de antes) e grava as três no GeoPackage. **Assinatura e
+    retorno inalterados** em relação à versão anterior à divisão —
+    `gisbr/core/diagnostico.py` não muda, salvo o novo `rede` (default
+    `"veicular"` — quem chama esta casca, motor e painel, não passa esse
+    parâmetro hoje).
     """
     def log(msg):
         if feedback is not None:
             feedback.pushInfo(msg)
 
     cache_dir = Path(os.path.dirname(gpkg_path) or ".")
-    resultado = build_osm_network_layers(code_muni, nome_muni, cache_dir=cache_dir, force=force, feedback=feedback)
+    resultado = build_osm_network_layers(code_muni, nome_muni, cache_dir=cache_dir, force=force,
+                                          feedback=feedback, rede=rede)
     layers = resultado["layers"]
     metadata = dict(resultado["metadata"])
 

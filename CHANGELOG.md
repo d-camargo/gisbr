@@ -2,6 +2,23 @@
 
 Generated from the `changelog` block of `gisbr/metadata.txt` by `tools/build_docs_site.py` — do not edit by hand.
 
+## 0.12.0
+
+- The OSM road network verification and layers are now built for ONE
+network per run, vehicle by default, instead of running vehicle and
+pedestrian every time; this also halves the cost of the geometric
+verification step.
+- Dead ends (ponta_solta) are no longer listed in osm_problemas by
+default, since a dead end is normal, not an error; the count of
+skipped dead ends is reported in the log instead of being silently
+dropped.
+- One-way traps (mao_unica_sem_saida/mao_unica_borda) now produce one
+point per trap (group of nodes), not one per node.
+- New REDE (vehicle/pedestrian) and PONTAS_SOLTAS parameters on the
+gisbr:osm_network Processing algorithm.
+- Removed the componente_pe/grau_pe fields from osm_links/osm_nodes;
+componente/grau are now generic, for whichever network ran.
+
 ## 0.11.0
 
 - The OSM road network is now built from the real OSM topology: ways are

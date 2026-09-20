@@ -320,7 +320,7 @@ def test_diagnostica_pedestre_ignora_oneway_mao_unica_sempre_vazia():
     assert diag_p["mao_unica_sem_saida"] == []
 
 
-# --- velocidade_kmh (Passo 2 do plano `osm_network`) -----------------------
+# --- velocidade_kmh (atributo de custo p/ roteirização, ex.: logis) -------
 
 def test_velocidade_kmh_maxspeed_numerico():
     assert velocidade_kmh({"maxspeed": "60"}) == 60.0

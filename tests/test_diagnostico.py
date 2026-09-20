@@ -412,7 +412,7 @@ def test_carregar_fontes_raster_cog_skip_e_tree(tmp_path, monkeypatch):
     assert "ja existe" in res2["pulou"][0][1]
 
 
-# --- Passo 6c: cancelamento do osm_vias vira "pulou", nao "falhou" --------
+# --- cancelamento do osm_vias vira "pulou", nao "falhou" --------
 
 def test_carregar_fontes_osm_vias_cancelado_vira_pulou(tmp_path, monkeypatch):
     gpkg = str(tmp_path / "test.gpkg")

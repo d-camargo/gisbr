@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Testes de `OsmNetworkTask` (Passo 2 + Passo 4 do plano `osm_qgstask`).
+"""Testes de `OsmNetworkTask`.
 
 Chama `run()` diretamente (sem `QgsApplication.taskManager()`), com
 `compute_osm_network` monkeypatchado — exige QGIS só por causa de `QgsTask`
@@ -21,7 +21,7 @@ def test_run_caminho_feliz_devolve_true_e_preenche_dados(qgis_app, monkeypatch):
     from gisbr.core import osm_task
 
     dados_fake = {"raw_cache": None, "arcos_todos": [1], "arcos": [1],
-                  "diag_veicular": {}, "diag_pedestre": {}, "nodes_dict": {},
+                  "diag": {}, "nodes_dict": {},
                   "problemas": [], "metadata": {"code_muni": "3106200"}}
     monkeypatch.setattr(osm_task, "compute_osm_network", lambda *a, **k: dados_fake)
 
@@ -36,7 +36,7 @@ def test_run_devolve_false_quando_compute_devolve_erro(qgis_app, monkeypatch):
     from gisbr.core import osm_task
 
     dados_fake = {"raw_cache": None, "arcos_todos": None, "arcos": None,
-                  "diag_veicular": None, "diag_pedestre": None, "nodes_dict": None,
+                  "diag": None, "nodes_dict": None,
                   "problemas": None, "metadata": {"erro": "Erro no Overpass: timeout"}}
     monkeypatch.setattr(osm_task, "compute_osm_network", lambda *a, **k: dados_fake)
 
@@ -55,7 +55,7 @@ def test_run_marca_sem_vias_quando_payload_sem_ways(qgis_app, monkeypatch):
     from gisbr.core import osm_task
 
     dados_fake = {"raw_cache": "/tmp/x.json", "arcos_todos": None, "arcos": None,
-                  "diag_veicular": None, "diag_pedestre": None, "nodes_dict": None,
+                  "diag": None, "nodes_dict": None,
                   "problemas": None,
                   "metadata": {"erro": "nenhum way com highway encontrado no bbox", "sem_vias": True}}
     monkeypatch.setattr(osm_task, "compute_osm_network", lambda *a, **k: dados_fake)
@@ -74,7 +74,7 @@ def test_run_emite_sinal_mensagem(qgis_app, monkeypatch):
     def compute_fake(code_muni, nome_muni, bbox, mun_geom, cache_dir=None, force=False, feedback=None):
         feedback.pushInfo("OSM: mensagem de teste")
         return {"raw_cache": None, "arcos_todos": [1], "arcos": [1],
-                "diag_veicular": {}, "diag_pedestre": {}, "nodes_dict": {},
+                "diag": {}, "nodes_dict": {},
                 "problemas": [], "metadata": {}}
 
     monkeypatch.setattr(osm_task, "compute_osm_network", compute_fake)

@@ -162,12 +162,10 @@ def test_osm_pipeline_cache_logging(tmp_path, monkeypatch):
             return Extent()
         def name(self):
             return "municipio"
-        # Passo 1 (osm_qgstask): a geometria do município agora é resolvida
-        # cedo, dentro de `resolve_municipio` (para a QgsTask receber
-        # `mun_geom` já pronto) — antes só era chamada depois de confirmar
-        # que havia vias no bbox. O duplo precisa de `getFeatures()` mesmo
-        # sem feições (a intenção deste teste é só o log do cache do
-        # Overpass, não a geometria).
+        # A geometria do município é resolvida cedo, dentro de
+        # `resolve_municipio` (para a QgsTask receber `mun_geom` já pronto).
+        # O duplo precisa de `getFeatures()` mesmo sem feições (a intenção
+        # deste teste é só o log do cache do Overpass, não a geometria).
         def getFeatures(self):
             return []
 
@@ -178,9 +176,9 @@ def test_osm_pipeline_cache_logging(tmp_path, monkeypatch):
             self.infos = []
         def pushInfo(self, msg):
             self.infos.append(msg)
-        # Passo 6a (osm_network): build_osm_municipal_network agora reporta
-        # progresso via feedback.setProgressText/setProgress e verifica
-        # isCanceled() — o duplo precisa da interface minima.
+        # build_osm_municipal_network reporta progresso via
+        # feedback.setProgressText/setProgress e verifica isCanceled() —
+        # o duplo precisa da interface minima.
         def setProgressText(self, texto):
             pass
         def setProgress(self, pct):

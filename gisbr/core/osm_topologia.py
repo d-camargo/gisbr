@@ -55,8 +55,8 @@ _OVERRIDE_PERMITE = {"yes", "designated", "permissive", "destination"}
 # Velocidade padrao por highway quando o arco nao tem um `maxspeed`
 # utilizavel — copiada VERBATIM de `_DEFAULT_SPEEDS` em
 # ~/projects/logis/logis/core/network/osm_pipeline.py, para o gisbr e o
-# logis produzirem o MESMO valor (Passo 2 do plano `osm_network`: o logis
-# vai apagar a copia e passar a chamar `gisbr:osm_network`).
+# logis produzirem o MESMO valor (quando o logis migrar para
+# `gisbr:osm_network`, a copia de la deixa de existir).
 _DEFAULT_SPEEDS = {
     "motorway": 110.0,
     "trunk": 90.0,

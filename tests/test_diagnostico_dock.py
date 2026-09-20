@@ -119,7 +119,7 @@ def test_mapbiomas_ano_qsettings_persistencia(dock, monkeypatch):
     assert _SETTINGS_STORE.get("gisbr/mapbiomas_ano") == 2020
 
 
-# --- Passo 6b: barra de progresso -------------------------------------
+# --- barra de progresso -------------------------------------
 
 def test_progress_bar_e_botao_cancelar_comecam_escondidos(dock):
     assert dock.progress_bar.isVisible() is False
@@ -161,7 +161,7 @@ def test_on_cancelar_sem_feedback_atual_nao_quebra(dock):
     dock._on_cancelar()  # nao deve lancar excecao
 
 
-# --- Passo 3/4 do plano osm_qgstask: OsmNetworkTask no painel ------------
+# --- OsmNetworkTask no painel (roda em segundo plano, sem travar a UI) ---
 
 class _TaskDuplo:
     """Duplo mínimo de OsmNetworkTask para testar `_on_cancelar`."""

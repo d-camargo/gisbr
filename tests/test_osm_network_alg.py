@@ -52,7 +52,7 @@ def _monkeypatch_overpass(monkeypatch, payload, municipio=_municipio_fake):
     monkeypatch.setattr(osm_pipeline.osm, "load_overpass_cache", lambda *a, **k: None)
 
 
-# --- comprimento_m (Passo 2) -----------------------------------------------
+# --- comprimento_m (atributo de custo p/ roteirização) ---------------------
 
 def test_comprimento_m_arco_de_1km_fica_no_intervalo_esperado(qgis_app, monkeypatch, tmp_path):
     _skip_sem_qgis(qgis_app)
@@ -89,7 +89,7 @@ def test_comprimento_m_arco_de_1km_fica_no_intervalo_esperado(qgis_app, monkeypa
     assert 990.0 <= feat["comprimento_m"] <= 1010.0
 
 
-# --- resolve_municipio / compute_osm_network (Passo 1, plano osm_qgstask) -
+# --- resolve_municipio / compute_osm_network -------------------------------
 
 def _municipio_sem_geometria(*args, **kwargs):
     from qgis.core import QgsVectorLayer
@@ -120,10 +120,10 @@ def test_resolve_municipio_devolve_mun_geom_none_quando_geometria_invalida(qgis_
 
 
 def test_compute_osm_network_sem_vias_tem_prioridade_sobre_geometria_invalida(qgis_app, monkeypatch, tmp_path):
-    """Condição do Diego (Passo 1): a geometria do município passou a ser
-    CALCULADA cedo (`resolve_municipio`), mas a VALIDAÇÃO continua na mesma
-    ordem de sempre — payload sem ways devolve `sem_vias`, não "municipio
-    sem geometria valida", mesmo com `mun_geom` inválido (`None`)."""
+    """Condição do Diego: a geometria do município passou a ser CALCULADA
+    cedo (`resolve_municipio`), mas a VALIDAÇÃO continua na mesma ordem de
+    sempre — payload sem ways devolve `sem_vias`, não "municipio sem
+    geometria valida", mesmo com `mun_geom` inválido (`None`)."""
     _skip_sem_qgis(qgis_app)
     from gisbr.core import osm_pipeline
 
@@ -173,12 +173,84 @@ def test_compute_osm_network_devolve_dados_puros_sem_qgsvectorlayer(qgis_app, mo
     dados = osm_pipeline.compute_osm_network("3106200", "Belo Horizonte", bbox, mun_geom, cache_dir=tmp_path)
 
     assert "erro" not in dados["metadata"]
-    for chave in ("arcos_todos", "arcos", "diag_veicular", "diag_pedestre", "nodes_dict", "problemas"):
+    for chave in ("arcos_todos", "arcos", "diag", "nodes_dict", "problemas"):
         assert not isinstance(dados[chave], QgsVectorLayer)
     assert len(dados["arcos"]) == 1
     assert isinstance(dados["problemas"], list)
     for p in dados["problemas"]:
         assert isinstance(p, dict)
+
+
+# --- parametro rede + incluir_pontas_soltas ---------------------------------
+
+def test_compute_osm_network_rede_pedestre_usa_rede_a_pe_nos_campos_genericos(qgis_app, monkeypatch, tmp_path):
+    _skip_sem_qgis(qgis_app)
+    from gisbr.core import osm_pipeline
+
+    municipio = _municipio_fake()
+    bbox = osm_pipeline._bbox_da_camada(municipio)
+    mun_geom = osm_pipeline._geometria_municipio(municipio)
+
+    # way "footway" — so pedestre, nao veicular: na rede veicular o arco fica
+    # fora de qualquer componente (componente = -1); na rede pedestre entra
+    # numa componente de verdade.
+    payload = _payload_um_way(highway="footway", maxspeed=None)
+    monkeypatch.setattr(osm_pipeline.osm, "fetch_overpass_json", lambda *a, **k: payload)
+    monkeypatch.setattr(osm_pipeline.osm, "save_overpass_cache", lambda *a, **k: None)
+    monkeypatch.setattr(osm_pipeline.osm, "load_overpass_cache", lambda *a, **k: None)
+
+    dados = osm_pipeline.compute_osm_network(
+        "3106200", "Belo Horizonte", bbox, mun_geom, cache_dir=tmp_path, rede="pedestre")
+
+    assert dados["metadata"]["rede"] == "pedestre"
+    layers = osm_pipeline.montar_camadas(dados)
+    feat = next(layers["osm_links"].getFeatures())
+    assert feat["componente"] != -1
+
+
+def test_compute_osm_network_rede_invalida_levanta_valueerror(qgis_app, tmp_path):
+    _skip_sem_qgis(qgis_app)
+    from gisbr.core import osm_pipeline
+
+    with pytest.raises(ValueError):
+        osm_pipeline.compute_osm_network(
+            "3106200", "Belo Horizonte", (-1, -1, 1, 1), None, cache_dir=tmp_path, rede="invalida")
+
+
+def test_compute_osm_network_rede_default_veicular_metadata_preenchido(qgis_app, monkeypatch, tmp_path):
+    _skip_sem_qgis(qgis_app)
+    from gisbr.core import osm_pipeline
+
+    _monkeypatch_overpass(monkeypatch, _payload_um_way())
+
+    resultado = osm_pipeline.build_osm_network_layers("3106200", cache_dir=tmp_path)
+    assert resultado["metadata"]["rede"] == "veicular"
+
+
+def test_compute_osm_network_ponta_solta_nao_listada_por_padrao_e_contada(qgis_app, monkeypatch, tmp_path):
+    """Por padrao (incluir_pontas_soltas=False) osm_problemas nao lista
+    ponta_solta, mas a contagem bate com o numero de nos de grau 1 dentro do
+    poligono (aqui, as duas pontas do unico arco)."""
+    _skip_sem_qgis(qgis_app)
+    from gisbr.core import osm_pipeline
+
+    municipio = _municipio_fake()
+    bbox = osm_pipeline._bbox_da_camada(municipio)
+    mun_geom = osm_pipeline._geometria_municipio(municipio)
+
+    monkeypatch.setattr(osm_pipeline.osm, "fetch_overpass_json", lambda *a, **k: _payload_um_way())
+    monkeypatch.setattr(osm_pipeline.osm, "save_overpass_cache", lambda *a, **k: None)
+    monkeypatch.setattr(osm_pipeline.osm, "load_overpass_cache", lambda *a, **k: None)
+
+    dados = osm_pipeline.compute_osm_network("3106200", "Belo Horizonte", bbox, mun_geom, cache_dir=tmp_path)
+    assert not any(p["tipo"] == "ponta_solta" for p in dados["problemas"])
+    assert dados["metadata"]["verificacao"]["ponta_solta_nao_listadas"] == 2
+
+    dados_com = osm_pipeline.compute_osm_network(
+        "3106200", "Belo Horizonte", bbox, mun_geom, cache_dir=tmp_path,
+        force=True, incluir_pontas_soltas=True)
+    assert sum(1 for p in dados_com["problemas"] if p["tipo"] == "ponta_solta") == 2
+    assert dados_com["metadata"]["verificacao"]["ponta_solta_nao_listadas"] == 0
 
 
 def test_compute_osm_network_cancelado_deixa_problemas_none(qgis_app, monkeypatch, tmp_path):
@@ -235,8 +307,8 @@ def test_montar_camadas_sem_arcos_todos_devolve_tudo_none(qgis_app):
     from gisbr.core import osm_pipeline
 
     layers = osm_pipeline.montar_camadas({
-        "arcos_todos": None, "arcos": None, "diag_veicular": None,
-        "diag_pedestre": None, "nodes_dict": None, "problemas": None,
+        "arcos_todos": None, "arcos": None, "diag": None,
+        "nodes_dict": None, "problemas": None,
         "metadata": {"code_muni": "0000000", "nome_muni": None},
     })
     assert layers == {"osm_links_raw": None, "osm_links": None, "osm_nodes": None, "osm_problemas": None}
@@ -252,7 +324,7 @@ def test_osm_vias_ja_existe(qgis_app):
     assert osm_pipeline.osm_vias_ja_existe({"osm_links_3106200"}, "3106200") is False
 
 
-# --- build_osm_network_layers monkeypatchado (Passo 1 + Passo 2) ----------
+# --- build_osm_network_layers monkeypatchado --------------------------------
 
 def test_build_osm_network_layers_devolve_tres_camadas_sem_tocar_disco(qgis_app, monkeypatch, tmp_path):
     _skip_sem_qgis(qgis_app)
@@ -285,8 +357,8 @@ def test_build_osm_network_layers_devolve_tres_camadas_sem_tocar_disco(qgis_app,
 
 
 def test_build_osm_municipal_network_casca_continua_gravando_gpkg_e_gpkg_ok(qgis_app, monkeypatch, tmp_path):
-    """Regressao do Passo 1: a casca sobre `build_osm_network_layers`
-    continua gravando as 3 camadas no GPKG e devolvendo `gpkg_ok`."""
+    """Regressão: a casca sobre `build_osm_network_layers` continua
+    gravando as 3 camadas no GPKG e devolvendo `gpkg_ok`."""
     _skip_sem_qgis(qgis_app)
     from gisbr.core import osm_pipeline
 
@@ -308,7 +380,7 @@ def test_build_osm_municipal_network_casca_continua_gravando_gpkg_e_gpkg_ok(qgis
         assert camada.isValid(), nome
 
 
-# --- Passo 6: progresso e cancelamento -------------------------------------
+# --- progresso e cancelamento -------------------------------------------
 
 class _FeedbackDuplo:
     """Duplo de feedback que so registra chamadas (sem QgsProcessingFeedback)."""
@@ -382,7 +454,7 @@ def test_feedback_none_nao_quebra(qgis_app, monkeypatch, tmp_path):
     assert resultado["layers"]["osm_links"].featureCount() == 1
 
 
-# --- Registro do algoritmo (Passo 3) ---------------------------------------
+# --- Registro do algoritmo ---------------------------------------------
 
 def test_osm_network_registrado_em_algorithms(qgis_app):
     _skip_sem_qgis(qgis_app)
@@ -426,9 +498,57 @@ def test_processalgorithm_copia_camadas_para_os_sinks(qgis_app, monkeypatch, tmp
 
     assert links.featureCount() == 1
     assert nodes.featureCount() == 2
-    assert problemas.featureCount() >= 1
+    # PONTAS_SOLTAS nao foi passado (default False) — o unico achado
+    # possivel deste payload (ponta_solta nos dois extremos do arco
+    # isolado) fica de fora por padrao.
+    assert problemas.featureCount() == 0
     campos_link = {f.name() for f in links.fields()}
     assert {"maxspeed", "velocidade_kmh", "comprimento_m"} <= campos_link
+
+
+def test_processalgorithm_rede_e_pontas_soltas_chegam_ao_nucleo(qgis_app, monkeypatch, tmp_path):
+    """REDE (enum) e PONTAS_SOLTAS (bool) do algoritmo chegam a
+    `build_osm_network_layers` como `rede`/`incluir_pontas_soltas` —
+    monkeypatch em `build_osm_network_layers` conferindo os kwargs
+    recebidos."""
+    _skip_sem_qgis(qgis_app)
+    from qgis.core import QgsProcessingContext, QgsProcessingFeedback, QgsProject
+    from gisbr.algorithms.diagnostico import osm_network as osm_network_mod
+    from gisbr.core import osm_pipeline
+
+    chamadas = []
+
+    def build_fake(code, cache_dir=None, force=False, feedback=None, rede="veicular",
+                    incluir_pontas_soltas=False):
+        chamadas.append({"rede": rede, "incluir_pontas_soltas": incluir_pontas_soltas})
+        from qgis.core import QgsVectorLayer
+        vazio = lambda campos, geometria: QgsVectorLayer(
+            osm_pipeline._uri(geometria, campos), "x", "memory")
+        return {
+            "raw_cache": None,
+            "layers": {
+                "osm_links": vazio(osm_pipeline._LINK_FIELDS, "LineString"),
+                "osm_nodes": vazio(osm_pipeline._NODE_FIELDS, "Point"),
+                "osm_problemas": vazio(osm_pipeline._PROBLEMA_FIELDS, "Point"),
+            },
+            "metadata": {"code_muni": code, "rede": rede},
+        }
+
+    monkeypatch.setattr(osm_network_mod.osm_pipeline, "build_osm_network_layers", build_fake)
+
+    alg = osm_network_mod.OsmNetwork()
+    alg.initAlgorithm()
+    context = QgsProcessingContext()
+    context.setProject(QgsProject.instance())
+    feedback = QgsProcessingFeedback()
+    params = {
+        "CODE": "3106200", "FORCE": False, "CACHE_DIR": str(tmp_path),
+        "REDE": 1, "PONTAS_SOLTAS": True,
+        "LINKS": "memory:links", "NODES": "memory:nodes", "PROBLEMAS": "memory:problemas",
+    }
+    alg.processAlgorithm(params, context, feedback)
+
+    assert chamadas == [{"rede": "pedestre", "incluir_pontas_soltas": True}]
 
 
 def test_processalgorithm_erro_overpass_levanta_excecao(qgis_app, monkeypatch, tmp_path):

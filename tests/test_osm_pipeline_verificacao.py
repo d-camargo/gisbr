@@ -165,31 +165,46 @@ def test_monta_problemas_marca_campo_rede_veicular(qgis_app):
     arcos = [_arco(1, 100, 1, 2, [1, 2], [nodes_dict[1], nodes_dict[2]])]
     diag = diagnostica(arcos, "veicular")
 
-    problemas = osm_pipeline._monta_problemas(arcos, diag, nodes_dict, _engine_tudo_dentro(), "veicular")
+    # Por padrão (incluir_pontas_soltas=False) ponta_solta NAO aparece —
+    # beco sem saída é o normal da malha, não erro; as duas pontas do arco
+    # viram "nao listadas", nao problemas.
+    problemas, nao_listadas = osm_pipeline._monta_problemas(
+        arcos, diag, nodes_dict, _engine_tudo_dentro(), "veicular")
 
-    assert problemas  # ponta_solta nos dois extremos
-    assert all(p["rede"] == "veicular" for p in problemas)
-    assert any(p["tipo"] == "ponta_solta" for p in problemas)
+    assert problemas == []
+    assert nao_listadas == 2
+
+    problemas_com, nao_listadas_com = osm_pipeline._monta_problemas(
+        arcos, diag, nodes_dict, _engine_tudo_dentro(), "veicular", incluir_pontas_soltas=True)
+    assert problemas_com  # ponta_solta nos dois extremos
+    assert all(p["rede"] == "veicular" for p in problemas_com)
+    assert any(p["tipo"] == "ponta_solta" for p in problemas_com)
+    assert nao_listadas_com == 0
 
 
-def test_monta_problemas_pedestre_nao_emite_ponta_solta(qgis_app):
+def test_monta_problemas_pedestre_nao_emite_nem_conta_ponta_solta(qgis_app):
     if qgis_app is None:
         pytest.skip("QGIS indisponivel neste ambiente")
 
     # mesmo arco solto (grau 1 nas duas pontas, sem nada por perto) — na
-    # rede veicular vira ponta_solta; na rede pedestre NAO (becos de
-    # calçada são a norma).
+    # rede veicular vira ponta_solta (com incluir_pontas_soltas=True); na
+    # rede pedestre NAO (becos de calçada são a norma) — nem sequer conta
+    # como "nao listada".
     nodes_dict = {1: (0.0, 0.0), 2: (0.02, 0.0)}
     arcos = [_arco(1, 100, 1, 2, [1, 2], [nodes_dict[1], nodes_dict[2]])]
 
     diag_v = diagnostica(arcos, "veicular")
-    problemas_v = osm_pipeline._monta_problemas(arcos, diag_v, nodes_dict, _engine_tudo_dentro(), "veicular")
+    problemas_v, nao_listadas_v = osm_pipeline._monta_problemas(
+        arcos, diag_v, nodes_dict, _engine_tudo_dentro(), "veicular", incluir_pontas_soltas=True)
     assert any(p["tipo"] == "ponta_solta" for p in problemas_v)
+    assert nao_listadas_v == 0
 
     diag_p = diagnostica(arcos, "pedestre")
-    problemas_p = osm_pipeline._monta_problemas(arcos, diag_p, nodes_dict, _engine_tudo_dentro(), "pedestre")
+    problemas_p, nao_listadas_p = osm_pipeline._monta_problemas(
+        arcos, diag_p, nodes_dict, _engine_tudo_dentro(), "pedestre", incluir_pontas_soltas=True)
     assert not any(p["tipo"] == "ponta_solta" for p in problemas_p)
     assert all(p["rede"] == "pedestre" for p in problemas_p)
+    assert nao_listadas_p == 0
 
 
 # --- regressão do bug do closestSegmentWithContext (falsos positivos a 0,0 m) ---
@@ -277,14 +292,17 @@ def test_monta_problemas_mao_unica_sem_saida_dentro_do_poligono(qgis_app):
     assert 3 in diag["mao_unica_sem_saida"]
 
     engine = _engine_poligono("POLYGON((-0.01 -0.01, 0.01 -0.01, 0.01 0.01, -0.01 0.01, -0.01 -0.01))")
-    problemas = osm_pipeline._monta_problemas(arcos, diag, nodes_dict, engine, "veicular")
+    problemas, _nao_listadas = osm_pipeline._monta_problemas(arcos, diag, nodes_dict, engine, "veicular")
 
-    # node 3 tambem e grau 1 (ponta do beco), entao gera ponta_solta ALEM
-    # do mao_unica_sem_saida — os dois problemas sao legitimos e distintos.
+    # node 3 e a representante do grupo (SCC {3}, tamanho 1) — o mao_unica
+    # aparece uma vez, com "1 nós" no detalhe; grau 1 nao gera ponta_solta
+    # (default incluir_pontas_soltas=False), entao so o mao_unica aparece
+    # para o node 3.
     mao_unica = [p for p in problemas if p["node_id"] == 3 and p["tipo"].startswith("mao_unica")]
     assert len(mao_unica) == 1
     assert mao_unica[0]["tipo"] == "mao_unica_sem_saida"
     assert mao_unica[0]["severidade"] == "alta"
+    assert mao_unica[0]["detalhe"] == "1 nós"
     assert not any(p["tipo"] == "mao_unica_borda" for p in problemas)
 
 
@@ -317,14 +335,50 @@ def test_monta_problemas_mao_unica_borda_quando_scc_sai_do_poligono(qgis_app):
 
     # poligono pequeno: exclui node6 (lon 0.003), inclui o resto
     engine = _engine_poligono("POLYGON((-0.01 -0.01, 0.0025 -0.01, 0.0025 0.01, -0.01 0.01, -0.01 -0.01))")
-    problemas = osm_pipeline._monta_problemas(arcos, diag, nodes_dict, engine, "veicular")
+    problemas, _nao_listadas = osm_pipeline._monta_problemas(arcos, diag, nodes_dict, engine, "veicular")
 
     por_no = {p["node_id"]: p for p in problemas if p["node_id"] in (5, 6)}
-    assert 6 not in por_no  # fora do poligono, nunca emitido
-    assert 5 in por_no
+    assert 6 not in por_no  # fora do poligono, nunca vira representante
+    assert 5 in por_no  # representante do grupo {5, 6} (unico dentro do poligono)
     assert por_no[5]["tipo"] == "mao_unica_borda"
     assert por_no[5]["severidade"] == "baixa"
+    assert por_no[5]["detalhe"] == "2 nós"
     assert not any(p["tipo"] == "mao_unica_sem_saida" for p in problemas)
+
+
+def test_monta_problemas_mao_unica_um_ponto_por_grupo_de_3(qgis_app):
+    if qgis_app is None:
+        pytest.skip("QGIS indisponivel neste ambiente")
+
+    # beco com 3 nos na mesma armadilha (SCC propria): 2->3->5->6->3 (ciclo
+    # 3<->5<->6), alcancavel a partir do triangulo principal (1,2,4) mas sem
+    # volta para ele. A armadilha e do grupo, nao de cada no — sai UM ponto
+    # para o grupo inteiro (nao um por no), com "3 nós" no detalhe.
+    nodes_dict = {
+        1: (0.0, 0.0), 2: (0.001, 0.0), 4: (0.0005, 0.001),
+        3: (0.002, 0.0), 5: (0.003, 0.0), 6: (0.0025, 0.001),
+    }
+    arcos = [
+        _arco(1, 1, 1, 2, [1, 2], [nodes_dict[1], nodes_dict[2]], oneway="no"),
+        _arco(2, 2, 2, 4, [2, 4], [nodes_dict[2], nodes_dict[4]], oneway="no"),
+        _arco(3, 3, 4, 1, [4, 1], [nodes_dict[4], nodes_dict[1]], oneway="no"),
+        _arco(4, 4, 2, 3, [2, 3], [nodes_dict[2], nodes_dict[3]], oneway="yes"),
+        _arco(5, 5, 3, 5, [3, 5], [nodes_dict[3], nodes_dict[5]], oneway="no"),
+        _arco(6, 6, 5, 6, [5, 6], [nodes_dict[5], nodes_dict[6]], oneway="no"),
+        _arco(7, 7, 6, 3, [6, 3], [nodes_dict[6], nodes_dict[3]], oneway="no"),
+    ]
+    diag = diagnostica(arcos, "veicular")
+    assert {3, 5, 6} <= set(diag["mao_unica_sem_saida"])
+    assert diag["scc"][3] == diag["scc"][5] == diag["scc"][6]
+
+    problemas, _nao_listadas = osm_pipeline._monta_problemas(
+        arcos, diag, nodes_dict, _engine_tudo_dentro(), "veicular")
+
+    mao_unica = [p for p in problemas if p["tipo"] == "mao_unica_sem_saida"]
+    assert len(mao_unica) == 1
+    assert mao_unica[0]["node_id"] == 3  # menor node_id do grupo {3, 5, 6}
+    assert mao_unica[0]["detalhe"] == "3 nós"
+    assert mao_unica[0]["severidade"] == "alta"
 
 
 # --- severidade de ponta_quase_conectada estratificada por distância -----
@@ -352,7 +406,8 @@ def test_monta_problemas_ponta_quase_conectada_severidade_por_distancia(qgis_app
     ]
     diag = diagnostica(arcos, "veicular")
 
-    problemas = osm_pipeline._monta_problemas(arcos, diag, nodes_dict, _engine_tudo_dentro(), "veicular")
+    problemas, _nao_listadas = osm_pipeline._monta_problemas(
+        arcos, diag, nodes_dict, _engine_tudo_dentro(), "veicular")
     por_no = {p["node_id"]: p for p in problemas if p["node_id"] in (3, 5)}
 
     assert por_no[3]["tipo"] == "ponta_quase_conectada"
