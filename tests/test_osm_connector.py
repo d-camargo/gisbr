@@ -162,6 +162,14 @@ def test_osm_pipeline_cache_logging(tmp_path, monkeypatch):
             return Extent()
         def name(self):
             return "municipio"
+        # Passo 1 (osm_qgstask): a geometria do município agora é resolvida
+        # cedo, dentro de `resolve_municipio` (para a QgsTask receber
+        # `mun_geom` já pronto) — antes só era chamada depois de confirmar
+        # que havia vias no bbox. O duplo precisa de `getFeatures()` mesmo
+        # sem feições (a intenção deste teste é só o log do cache do
+        # Overpass, não a geometria).
+        def getFeatures(self):
+            return []
 
     monkeypatch.setattr(osm_pipeline, "_municipio_poligono", lambda code, name=None: DummyLayer())
 

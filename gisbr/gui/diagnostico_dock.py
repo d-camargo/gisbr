@@ -4,15 +4,18 @@
 Permite ao usuario escolher o municipio, selecionar as fontes de dados ativas,
 definir o caminho de destino do GeoPackage e carregar os dados.
 """
+import os
+
 from qgis.gui import QgsDockWidget
 from qgis.PyQt.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QTreeWidget, QTreeWidgetItem, QCheckBox, QPushButton, QFileDialog,
     QLabel, QPlainTextEdit, QComboBox, QCompleter, QGroupBox, QListWidget,
     QListWidgetItem, QTabWidget, QProgressBar, QApplication)
 from qgis.PyQt.QtCore import Qt, QCoreApplication, QSettings
-from qgis.core import QgsProject, QgsProcessingFeedback
+from qgis.core import QgsApplication, QgsProject, QgsProcessingFeedback, QgsVectorLayer
 from ..core.sources import SOURCES
-from ..core import diagnostico, catalog_censo, censo_join
+from ..core import diagnostico, catalog_censo, censo_join, osm_pipeline
+from ..core.osm_task import OsmNetworkTask
 
 
 class _LogFeedback(QgsProcessingFeedback):
@@ -88,6 +91,14 @@ class DiagnosticoDock(QgsDockWidget):
         self.iface = iface
         self._munis = {}
         self._feedback_atual = None
+        # Passo 3 do plano `osm_qgstask`: fonte `osm_vias` roda em segundo
+        # plano via `OsmNetworkTask`; `_task_osm` é a task viva (ou `None`),
+        # e `_osm_code`/`_osm_nome`/`_osm_gpkg` guardam o contexto que
+        # `_on_osm_concluida(dados)` precisa (a task só devolve `dados`).
+        self._task_osm = None
+        self._osm_code = None
+        self._osm_nome = None
+        self._osm_gpkg = None
         self._build_ui()
 
     def _build_ui(self):
@@ -533,6 +544,17 @@ class DiagnosticoDock(QgsDockWidget):
         if not code or not gpkg or not ids:
             self._log(self.tr("Specify municipality, GeoPackage and at least 1 source."), focar=True)
             return
+        # Mesma normalização que `diagnostico.carregar_fontes` faz por
+        # dentro — precisa acontecer aqui também porque `osm_vias` (Passo 3
+        # do plano `osm_qgstask`) não passa mais por `carregar_fontes`, e as
+        # duas trilhas têm de gravar no MESMO arquivo .gpkg.
+        if not gpkg.lower().endswith(".gpkg"):
+            gpkg = gpkg + ".gpkg"
+        # Passo 3 do plano `osm_qgstask`: `osm_vias` sai do carregamento
+        # síncrono e vira `OsmNetworkTask` (QgsTask) — as demais fontes
+        # continuam por `diagnostico.carregar_fontes` como sempre.
+        osm_vias_selecionada = "osm_vias" in ids
+        ids_sincronas = [sid for sid in ids if sid != "osm_vias"]
         censo_ano = None
         censo_datasets = ()
         if self.grp_censo.isChecked():
@@ -564,19 +586,26 @@ class DiagnosticoDock(QgsDockWidget):
         self.btn_cancelar.setVisible(True)
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            res = diagnostico.carregar_fontes(
-                ids, code_muni=code, nome_muni=nome, bbox=bbox, gpkg_path=gpkg,
-                add_basemap=self.chk_satelite.isChecked(),
-                force=self.chk_atualizar.isChecked(),
-                feedback=feedback,
-                censo_ano=censo_ano, censo_datasets=censo_datasets,
-                mapbiomas_ano=mapbiomas_ano)
+            if ids_sincronas:
+                res = diagnostico.carregar_fontes(
+                    ids_sincronas, code_muni=code, nome_muni=nome, bbox=bbox, gpkg_path=gpkg,
+                    add_basemap=self.chk_satelite.isChecked(),
+                    force=self.chk_atualizar.isChecked(),
+                    feedback=feedback,
+                    censo_ano=censo_ano, censo_datasets=censo_datasets,
+                    mapbiomas_ano=mapbiomas_ano)
+            else:
+                res = {"ok": [], "falhou": [], "pulou": []}
         finally:
             QApplication.restoreOverrideCursor()
             self.btn_carregar.setEnabled(True)
-            self.progress_bar.setVisible(False)
-            self.btn_cancelar.setVisible(False)
             self._feedback_atual = None
+            # Barra/botão só somem aqui quando NÃO houver OSM para rodar em
+            # segundo plano — senão sumiriam com a task ainda no ar. Quando
+            # há, ficam visíveis e só somem em `_on_osm_concluida`.
+            if not osm_vias_selecionada:
+                self.progress_bar.setVisible(False)
+                self.btn_cancelar.setVisible(False)
 
         self._log(self.tr("OK: {layers}").format(layers=", ".join(res["ok"]) or "-"))
         for sid, msg in res["falhou"]:
@@ -584,7 +613,121 @@ class DiagnosticoDock(QgsDockWidget):
         for sid, msg in res["pulou"]:
             self._log(self.tr("SKIPPED {id}: {reason}").format(id=sid, reason=msg))
 
+        if osm_vias_selecionada:
+            self._iniciar_osm_vias(code, nome, gpkg, force=self.chk_atualizar.isChecked())
+
+    def _iniciar_osm_vias(self, code, nome, gpkg, force):
+        """Resolve o município na thread principal e despacha
+        `OsmNetworkTask` — Passo 3 do plano `osm_qgstask`."""
+        if self._task_osm is not None:
+            # Guarda contra clique duplo em "Load selected": o botão volta a
+            # ficar habilitado no `finally` do trecho síncrono antes da task
+            # de OSM terminar. Sem esta checagem, despachar uma segunda task
+            # aqui sobrescreveria `self._task_osm`, deixando a primeira
+            # órfã (ninguém recebe `concluida`) e as duas gravando no MESMO
+            # GeoPackage ao mesmo tempo.
+            self._log(self.tr("SKIPPED osm_vias: a road network load is already in progress"))
+            return
+
+        municipio, bbox, mun_geom = osm_pipeline.resolve_municipio(code, nome)
+        if municipio is None:
+            self._log(self.tr("FAILED osm_vias: {error}").format(
+                error=self.tr("could not resolve the municipality")), focar=True)
+            self.progress_bar.setVisible(False)
+            self.btn_cancelar.setVisible(False)
+            return
+
+        existentes = diagnostico._layers_existentes(gpkg)
+        if (not force) and osm_pipeline.osm_vias_ja_existe(existentes, code):
+            self._log(self.tr(
+                "SKIPPED osm_vias: already in the GeoPackage (osm_links_{code}/osm_nodes_{code})"
+            ).format(code=code))
+            self.progress_bar.setVisible(False)
+            self.btn_cancelar.setVisible(False)
+            return
+
+        self._log(self.tr("OSM: downloading road network in the background..."))
+        self._osm_code, self._osm_nome, self._osm_gpkg = code, nome, gpkg
+        cache_dir = os.path.dirname(gpkg) or "."
+
+        task = OsmNetworkTask(
+            self.tr("OSM road network - {code}").format(code=code),
+            code, nome, bbox, mun_geom, cache_dir=cache_dir, force=force)
+        task.mensagem.connect(self._log)
+        task.progressChanged.connect(self._on_osm_progress)
+        task.concluida.connect(self._on_osm_concluida)
+        self._task_osm = task
+        QgsApplication.taskManager().addTask(task)
+
+    def _on_osm_progress(self, pct):
+        self.progress_bar.setValue(int(pct))
+
+    def _on_osm_concluida(self, dados):
+        """Roda na thread principal (sinal `concluida` de `OsmNetworkTask`,
+        emitido por `finished()`): monta as camadas, grava no GeoPackage,
+        adiciona ao projeto e loga — o mesmo que o ramo `osm_vias` de
+        `carregar_fontes` faz hoje no caminho síncrono."""
+        self.progress_bar.setVisible(False)
+        self.btn_cancelar.setVisible(False)
+        task = self._task_osm
+        self._task_osm = None
+        code, nome, gpkg = self._osm_code, self._osm_nome, self._osm_gpkg
+
+        if dados is None:
+            if task is not None and task.isCanceled():
+                self._log(self.tr("SKIPPED osm_vias: cancelled by the user"))
+            elif task is not None and getattr(task, "sem_vias", False):
+                # Paridade com o caminho síncrono de `carregar_fontes`:
+                # "nenhuma via no bbox" é SKIPPED, não FAILED, não importa
+                # qual trilha rodou.
+                self._log(self.tr("SKIPPED osm_vias: {reason}").format(reason=task.erro))
+            else:
+                erro = getattr(task, "erro", None) if task is not None else None
+                self._log(self.tr("FAILED osm_vias: {error}").format(
+                    error=erro or self.tr("unknown error")), focar=True)
+            return
+
+        layers = osm_pipeline.montar_camadas(dados)
+        osm_links = layers.get("osm_links")
+        osm_nodes = layers.get("osm_nodes")
+        osm_problemas = layers.get("osm_problemas")
+        if osm_links is None or osm_nodes is None:
+            metadata = dados.get("metadata", {})
+            self._log(self.tr("FAILED osm_vias: {error}").format(
+                error=metadata.get("erro") or self.tr("unknown error")), focar=True)
+            return
+
+        ok_links, _ = diagnostico._grava_gpkg(osm_links, gpkg, "osm_links_{}".format(code))
+        ok_nodes, _ = diagnostico._grava_gpkg(osm_nodes, gpkg, "osm_nodes_{}".format(code))
+        ok_problemas = True
+        if osm_problemas is not None:
+            ok_problemas, _ = diagnostico._grava_gpkg(osm_problemas, gpkg, "osm_problemas_{}".format(code))
+        if not (ok_links and ok_nodes and ok_problemas):
+            self._log(self.tr("FAILED osm_vias: {error}").format(
+                error=self.tr("failed to write to the GeoPackage")), focar=True)
+            return
+
+        # Carregar DO GPKG, não da memory — mesma disciplina de `carregar_fontes`.
+        osm_links_gpkg = QgsVectorLayer(
+            "{}|layername=osm_links_{}".format(gpkg, code), "osm_links - {}".format(nome or code), "ogr")
+        osm_nodes_gpkg = QgsVectorLayer(
+            "{}|layername=osm_nodes_{}".format(gpkg, code), "osm_nodes - {}".format(nome or code), "ogr")
+        if osm_links_gpkg.isValid():
+            QgsProject.instance().addMapLayer(osm_links_gpkg)
+            self._log("OK: osm_links (GPKG)")
+        if osm_nodes_gpkg.isValid():
+            QgsProject.instance().addMapLayer(osm_nodes_gpkg)
+            self._log("OK: osm_nodes (GPKG)")
+        if osm_problemas is not None:
+            osm_problemas_gpkg = QgsVectorLayer(
+                "{}|layername=osm_problemas_{}".format(gpkg, code), "osm_problemas - {}".format(nome or code), "ogr")
+            if osm_problemas_gpkg.isValid():
+                QgsProject.instance().addMapLayer(osm_problemas_gpkg)
+                self._log("OK: osm_problemas (GPKG)")
+
     def _on_cancelar(self):
         if self._feedback_atual is not None:
             self._feedback_atual.cancel()
+        if self._task_osm is not None:
+            self._task_osm.cancel()
         self.btn_cancelar.setEnabled(False)

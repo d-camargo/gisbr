@@ -160,3 +160,154 @@ def test_on_cancelar_sem_feedback_atual_nao_quebra(dock):
     dock._feedback_atual = None
     dock._on_cancelar()  # nao deve lancar excecao
 
+
+# --- Passo 3/4 do plano osm_qgstask: OsmNetworkTask no painel ------------
+
+class _TaskDuplo:
+    """Duplo mínimo de OsmNetworkTask para testar `_on_cancelar`."""
+
+    def __init__(self):
+        self.cancelado = False
+
+    def cancel(self):
+        self.cancelado = True
+
+    def isCanceled(self):
+        return self.cancelado
+
+
+def test_on_cancelar_chama_cancel_da_task_osm(dock):
+    task = _TaskDuplo()
+    dock._task_osm = task
+    dock.btn_cancelar.setEnabled(True)
+
+    dock._on_cancelar()
+
+    assert task.cancelado is True
+    assert dock.btn_cancelar.isEnabled() is False
+
+
+def test_iniciar_osm_vias_nao_sobrescreve_task_em_andamento(dock):
+    """Guarda contra clique duplo em 'Load selected': o botão volta a ficar
+    habilitado antes da task de OSM terminar (finally do trecho síncrono) —
+    sem a guarda, uma segunda chamada sobrescreveria `_task_osm`, deixando a
+    primeira órfã e as duas gravando no mesmo GeoPackage."""
+    task_existente = _TaskDuplo()
+    dock._task_osm = task_existente
+
+    dock._iniciar_osm_vias("3106200", "Belo Horizonte", "/tmp/x.gpkg", force=False)
+
+    assert dock._task_osm is task_existente
+    assert "SKIPPED osm_vias" in dock.txt_log.toPlainText()
+    assert "already in progress" in dock.txt_log.toPlainText()
+
+
+def test_on_osm_concluida_none_por_cancelamento_nao_quebra_e_loga(dock):
+    task = _TaskDuplo()
+    task.cancelado = True
+    dock._task_osm = task
+    dock._osm_code, dock._osm_nome, dock._osm_gpkg = "3106200", "Belo Horizonte", "/tmp/x.gpkg"
+    dock.progress_bar.setVisible(True)
+    dock.btn_cancelar.setVisible(True)
+
+    dock._on_osm_concluida(None)
+
+    assert "SKIPPED osm_vias" in dock.txt_log.toPlainText()
+    assert dock.progress_bar.isVisible() is False
+    assert dock.btn_cancelar.isVisible() is False
+    assert dock._task_osm is None
+
+
+def test_on_osm_concluida_none_por_erro_nao_quebra_e_loga(dock):
+    class _TaskComErro:
+        erro = "Erro no Overpass: timeout"
+        sem_vias = False
+        def isCanceled(self):
+            return False
+
+    dock._task_osm = _TaskComErro()
+    dock._osm_code, dock._osm_nome, dock._osm_gpkg = "3106200", "Belo Horizonte", "/tmp/x.gpkg"
+
+    dock._on_osm_concluida(None)
+
+    assert "FAILED osm_vias" in dock.txt_log.toPlainText()
+    assert "timeout" in dock.txt_log.toPlainText()
+
+
+def test_on_osm_concluida_none_por_sem_vias_loga_skipped_nao_failed(dock):
+    """Paridade com o caminho síncrono: 'nenhuma via no bbox' é SKIPPED, não
+    FAILED, não importa se veio do `OsmNetworkTask` ou de `carregar_fontes`."""
+    class _TaskSemVias:
+        erro = "nenhum way com highway encontrado no bbox"
+        sem_vias = True
+        def isCanceled(self):
+            return False
+
+    dock._task_osm = _TaskSemVias()
+    dock._osm_code, dock._osm_nome, dock._osm_gpkg = "3106200", "Belo Horizonte", "/tmp/x.gpkg"
+
+    dock._on_osm_concluida(None)
+
+    texto = dock.txt_log.toPlainText()
+    assert "SKIPPED osm_vias" in texto
+    assert "nenhum way com highway encontrado no bbox" in texto
+    assert "FAILED" not in texto
+
+
+def test_on_osm_concluida_com_dados_sintéticos_adiciona_camadas(dock, tmp_path):
+    from qgis.core import QgsProject
+    from gisbr.core import osm_pipeline
+
+    dock._task_osm = None
+    code, nome = "3106200", "Belo Horizonte"
+    gpkg = str(tmp_path / "test.gpkg")
+    dock._osm_code, dock._osm_nome, dock._osm_gpkg = code, nome, gpkg
+
+    payload = {
+        "elements": [
+            {"type": "node", "id": 1, "lat": -19.95, "lon": -43.95},
+            {"type": "node", "id": 2, "lat": -19.95, "lon": -43.94},
+            {"type": "way", "id": 100, "nodes": [1, 2], "tags": {"highway": "residential"}},
+        ]
+    }
+
+    from qgis.core import QgsFeature, QgsGeometry, QgsVectorLayer
+    municipio = QgsVectorLayer("Polygon?crs=EPSG:4674", "municipio", "memory")
+    municipio.startEditing()
+    feat = QgsFeature(municipio.fields())
+    feat.setGeometry(QgsGeometry.fromWkt("POLYGON((-44 -20, -43.9 -20, -43.9 -19.9, -44 -19.9, -44 -20))"))
+    municipio.addFeature(feat)
+    municipio.commitChanges()
+    bbox = osm_pipeline._bbox_da_camada(municipio)
+    mun_geom = osm_pipeline._geometria_municipio(municipio)
+
+    import gisbr.core.osm_pipeline as osm_pipeline_mod
+    orig_fetch = osm_pipeline_mod.osm.fetch_overpass_json
+    orig_save = osm_pipeline_mod.osm.save_overpass_cache
+    orig_load = osm_pipeline_mod.osm.load_overpass_cache
+    osm_pipeline_mod.osm.fetch_overpass_json = lambda *a, **k: payload
+    osm_pipeline_mod.osm.save_overpass_cache = lambda *a, **k: None
+    osm_pipeline_mod.osm.load_overpass_cache = lambda *a, **k: None
+    try:
+        dados = osm_pipeline.compute_osm_network(code, nome, bbox, mun_geom, cache_dir=tmp_path)
+    finally:
+        osm_pipeline_mod.osm.fetch_overpass_json = orig_fetch
+        osm_pipeline_mod.osm.save_overpass_cache = orig_save
+        osm_pipeline_mod.osm.load_overpass_cache = orig_load
+
+    antes = set(QgsProject.instance().mapLayers().keys())
+    try:
+        dock._on_osm_concluida(dados)
+
+        assert "OK: osm_links (GPKG)" in dock.txt_log.toPlainText()
+        assert "OK: osm_nodes (GPKG)" in dock.txt_log.toPlainText()
+
+        depois = QgsProject.instance().mapLayers()
+        novas = [lyr for lid, lyr in depois.items() if lid not in antes]
+        nomes = {lyr.name() for lyr in novas}
+        assert any(n.startswith("osm_links") for n in nomes)
+        assert any(n.startswith("osm_nodes") for n in nomes)
+    finally:
+        depois_ids = set(QgsProject.instance().mapLayers().keys())
+        QgsProject.instance().removeMapLayers(list(depois_ids - antes))
+

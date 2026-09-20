@@ -169,20 +169,23 @@ def _cria_links_raw(arcos, diag_veicular, diag_pedestre, layer_name="osm_links_r
     return layer
 
 
-def _filtra_arcos_por_poligono(links_raw, engine, layer_name="osm_links"):
+def _filtra_arcos(arcos, engine):
     """Mantém o arco INTEIRO se intersecta o polígono do município.
+
+    Sucessora de `_filtra_arcos_por_poligono` (Passo 1 do plano
+    `osm_qgstask`): opera sobre uma LISTA de arcos — dados puros, nunca uma
+    `QgsVectorLayer` — porque roda dentro de `compute_osm_network`, que uma
+    `QgsTask` pode chamar fora da thread principal. Devolve a lista dos
+    arcos mantidos, na mesma ordem.
 
     Mudança deliberada em relação ao `native:clip`: clip cortaria o arco e
     deixaria `from_node`/`to_node` apontando para um nó fora da geometria
     resultante. `engine` já vem preparado (`QgsGeometry.createGeometryEngine`
     + `prepareGeometry`), mesmo padrão de `poi_pipeline.py`.
     """
-    layer = QgsVectorLayer(_uri("LineString", _LINK_FIELDS), layer_name, "memory")
-    campos = _fields(_LINK_FIELDS)
-    layer.startEditing()
-
-    for feat_raw in links_raw.getFeatures():
-        geom = feat_raw.geometry()
+    mantidos = []
+    for arco in arcos:
+        geom = _arco_para_geometria(arco)
         if geom is None or geom.isEmpty():
             continue
         # engine.intersects exige QgsAbstractGeometry vivo (constGet() de
@@ -190,26 +193,25 @@ def _filtra_arcos_por_poligono(links_raw, engine, layer_name="osm_links"):
         # o fim do uso, então o ponteiro segue válido).
         if not engine.intersects(geom.constGet()):
             continue
-        feat = QgsFeature(campos)
-        feat.setGeometry(QgsGeometry(geom))
-        for nome, _kind in _LINK_FIELDS:
-            feat[nome] = feat_raw[nome]
-        layer.addFeature(feat)
-
-    layer.commitChanges()
-    return layer
+        mantidos.append(arco)
+    return mantidos
 
 
-def _cria_nodes_layer(osm_links, diag_veicular, diag_pedestre, nodes_dict, layer_name="osm_nodes"):
+def _cria_nodes_layer(arcos, diag_veicular, diag_pedestre, nodes_dict, layer_name="osm_nodes"):
     """Um ponto por node_id referenciado como from/to dos arcos mantidos.
+
+    Passo 1 do plano `osm_qgstask`: `arcos` passou a ser a LISTA de arcos
+    mantidos (dados puros), não mais a camada `osm_links` — o node_id é lido
+    direto do dict do arco (`from_node`/`to_node`), sem depender de
+    `QgsVectorLayer.getFeatures()`.
 
     `grau`/`componente` são da rede veicular; `grau_pe`/`componente_pe` da
     rede pedestre (0/-1 quando o nó não participa daquela rede).
     """
     node_ids = set()
-    for feat in osm_links.getFeatures():
-        node_ids.add(feat["from_node"])
-        node_ids.add(feat["to_node"])
+    for arco in arcos:
+        node_ids.add(arco["from_node"])
+        node_ids.add(arco["to_node"])
 
     layer = QgsVectorLayer(_uri("Point", _NODE_FIELDS), layer_name, "memory")
     campos = _fields(_NODE_FIELDS)
@@ -596,46 +598,83 @@ def _vazio(code_muni, nome_muni):
 _CACHE_DIR_PADRAO = Path(os.path.expanduser("~/.cache/gisbr-diagnostico"))
 
 
-def build_osm_network_layers(code_muni, nome_muni=None, cache_dir=None, force=False, feedback=None):
-    """Monta as camadas OSM (links/nós/problemas) do município EM MEMÓRIA.
+def resolve_municipio(code_muni, nome_muni=None):
+    """Thread principal: resolve o polígono do município (usa
+    `processing.run("gisbr:read_municipality")`) e sua geometria unida
+    (`_geometria_municipio`).
 
-    Passo 1 do plano `osm_network`: extraído de `build_osm_municipal_network`
-    (que virou uma casca em cima desta função — grava as camadas no GPKG e
-    acrescenta `gpkg_ok` ao metadata). Faz tudo, inclusive o cache do
-    Overpass em `cache_dir` (default `~/.cache/gisbr-diagnostico`, criado se
-    não existir), mas NÃO grava GeoPackage. Devolve o MESMO formato de dict
-    de sempre (`raw_cache`, `layers`, `metadata`), sem `gpkg_ok`.
+    Passo 1 do plano `osm_qgstask`: separado de `build_osm_network_layers`
+    para poder rodar ANTES de despachar `OsmNetworkTask` (`core/osm_task.py`)
+    — a tarefa em segundo plano recebe `bbox`/`mun_geom` já prontos e nunca
+    chama `processing.run`/toca `QgsVectorLayer` fora da thread principal.
 
-    Passo 6a — `feedback` (um `QgsProcessingFeedback`, sempre opcional) reporta
-    progresso via `setProgressText`/`setProgress` em faixas fixas:
+    Devolve:
+    - `(None, None, None)` se o município não pôde ser resolvido
+      (`_municipio_poligono` devolveu `None`);
+    - `(municipio_layer, bbox, None)` se resolveu mas a geometria é inválida
+      (`mun_geom` sai `None`) — quem decide o que fazer com isso é o
+      chamador. IMPORTANTE: a geometria passou a ser CALCULADA aqui, cedo,
+      mas a VALIDAÇÃO dela continua onde estava — `compute_osm_network` só
+      reporta "município sem geometria válida" DEPOIS de confirmar que há
+      vias no bbox (mesma ordem de antes: `sem_vias` na frente de
+      "geometria inválida"), não aqui;
+    - `(municipio_layer, bbox, mun_geom)` no caminho feliz.
+    """
+    municipio = _municipio_poligono(code_muni, nome_muni)
+    if municipio is None:
+        return None, None, None
+    bbox = _bbox_da_camada(municipio)
+    mun_geom = _geometria_municipio(municipio)
+    return municipio, bbox, mun_geom
 
-    | Faixa  | Etapa                                            |
-    |--------|---------------------------------------------------|
-    | 0–5    | resolver município                                |
-    | 5–25   | consulta ao Overpass (ou cache)                   |
-    | 25–35  | `constroi_arcos` + `diagnostica` das duas redes   |
-    | 35–55  | montar camadas de links e nós                     |
-    | 55–90  | verificação geométrica (pontas/cruzamentos)       |
-    | 90–100 | montar a camada de problemas                      |
 
-    Dentro da verificação geométrica, `feedback.isCanceled()` é checado a
-    cada ~200 itens (ver `ponta_quase_conectada`/`cruzamento_sem_no`); se
-    cancelado, esta função aborta SEM exceção, devolvendo
-    `metadata["cancelado"] = True` com as camadas já prontas até ali
-    (`osm_links_raw`/`osm_links`/`osm_nodes`; `osm_problemas` fica `None`).
+def compute_osm_network(code_muni, nome_muni, bbox, mun_geom, cache_dir=None, force=False, feedback=None):
+    """Núcleo SEM `QgsVectorLayer`/`QgsProject` — dados puros, seguros para
+    uma `QgsTask` calcular fora da thread principal (Passo 1 do plano
+    `osm_qgstask`).
+
+    Recebe `bbox` e `mun_geom` JÁ resolvidos (ver `resolve_municipio`, que
+    roda na thread principal); `mun_geom` pode vir `None` (geometria
+    municipal inválida) — a checagem só é feita DEPOIS de confirmar que há
+    vias no bbox (mesma ordem de sempre, ver abaixo). Faz a consulta/cache
+    do Overpass, `constroi_arcos`, `diagnostica` das duas redes, o filtro
+    pelo polígono municipal (`_filtra_arcos` — lista de arcos, nunca uma
+    camada) e a verificação geométrica/topológica (`_monta_problemas`).
+    `QgsGeometry`, `QgsSpatialIndex`, `QgsDistanceArea` (usados pelas duas
+    últimas etapas) são seguros numa tarefa de fundo; só `QgsVectorLayer`/
+    `QgsProject` não são — por isso as camadas são montadas depois, por
+    `montar_camadas(dados)`, sempre na thread principal.
+
+    Devolve um dict de dados puros:
+    `{"raw_cache", "arcos_todos", "arcos", "diag_veicular", "diag_pedestre",
+      "nodes_dict", "problemas", "metadata"}`.
+
+    - Falha no Overpass, ou nenhum way com highway no bbox (`sem_vias`):
+      `arcos_todos`/`arcos`/diagnósticos/`problemas` vêm `None`, e
+      `metadata["erro"]` explica a causa (`metadata["sem_vias"] = True` no
+      segundo caso).
+    - Geometria municipal inválida (`mun_geom is None`), **só reportado
+      depois do `sem_vias` acima** — mesma ordem do pipeline de sempre:
+      idem (todos os dados `None`, `metadata["erro"] = "municipio sem
+      geometria valida"`).
+    - Nenhum arco intersecta o polígono municipal: `arcos_todos` vem
+      preenchido (para `osm_links_raw`), `arcos` vem `[]`.
+    - `feedback.isCanceled()` interrompe a verificação geométrica:
+      `metadata["cancelado"] = True`, `arcos_todos`/`arcos`/diagnósticos
+      ficam prontos, só `problemas` vem `None`.
+    - Caminho feliz: todas as chaves preenchidas.
     """
     def log(msg):
         if feedback is not None:
             feedback.pushInfo(msg)
 
-    _reporta_progresso(feedback, 0, "Resolvendo município")
-    municipio = _municipio_poligono(code_muni, nome_muni)
-    if municipio is None:
-        return {"raw_cache": None, "layers": _vazio(code_muni, nome_muni),
-                "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "erro": "nao foi possivel resolver o municipio"}}
-    _reporta_progresso(feedback, 5)
+    base_meta = {"code_muni": str(code_muni), "nome_muni": nome_muni, "bbox": bbox}
 
-    bbox = _bbox_da_camada(municipio)
+    def dados_vazios(raw_cache, metadata):
+        return {"raw_cache": raw_cache, "arcos_todos": None, "arcos": None,
+                "diag_veicular": None, "diag_pedestre": None, "nodes_dict": None,
+                "problemas": None, "metadata": metadata}
+
     if cache_dir is None:
         cache_dir = _CACHE_DIR_PADRAO
     else:
@@ -657,8 +696,7 @@ def build_osm_network_layers(code_muni, nome_muni=None, cache_dir=None, force=Fa
             osm.save_overpass_cache(payload, cache_path)
         except osm.OverpassError as e:
             log(f"Erro no Overpass: {e}")
-            return {"raw_cache": None, "layers": _vazio(code_muni, nome_muni),
-                    "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "erro": str(e)}}
+            return dados_vazios(None, dict(base_meta, erro=str(e)))
     _reporta_progresso(feedback, 25)
 
     # Extrair ways e nós, e quebrar em arcos pela topologia real do OSM
@@ -667,7 +705,7 @@ def build_osm_network_layers(code_muni, nome_muni=None, cache_dir=None, force=Fa
     log(f"OSM: {len(ways)} ways encontrados, {len(nodes_dict)} nós")
 
     _reporta_progresso(feedback, 25, "Construindo topologia")
-    arcos, n_orfaos, descartados = constroi_arcos(ways, nodes_dict)
+    arcos_todos, n_orfaos, descartados = constroi_arcos(ways, nodes_dict)
     if n_orfaos:
         log(f"OSM: {n_orfaos} refs de nó órfãs descartadas")
     if descartados:
@@ -675,46 +713,42 @@ def build_osm_network_layers(code_muni, nome_muni=None, cache_dir=None, force=Fa
             "{}: {}".format(hw or "(vazio)", n) for hw, n in sorted(descartados.items())
         ))
 
-    if not arcos:
+    if not arcos_todos:
         log("OSM: nenhum way com highway encontrado no bbox")
-        return {"raw_cache": str(cache_path), "layers": _vazio(code_muni, nome_muni),
-                "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "bbox": bbox, "municipio_layer": municipio.name(),
-                             "erro": "nenhum way com highway encontrado no bbox", "sem_vias": True}}
+        return dados_vazios(str(cache_path), dict(
+            base_meta, erro="nenhum way com highway encontrado no bbox", sem_vias=True))
 
-    diag_veicular = diagnostica(arcos, "veicular")
-    diag_pedestre = diagnostica(arcos, "pedestre")
-    log(f"OSM: {len(arcos)} arcos — veicular: {len(diag_veicular['comp_tam'])} componentes, "
+    diag_veicular = diagnostica(arcos_todos, "veicular")
+    diag_pedestre = diagnostica(arcos_todos, "pedestre")
+    log(f"OSM: {len(arcos_todos)} arcos — veicular: {len(diag_veicular['comp_tam'])} componentes, "
         f"pedestre: {len(diag_pedestre['comp_tam'])} componentes")
     _reporta_progresso(feedback, 35)
 
-    mun_geom = _geometria_municipio(municipio)
+    # Geometria municipal inválida: checado SÓ AQUI (depois do `sem_vias`
+    # acima) — mesma ordem de antes da divisão em `resolve_municipio`
+    # (Passo 1 do plano `osm_qgstask`, condição do Diego).
     if mun_geom is None:
         log("OSM: municipio sem geometria valida")
-        return {"raw_cache": str(cache_path), "layers": _vazio(code_muni, nome_muni),
-                "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "bbox": bbox, "municipio_layer": municipio.name(),
-                             "erro": "municipio sem geometria valida"}}
+        return dados_vazios(str(cache_path), dict(base_meta, erro="municipio sem geometria valida"))
 
     engine = QgsGeometry.createGeometryEngine(mun_geom.constGet())
     engine.prepareGeometry()
 
-    _reporta_progresso(feedback, 35, "Montando camadas de links e nós")
-    osm_links_raw = _cria_links_raw(arcos, diag_veicular, diag_pedestre)
-    log(f"OSM: {osm_links_raw.featureCount()} arcos no bbox")
+    _reporta_progresso(feedback, 35, "Filtrando arcos pelo município")
+    log(f"OSM: {len(arcos_todos)} arcos no bbox")
 
     # RECORTE — mudança deliberada: NÃO native:clip (cortaria o arco e
     # deixaria from/to apontando para nó fora da geometria). Mantém o arco
     # inteiro se intersecta o polígono municipal.
-    osm_links = _filtra_arcos_por_poligono(osm_links_raw, engine)
-    if osm_links.featureCount() == 0:
+    arcos = _filtra_arcos(arcos_todos, engine)
+    if not arcos:
         log("OSM: nenhum arco intersecta o polígono municipal")
-        return {"raw_cache": str(cache_path), "layers": dict(_vazio(code_muni, nome_muni), osm_links_raw=osm_links_raw),
-                "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "bbox": bbox, "municipio_layer": municipio.name(),
-                             "erro": "nenhum arco intersecta o poligono municipal"}}
+        return {"raw_cache": str(cache_path), "arcos_todos": arcos_todos, "arcos": [],
+                "diag_veicular": diag_veicular, "diag_pedestre": diag_pedestre,
+                "nodes_dict": nodes_dict, "problemas": None,
+                "metadata": dict(base_meta, erro="nenhum arco intersecta o poligono municipal")}
 
-    log(f"OSM: {osm_links.featureCount()} arcos dentro do município (arco inteiro, sem clip)")
-
-    osm_nodes = _cria_nodes_layer(osm_links, diag_veicular, diag_pedestre, nodes_dict)
-    log(f"OSM: {osm_nodes.featureCount()} nós (from/to dos arcos mantidos)")
+    log(f"OSM: {len(arcos)} arcos dentro do município (arco inteiro, sem clip)")
     _reporta_progresso(feedback, 55)
 
     # Verificações geométricas/topológicas RODAM DUAS VEZES (veicular e
@@ -724,29 +758,27 @@ def build_osm_network_layers(code_muni, nome_muni=None, cache_dir=None, force=Fa
     # redes; `_monta_problemas` subdivide sua metade entre os dois laços
     # longos (ver docstring dela).
     _reporta_progresso(feedback, 55, "Verificação geométrica")
-    arcos_veiculares = [a for a in arcos if a["veicular"]]
-    arcos_pedestres = [a for a in arcos if a["pedestre"]]
+    arcos_veiculares = [a for a in arcos_todos if a["veicular"]]
+    arcos_pedestres = [a for a in arcos_todos if a["pedestre"]]
     problemas_veicular = _monta_problemas(
         arcos_veiculares, diag_veicular, nodes_dict, engine, "veicular",
         feedback=feedback, faixa=(55, 72.5))
     if feedback is not None and feedback.isCanceled():
-        return {"raw_cache": str(cache_path),
-                "layers": {"osm_links_raw": osm_links_raw, "osm_links": osm_links, "osm_nodes": osm_nodes, "osm_problemas": None},
-                "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "bbox": bbox, "municipio_layer": municipio.name(),
-                             "cancelado": True}}
+        return {"raw_cache": str(cache_path), "arcos_todos": arcos_todos, "arcos": arcos,
+                "diag_veicular": diag_veicular, "diag_pedestre": diag_pedestre,
+                "nodes_dict": nodes_dict, "problemas": None,
+                "metadata": dict(base_meta, cancelado=True)}
     problemas_pedestre = _monta_problemas(
         arcos_pedestres, diag_pedestre, nodes_dict, engine, "pedestre",
         feedback=feedback, faixa=(72.5, 90))
     if feedback is not None and feedback.isCanceled():
-        return {"raw_cache": str(cache_path),
-                "layers": {"osm_links_raw": osm_links_raw, "osm_links": osm_links, "osm_nodes": osm_nodes, "osm_problemas": None},
-                "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "bbox": bbox, "municipio_layer": municipio.name(),
-                             "cancelado": True}}
+        return {"raw_cache": str(cache_path), "arcos_todos": arcos_todos, "arcos": arcos,
+                "diag_veicular": diag_veicular, "diag_pedestre": diag_pedestre,
+                "nodes_dict": nodes_dict, "problemas": None,
+                "metadata": dict(base_meta, cancelado=True)}
     problemas = problemas_veicular + problemas_pedestre
 
-    _reporta_progresso(feedback, 90, "Montando camada de problemas")
-    osm_problemas = _cria_problemas_layer(problemas)
-    _reporta_progresso(feedback, 100)
+    _reporta_progresso(feedback, 90, "Verificação concluída")
 
     contagem_tipos = {"veicular": {}, "pedestre": {}}
     for p in problemas:
@@ -760,27 +792,124 @@ def build_osm_network_layers(code_muni, nome_muni=None, cache_dir=None, force=Fa
         else:
             log("OSM: verificação ({}) — nenhum problema encontrado".format(rede_nome))
 
+    metadata = dict(base_meta,
+        arcos=len(arcos_todos), orfaos=n_orfaos, descartados=descartados,
+        componentes={"veicular": len(diag_veicular["comp_tam"]), "pedestre": len(diag_pedestre["comp_tam"])},
+        verificacao=contagem_tipos,
+    )
+
     return {
         "raw_cache": str(cache_path),
-        "layers": {"osm_links_raw": osm_links_raw, "osm_links": osm_links, "osm_nodes": osm_nodes, "osm_problemas": osm_problemas},
-        "metadata": {
-            "code_muni": str(code_muni),
-            "nome_muni": nome_muni,
-            "bbox": bbox,
-            "municipio_layer": municipio.name(),
-            "links_raw": osm_links_raw.featureCount(),
-            "links_clipped": osm_links.featureCount(),
-            "nodes": osm_nodes.featureCount(),
-            "arcos": len(arcos),
-            "orfaos": n_orfaos,
-            "descartados": descartados,
-            "componentes": {
-                "veicular": len(diag_veicular["comp_tam"]),
-                "pedestre": len(diag_pedestre["comp_tam"]),
-            },
-            "verificacao": contagem_tipos,
-        },
+        "arcos_todos": arcos_todos, "arcos": arcos,
+        "diag_veicular": diag_veicular, "diag_pedestre": diag_pedestre,
+        "nodes_dict": nodes_dict, "problemas": problemas,
+        "metadata": metadata,
     }
+
+
+def montar_camadas(dados):
+    """Thread principal: monta as quatro `QgsVectorLayer` a partir do dict
+    de dados puros devolvido por `compute_osm_network` (Passo 1 do plano
+    `osm_qgstask`). Nunca chamar fora da thread principal.
+
+    Devolve `{"osm_links_raw", "osm_links", "osm_nodes", "osm_problemas"}`,
+    cada uma `None` quando os dados correspondentes não existem — mesma
+    regra de sempre: sem `arcos_todos`, as quatro vêm `None`; com
+    `arcos_todos` mas sem `arcos` (nenhum arco no polígono, ou geometria
+    municipal inválida), só `osm_links_raw` é construída; sem `problemas`
+    (cancelado), as três primeiras saem e `osm_problemas` fica `None`.
+    """
+    metadata = dados.get("metadata") or {}
+    arcos_todos = dados.get("arcos_todos")
+    if not arcos_todos:
+        return _vazio(metadata.get("code_muni"), metadata.get("nome_muni"))
+
+    diag_veicular = dados["diag_veicular"]
+    diag_pedestre = dados["diag_pedestre"]
+    nodes_dict = dados["nodes_dict"]
+
+    osm_links_raw = _cria_links_raw(arcos_todos, diag_veicular, diag_pedestre)
+
+    arcos = dados.get("arcos")
+    if not arcos:
+        return {"osm_links_raw": osm_links_raw, "osm_links": None, "osm_nodes": None, "osm_problemas": None}
+
+    osm_links = _cria_links_raw(arcos, diag_veicular, diag_pedestre, layer_name="osm_links")
+    osm_nodes = _cria_nodes_layer(arcos, diag_veicular, diag_pedestre, nodes_dict)
+
+    problemas = dados.get("problemas")
+    osm_problemas = _cria_problemas_layer(problemas) if problemas is not None else None
+
+    return {"osm_links_raw": osm_links_raw, "osm_links": osm_links, "osm_nodes": osm_nodes, "osm_problemas": osm_problemas}
+
+
+def osm_vias_ja_existe(existentes, code_muni):
+    """`True` se `osm_links_<code_muni>` E `osm_nodes_<code_muni>` já estão
+    em `existentes` (ver `diagnostico._layers_existentes(gpkg_path)`).
+
+    Extraído de `carregar_fontes` (Passo 3 do plano `osm_qgstask`) para o
+    painel (`gui/diagnostico_dock.py`, caminho `OsmNetworkTask`) e o motor
+    (`core/diagnostico.py::carregar_fontes`, caminho síncrono) checarem a
+    mesma regra de "já existe no GeoPackage" sem duplicar a lógica.
+    """
+    return ("osm_links_{}".format(code_muni) in existentes
+            and "osm_nodes_{}".format(code_muni) in existentes)
+
+
+def build_osm_network_layers(code_muni, nome_muni=None, cache_dir=None, force=False, feedback=None):
+    """Monta as camadas OSM (links/nós/problemas) do município EM MEMÓRIA.
+
+    Composição, na thread principal, de `resolve_municipio` (resolve
+    município/bbox/geometria) + `compute_osm_network` (dados puros, Passo 1
+    do plano `osm_qgstask` — o mesmo núcleo que `OsmNetworkTask` roda em
+    segundo plano) + `montar_camadas` (materializa as `QgsVectorLayer`).
+    Faz tudo, inclusive o cache do Overpass em `cache_dir` (default
+    `~/.cache/gisbr-diagnostico`, criado se não existir), mas NÃO grava
+    GeoPackage. Devolve o MESMO formato de dict de sempre (`raw_cache`,
+    `layers`, `metadata`), sem `gpkg_ok`.
+
+    Passo 6a — `feedback` (um `QgsProcessingFeedback`, sempre opcional) reporta
+    progresso via `setProgressText`/`setProgress` em faixas fixas:
+
+    | Faixa  | Etapa                                            |
+    |--------|---------------------------------------------------|
+    | 0–5    | resolver município                                |
+    | 5–25   | consulta ao Overpass (ou cache)                   |
+    | 25–35  | `constroi_arcos` + `diagnostica` das duas redes   |
+    | 35–55  | filtro dos arcos pelo polígono municipal          |
+    | 55–90  | verificação geométrica (pontas/cruzamentos)       |
+    | 90–100 | montar as camadas (`montar_camadas`)              |
+
+    Dentro da verificação geométrica, `feedback.isCanceled()` é checado a
+    cada ~200 itens (ver `ponta_quase_conectada`/`cruzamento_sem_no`); se
+    cancelado, esta função aborta SEM exceção, devolvendo
+    `metadata["cancelado"] = True` com as camadas já prontas até ali
+    (`osm_links_raw`/`osm_links`/`osm_nodes`; `osm_problemas` fica `None`).
+    """
+    _reporta_progresso(feedback, 0, "Resolvendo município")
+    municipio, bbox, mun_geom = resolve_municipio(code_muni, nome_muni)
+    if municipio is None:
+        return {"raw_cache": None, "layers": _vazio(code_muni, nome_muni),
+                "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "erro": "nao foi possivel resolver o municipio"}}
+    _reporta_progresso(feedback, 5)
+
+    dados = compute_osm_network(code_muni, nome_muni, bbox, mun_geom,
+                                 cache_dir=cache_dir, force=force, feedback=feedback)
+
+    _reporta_progresso(feedback, 90, "Montando camadas")
+    layers = montar_camadas(dados)
+    _reporta_progresso(feedback, 100)
+
+    metadata = dict(dados["metadata"])
+    metadata["municipio_layer"] = municipio.name()
+    if layers.get("osm_links_raw") is not None:
+        metadata["links_raw"] = layers["osm_links_raw"].featureCount()
+    if layers.get("osm_links") is not None:
+        metadata["links_clipped"] = layers["osm_links"].featureCount()
+    if layers.get("osm_nodes") is not None:
+        metadata["nodes"] = layers["osm_nodes"].featureCount()
+
+    return {"raw_cache": dados["raw_cache"], "layers": layers, "metadata": metadata}
 
 
 def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, feedback=None):

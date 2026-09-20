@@ -1,4 +1,4 @@
-# OSM Municipal — Arquitetura Atual (2026-09-19)
+# OSM Municipal — Arquitetura Atual (2026-09-20)
 
 **Status:** implementado e integrado ao diagnóstico (fonte `osm_vias`, eixo
 Transportes) e exposto como algoritmo do Processing (`gisbr:osm_network`,
@@ -8,9 +8,12 @@ ter topologia real por `node_id`, com verificação de conectividade separada
 por rede (veicular/pedestre). O plano `osm_network` (mesma data) separou
 "montar camadas" de "gravar no GeoPackage" e acrescentou os atributos de
 custo (`maxspeed`/`velocidade_kmh`/`comprimento_m`), progresso visível e o
-algoritmo `gisbr:osm_network` — ver §4. O guia do usuário é
-[`docs/guias/vias.md`](docs/guias/vias.md); `docs/osm-municipal-pattern.md`
-registra o desenho original (2026-07-03), hoje histórico.
+algoritmo `gisbr:osm_network`. O plano `osm_qgstask` (2026-09-20) resolveu a
+pendência de `QgsTask` **para o painel**: a fonte `osm_vias` agora baixa e
+calcula a rede em segundo plano, sem travar a interface — ver §4. O guia do
+usuário é [`docs/guias/vias.md`](docs/guias/vias.md);
+`docs/osm-municipal-pattern.md` registra o desenho original (2026-07-03),
+hoje histórico.
 
 ---
 
@@ -69,19 +72,35 @@ Testável sem QGIS instalado (mesma disciplina de `poi_parser.py`).
 
 Converte o resultado de `osm_topologia.py` em camadas (`QgsVectorLayer`) e
 roda a verificação geométrica que depende de `QgsGeometry`/`QgsSpatialIndex`.
+O plano `osm_qgstask` (2026-09-20) partiu o núcleo em três, para permitir
+rodar o meio (Overpass + topologia + verificação) fora da thread principal
+via `QgsTask` (`core/osm_task.py`, §4) — a regra: **a tarefa calcula dados
+puros, a thread principal monta as camadas.**
 
 | Função | O que faz |
 |---|---|
-| `build_osm_network_layers(code_muni, nome_muni, cache_dir, force, feedback)` | **núcleo.** Resolve o município, consulta/usa cache do Overpass, chama `constroi_arcos`/`diagnostica`, monta as três camadas EM MEMÓRIA (sem gravar GPKG); reporta progresso e trata cancelamento (§4) |
-| `build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force, feedback)` | **casca** sobre a função acima: chama `build_osm_network_layers` com `cache_dir` = pasta do GPKG e grava as três camadas, acrescentando `gpkg_ok` ao metadata |
+| `resolve_municipio(code_muni, nome_muni)` | **thread principal.** Resolve o polígono do município (`processing.run("gisbr:read_municipality")`) e a geometria unida; devolve `(municipio_layer, bbox, mun_geom)` — `mun_geom` pode vir `None` se a geometria for inválida (quem decide o que fazer com isso é o chamador) |
+| `compute_osm_network(code_muni, nome_muni, bbox, mun_geom, cache_dir, force, feedback)` | **dados puros, seguro em `QgsTask`.** Recebe `bbox`/`mun_geom` já resolvidos; consulta/usa cache do Overpass, chama `constroi_arcos`/`diagnostica`, filtra os arcos pelo polígono (`_filtra_arcos`, lista) e roda a verificação geométrica; devolve um dict sem nenhuma `QgsVectorLayer` (`arcos_todos`, `arcos`, `diag_veicular`, `diag_pedestre`, `nodes_dict`, `problemas`, `metadata`) |
+| `montar_camadas(dados)` | **thread principal.** Materializa as quatro `QgsVectorLayer` (`osm_links_raw`/`osm_links`/`osm_nodes`/`osm_problemas`) a partir do dict de `compute_osm_network` |
+| `build_osm_network_layers(code_muni, nome_muni, cache_dir, force, feedback)` | **composição síncrona** de `resolve_municipio` + `compute_osm_network` + `montar_camadas`, na thread principal — mesma assinatura/retorno de sempre; é o que o algoritmo do Processing (`FlagNoThreading`, §4) e `build_osm_municipal_network` continuam chamando |
+| `build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force, feedback)` | **casca** sobre `build_osm_network_layers`: grava as três camadas no GPKG, acrescentando `gpkg_ok` ao metadata |
+| `osm_vias_ja_existe(existentes, code_muni)` | `True` se `osm_links_<code>`/`osm_nodes_<code>` já estão no conjunto de `diagnostico._layers_existentes(gpkg_path)` — extraída para o motor (`carregar_fontes`) e o painel (`OsmNetworkTask`) não duplicarem a regra de "já existe no GeoPackage" |
 | `_parse_osm_ways(payload)`, `_build_nodes_dict(payload)` | extraem `ways`/nós do JSON do Overpass |
-| `_cria_links_raw(arcos, diag_veicular, diag_pedestre)` | camada LineString de TODOS os arcos (antes do recorte), com `componente`/`componente_pe`, `maxspeed`, `velocidade_kmh` e `comprimento_m` já anotados |
-| `_filtra_arcos_por_poligono(links_raw, engine)` | recorte municipal — mantém o **arco inteiro** que intersecta o polígono (ver Decisões) |
-| `_cria_nodes_layer(osm_links, diag_veicular, diag_pedestre, nodes_dict)` | um ponto por `node_id` referenciado como `from`/`to` de arco mantido |
+| `_cria_links_raw(arcos, diag_veicular, diag_pedestre)` | camada LineString de uma LISTA de arcos, com `componente`/`componente_pe`, `maxspeed`, `velocidade_kmh` e `comprimento_m` já anotados — usada tanto para `osm_links_raw` (todos os arcos) quanto para `osm_links` (arcos mantidos) |
+| `_filtra_arcos(arcos, engine)` | recorte municipal sobre uma LISTA de arcos (dados puros, roda dentro de `compute_osm_network`) — mantém o **arco inteiro** que intersecta o polígono (ver Decisões) |
+| `_cria_nodes_layer(arcos, diag_veicular, diag_pedestre, nodes_dict)` | um ponto por `node_id` referenciado como `from`/`to` da LISTA de arcos mantidos |
 | `ponta_quase_conectada(arcos, diag, nodes_dict, feedback, faixa)` | nós de grau 1 a ≤ `TOL_PONTA_M` (10 m) de um arco não incidente, via `QgsSpatialIndex` + `nearestPoint` + `QgsDistanceArea`; reporta progresso/checa cancelamento a cada ~200 nós |
 | `cruzamento_sem_no(arcos, feedback, faixa)` | pares de arcos cujas geometrias se cruzam num ponto que não é nó compartilhado, ignorando `bridge`/`tunnel` ativo ou `layer` diferente; reporta progresso/checa cancelamento a cada ~200 arcos |
 | `_monta_problemas(arcos_rede, diag, nodes_dict, engine, rede, feedback, faixa)` | monta os registros de `osm_problemas` de uma rede, só com o ponto dentro do polígono municipal; divide `faixa` entre os dois laços acima |
 | `_cria_problemas_layer(problemas)` | materializa `osm_problemas` (Point) |
+
+### `gisbr/core/osm_task.py` — `OsmNetworkTask` (QgsTask)
+
+`OsmNetworkTask` roda `compute_osm_network` fora da thread principal — ver
+§4. `_TaskFeedback` (mesmo arquivo) adapta a task para a interface de
+`QgsProcessingFeedback` que `compute_osm_network` espera, sem tocar GUI:
+`pushInfo`/`pushWarning` emitem o sinal `mensagem` (Qt, thread-safe) e
+`isCanceled()` repassa para `task.isCanceled()`.
 
 ### `gisbr/algorithms/diagnostico/osm_network.py` — algoritmo do Processing
 
@@ -132,57 +151,86 @@ as feições de cada camada de memória para os sinks (`LINKS`/`NODES`/
 
 ---
 
-## 4. As duas portas, progresso e cancelamento
+## 4. As portas, o `QgsTask` do painel, progresso e cancelamento
 
-**Duas portas sobre o mesmo núcleo (`build_osm_network_layers`):**
+**Três portas sobre o mesmo núcleo, cada uma com o regime de thread que faz
+sentido para o seu chamador:**
 
-1. **Motor do diagnóstico** (`core/diagnostico.py::carregar_fontes`, protocolo
-   `osm`) → `build_osm_municipal_network` (casca) → grava no GeoPackage do
-   painel.
-2. **Algoritmo do Processing** (`gisbr:osm_network`,
+1. **Painel** (`gui/diagnostico_dock.py`, fonte `osm_vias`) → **plano
+   `osm_qgstask` (2026-09-20):** `resolve_municipio` na thread principal +
+   `OsmNetworkTask` (QgsTask, `core/osm_task.py`) rodando
+   `compute_osm_network` em segundo plano + `montar_camadas`/gravação no
+   GPKG/`QgsProject.addMapLayer` de volta na thread principal
+   (`_on_osm_concluida`, chamado pelo sinal `concluida` que `finished()`
+   emite). É a ÚNICA porta que roda fora da thread principal — ver detalhe
+   abaixo.
+2. **Motor do diagnóstico** (`core/diagnostico.py::carregar_fontes`, quem
+   chama o motor por fora do painel) → `build_osm_municipal_network`
+   (casca sobre `build_osm_network_layers`, síncrona) → grava no GeoPackage.
+3. **Algoritmo do Processing** (`gisbr:osm_network`,
    `algorithms/diagnostico/osm_network.py`) → `build_osm_network_layers`
-   direto → devolve as três camadas em sinks (LINKS/NODES/PROBLEMAS), sem
-   gravar GeoPackage. É a porta para outro plugin (ex.: o **logis**) chamar
-   `processing.run("gisbr:osm_network", {...})` em vez de copiar o pipeline —
-   ver [`docs/guias/vias.md`](docs/guias/vias.md#usar-de-outro-plugin-ou-do-processing).
+   direto (síncrona) → devolve as três camadas em sinks
+   (LINKS/NODES/PROBLEMAS), sem gravar GeoPackage. É a porta para outro
+   plugin (ex.: o **logis**) chamar `processing.run("gisbr:osm_network",
+   {...})` em vez de copiar o pipeline — ver
+   [`docs/guias/vias.md`](docs/guias/vias.md#usar-de-outro-plugin-ou-do-processing).
 
-O algoritmo declara `flags()` com `FlagNoThreading`: o núcleo chama
-`processing.run("gisbr:read_municipality")` e mexe em objetos do QGIS
-(`QgsVectorLayer`, `QgsGeometry`) fora do padrão seguro para rodar numa
-thread de fundo — sem a flag, o Processing poderia agendar o algoritmo numa
-`QgsTask` e quebrar.
+O algoritmo continua declarando `flags()` com `FlagNoThreading`: ele chama
+`build_osm_network_layers` direto, que por sua vez chama
+`processing.run("gisbr:read_municipality")` e monta `QgsVectorLayer` — nada
+disso é seguro fora da thread principal, e o Processing não tem como separar
+"resolver município" de "rodar o algoritmo" para essa chamada específica.
+**A divisão em `QgsTask` é exclusiva do painel** (porta 1); as demais fontes
+do painel (protocolos `wfs`/`arcgis`/`geobr`/`arquivo`/etc.) continuam
+síncronas, como sempre.
+
+**A regra que governa o desenho do `QgsTask` (porta 1):** `QgsVectorLayer`
+(mesmo memory) e `QgsProject` são objetos de thread principal;
+`QgsGeometry`, `QgsSpatialIndex`, `QgsDistanceArea` e
+`QgsBlockingNetworkRequest` (usada por baixo do `fetch_overpass_json`) podem
+rodar numa tarefa de fundo. Logo: **a tarefa calcula e devolve dados puros
+(`compute_osm_network`); a thread principal resolve o município antes
+(`resolve_municipio`) e monta as camadas depois (`montar_camadas`)**. O
+painel resolve o município ANTES de despachar a task — `OsmNetworkTask`
+recebe `bbox`/`mun_geom` já prontos e nunca chama `processing.run` nem toca
+`QgsVectorLayer` dentro de `run()`.
 
 **Progresso visível (sintoma histórico: o QGIS travava sem sinal de vida ao
-carregar a fonte OSM).** `build_osm_network_layers` recebe `feedback`
-(`QgsProcessingFeedback`, sempre opcional) e reporta via
-`setProgressText`/`setProgress` em seis faixas fixas — resolver município
-(0–5), Overpass/cache (5–25), `constroi_arcos`/`diagnostica` (25–35), montar
-camadas de links/nós (35–55), verificação geométrica (55–90, dividida entre
+carregar a fonte OSM).** `compute_osm_network`/`build_osm_network_layers`
+recebem `feedback` (`QgsProcessingFeedback`, sempre opcional) e reportam via
+`setProgressText`/`setProgress` em faixas fixas — resolver município (0–5),
+Overpass/cache (5–25), `constroi_arcos`/`diagnostica` (25–35), filtro dos
+arcos pelo polígono (35–55), verificação geométrica (55–90, dividida entre
 as redes veicular/pedestre e, dentro de cada uma, entre
-`ponta_quase_conectada` e `cruzamento_sem_no`) e montar `osm_problemas`
-(90–100). Dentro dos dois laços longos da verificação, `feedback.isCanceled()`
-é checado a cada ~200 itens; se cancelado, a função aborta **sem exceção**,
-devolvendo `metadata["cancelado"] = True` com as camadas já prontas até ali
-(`osm_links`/`osm_nodes`; `osm_problemas` fica `None`).
+`ponta_quase_conectada` e `cruzamento_sem_no`) e montar as camadas (90–100).
+Dentro dos dois laços longos da verificação, `feedback.isCanceled()` é
+checado a cada ~200 itens; se cancelado, `compute_osm_network` aborta **sem
+exceção**, devolvendo `metadata["cancelado"] = True` com `arcos_todos`/
+`arcos`/diagnósticos já prontos e `problemas = None` — `montar_camadas`
+então monta `osm_links_raw`/`osm_links`/`osm_nodes`, mas não `osm_problemas`.
 
-No painel (`gui/diagnostico_dock.py`), o `_LogFeedback` ganhou uma
+No caminho síncrono (motor/algoritmo), `_LogFeedback` (painel) ganhou uma
 `QProgressBar` (escondida fora da execução) e passou a chamar
 `QCoreApplication.processEvents()` em `pushInfo`/`setProgress`/
 `setProgressText` — é isso que tira a sensação de travamento sem mudar de
-thread — mais um botão "Cancelar" ao lado da barra que chama
-`feedback.cancel()`. `_on_carregar` desabilita o botão "Load selected",
-troca o cursor para `Qt.CursorShape.WaitCursor` (`QApplication.
-setOverrideCursor`, restaurado em `finally`) e devolve tudo ao normal ao
-final, canceladas ou não. `carregar_fontes` (`core/diagnostico.py`) ganhou um
-`elif meta.get("cancelado")` no ramo `osm_vias`: a fonte volta como
-**pulada** ("cancelado pelo usuário"), não como falha — único ponto do motor
-tocado pelo Passo 6c, como previsto no plano.
+thread, para as fontes que continuam síncronas. No caminho da `QgsTask`
+(porta 1), quem faz esse papel é o sinal `progressChanged` nativo do
+`QgsTask` (emitido por `self.setProgress`, chamado por `_TaskFeedback` em
+`core/osm_task.py`), conectado à mesma barra — a interface não trava porque
+o cálculo roda de verdade em outra thread, não porque alguém chama
+`processEvents()`.
 
-**Pendência conhecida — `QgsTask` não entrou nesta rodada.** Mover o
-carregamento para uma thread de fundo é a solução completa contra o
-travamento da interface, mas o pipeline cria `QgsVectorLayer`, chama
-`processing.run("gisbr:read_municipality")` e grava GeoPackage — e camadas só
-entram no `QgsProject` pela thread principal. Fica para um trabalho próprio.
+**Cancelamento:** o botão "Cancelar" do painel chama
+`self._feedback_atual.cancel()` (fontes síncronas) e, se houver uma
+`OsmNetworkTask` viva, também `self._task_osm.cancel()` — `QgsTask.cancel()`
+faz `isCanceled()` responder `True` na próxima checagem, tanto no `run()` da
+task quanto (via `_TaskFeedback`) dentro de `compute_osm_network`. Barra e
+botão "Cancelar" só somem quando a task efetivamente termina
+(`_on_osm_concluida`), não no `finally` do carregamento síncrono — senão a
+barra sumiria com o OSM ainda rodando em segundo plano. `carregar_fontes`
+(`core/diagnostico.py`, caminho síncrono do motor) mantém o
+`elif meta.get("cancelado")` no ramo `osm_vias`: a fonte volta como
+**pulada** ("cancelado pelo usuário"), não como falha.
 
 ---
 
@@ -195,17 +243,36 @@ entram no `QgsProject` pela thread principal. Fica para um trabalho próprio.
   `cruzamento_sem_no`. Exige QGIS (`QgsGeometry`, `QgsSpatialIndex`,
   `QgsDistanceArea`); pula se a fixture `qgis_app` de `tests/conftest.py`
   vier `None`.
-- `tests/test_osm_network_alg.py` — cobre `build_osm_network_layers`
+- `tests/test_osm_network_alg.py` — cobre `resolve_municipio` (os três
+  formatos de retorno), `compute_osm_network` (dados puros, sem nenhuma
+  `QgsVectorLayer` no dict; a trava de ordem `sem_vias` antes de "município
+  sem geometria válida", mesmo com `mun_geom=None`; cancelamento deixa
+  `problemas=None`), `montar_camadas` (as quatro camadas com os campos de
+  `_LINK_FIELDS`/`_NODE_FIELDS`/`_PROBLEMA_FIELDS`; `arcos_todos` vazio
+  devolve tudo `None`), `osm_vias_ja_existe`, `build_osm_network_layers`
   (camadas/campos novos, progresso monotônico, cancelamento no meio do
-  laço, `feedback=None`), a casca `build_osm_municipal_network` (regressão:
-  continua gravando GPKG e devolvendo `gpkg_ok`), o registro do algoritmo em
-  `ALGORITHMS` e `processAlgorithm` fim a fim. Exige QGIS.
+  laço, `feedback=None` — testes de antes do plano `osm_qgstask`, intactos),
+  a casca `build_osm_municipal_network` (regressão: continua gravando GPKG e
+  devolvendo `gpkg_ok`), o registro do algoritmo em `ALGORITHMS` e
+  `processAlgorithm` fim a fim. Exige QGIS.
+- `tests/test_osm_task.py` — cobre `OsmNetworkTask.run()` chamado direto
+  (sem `QgsApplication.taskManager()`), com `compute_osm_network`
+  monkeypatchado: caminho feliz (`True`, `self.dados` preenchido), erro
+  (`False`, `self.erro` preenchido), sinal `mensagem` emitido, `cancel()`
+  antes de `run()` (`False`, compute nunca chamado) e `finished()` emitindo
+  `concluida` com os dados ou `None`. Exige QGIS (só por `QgsTask`/sinais).
 - `tests/test_diagnostico_dock.py` — cobre a barra/botão do Passo 6b/6c:
   começam escondidos, `_LogFeedback` sem barra segue funcionando como antes,
   `_LogFeedback` com barra atualiza valor/formato, `_on_cancelar` chama
-  `feedback.cancel()` (e não quebra sem feedback ativo).
+  `feedback.cancel()` (e não quebra sem feedback ativo). Passo 3/4 do plano
+  `osm_qgstask`: `_on_cancelar` também chama `cancel()` da `OsmNetworkTask`
+  viva; `_on_osm_concluida(None)` loga cancelamento ou erro sem quebrar
+  (barra/botão somem); `_on_osm_concluida(dados)` com dados sintéticos de
+  `compute_osm_network` grava no GPKG e adiciona `osm_links`/`osm_nodes` ao
+  `QgsProject` (removidas ao final do teste).
 - `tests/test_diagnostico.py::test_carregar_fontes_osm_vias_cancelado_vira_pulou`
-  — cobre o `elif meta.get("cancelado")` do Passo 6c em `carregar_fontes`.
+  — cobre o `elif meta.get("cancelado")` do Passo 6c em `carregar_fontes`
+  (caminho síncrono do motor, que não usa `QgsTask`).
 
 ---
 

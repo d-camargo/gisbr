@@ -320,9 +320,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
     for osm_source in osm_sources:
         sid = osm_source["id"]
         if sid == "osm_vias":
-            link_layer_name = "osm_links_{}".format(code_muni)
-            node_layer_name = "osm_nodes_{}".format(code_muni)
-            if (not force) and link_layer_name in existentes and node_layer_name in existentes:
+            if (not force) and osm_pipeline.osm_vias_ja_existe(existentes, code_muni):
                 res["pulou"].append((sid, "ja existe no GeoPackage (osm_links_{}/osm_nodes_{}) (marque 'Atualizar bases já baixadas' para rebaixar)".format(code_muni, code_muni)))
             else:
                 result = osm_pipeline.build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=force, feedback=feedback)

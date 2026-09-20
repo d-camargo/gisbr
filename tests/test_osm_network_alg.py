@@ -89,6 +89,169 @@ def test_comprimento_m_arco_de_1km_fica_no_intervalo_esperado(qgis_app, monkeypa
     assert 990.0 <= feat["comprimento_m"] <= 1010.0
 
 
+# --- resolve_municipio / compute_osm_network (Passo 1, plano osm_qgstask) -
+
+def _municipio_sem_geometria(*args, **kwargs):
+    from qgis.core import QgsVectorLayer
+    # camada válida mas SEM feições -> _geometria_municipio devolve None.
+    return QgsVectorLayer("Polygon?crs=EPSG:4674", "municipio", "memory")
+
+
+def test_resolve_municipio_devolve_none_triplo_quando_nao_resolve(qgis_app, monkeypatch):
+    _skip_sem_qgis(qgis_app)
+    from gisbr.core import osm_pipeline
+
+    monkeypatch.setattr(osm_pipeline, "_municipio_poligono", lambda *a, **k: None)
+
+    resultado = osm_pipeline.resolve_municipio("9999999")
+    assert resultado == (None, None, None)
+
+
+def test_resolve_municipio_devolve_mun_geom_none_quando_geometria_invalida(qgis_app, monkeypatch):
+    _skip_sem_qgis(qgis_app)
+    from gisbr.core import osm_pipeline
+
+    monkeypatch.setattr(osm_pipeline, "_municipio_poligono", _municipio_sem_geometria)
+
+    municipio, bbox, mun_geom = osm_pipeline.resolve_municipio("0000000")
+    assert municipio is not None
+    assert bbox is not None
+    assert mun_geom is None
+
+
+def test_compute_osm_network_sem_vias_tem_prioridade_sobre_geometria_invalida(qgis_app, monkeypatch, tmp_path):
+    """Condição do Diego (Passo 1): a geometria do município passou a ser
+    CALCULADA cedo (`resolve_municipio`), mas a VALIDAÇÃO continua na mesma
+    ordem de sempre — payload sem ways devolve `sem_vias`, não "municipio
+    sem geometria valida", mesmo com `mun_geom` inválido (`None`)."""
+    _skip_sem_qgis(qgis_app)
+    from gisbr.core import osm_pipeline
+
+    monkeypatch.setattr(osm_pipeline.osm, "fetch_overpass_json", lambda *a, **k: {"elements": []})
+    monkeypatch.setattr(osm_pipeline.osm, "save_overpass_cache", lambda *a, **k: None)
+    monkeypatch.setattr(osm_pipeline.osm, "load_overpass_cache", lambda *a, **k: None)
+
+    dados = osm_pipeline.compute_osm_network(
+        "0000000", "Municipio Teste", (-1, -1, 1, 1), None, cache_dir=tmp_path)
+
+    metadata = dados["metadata"]
+    assert metadata.get("sem_vias") is True
+    assert metadata["erro"] == "nenhum way com highway encontrado no bbox"
+    assert dados["arcos_todos"] is None
+    assert dados["arcos"] is None
+
+
+def test_build_osm_network_layers_sem_vias_precede_geometria_invalida_e2e(qgis_app, monkeypatch, tmp_path):
+    """Mesma trava do teste acima, mas fim a fim por `build_osm_network_layers`
+    (que compõe `resolve_municipio` + `compute_osm_network`)."""
+    _skip_sem_qgis(qgis_app)
+    from gisbr.core import osm_pipeline
+
+    _monkeypatch_overpass(monkeypatch, {"elements": []}, municipio=_municipio_sem_geometria)
+
+    resultado = osm_pipeline.build_osm_network_layers("0000000", cache_dir=tmp_path)
+
+    metadata = resultado["metadata"]
+    assert metadata.get("sem_vias") is True
+    assert metadata["erro"] == "nenhum way com highway encontrado no bbox"
+    assert resultado["layers"]["osm_links_raw"] is None
+
+
+def test_compute_osm_network_devolve_dados_puros_sem_qgsvectorlayer(qgis_app, monkeypatch, tmp_path):
+    _skip_sem_qgis(qgis_app)
+    from qgis.core import QgsVectorLayer
+    from gisbr.core import osm_pipeline
+
+    municipio = _municipio_fake()
+    bbox = osm_pipeline._bbox_da_camada(municipio)
+    mun_geom = osm_pipeline._geometria_municipio(municipio)
+
+    monkeypatch.setattr(osm_pipeline.osm, "fetch_overpass_json", lambda *a, **k: _payload_um_way())
+    monkeypatch.setattr(osm_pipeline.osm, "save_overpass_cache", lambda *a, **k: None)
+    monkeypatch.setattr(osm_pipeline.osm, "load_overpass_cache", lambda *a, **k: None)
+
+    dados = osm_pipeline.compute_osm_network("3106200", "Belo Horizonte", bbox, mun_geom, cache_dir=tmp_path)
+
+    assert "erro" not in dados["metadata"]
+    for chave in ("arcos_todos", "arcos", "diag_veicular", "diag_pedestre", "nodes_dict", "problemas"):
+        assert not isinstance(dados[chave], QgsVectorLayer)
+    assert len(dados["arcos"]) == 1
+    assert isinstance(dados["problemas"], list)
+    for p in dados["problemas"]:
+        assert isinstance(p, dict)
+
+
+def test_compute_osm_network_cancelado_deixa_problemas_none(qgis_app, monkeypatch, tmp_path):
+    _skip_sem_qgis(qgis_app)
+    from gisbr.core import osm_pipeline
+
+    municipio = _municipio_fake()
+    bbox = osm_pipeline._bbox_da_camada(municipio)
+    mun_geom = osm_pipeline._geometria_municipio(municipio)
+
+    monkeypatch.setattr(osm_pipeline.osm, "fetch_overpass_json", lambda *a, **k: _payload_um_way())
+    monkeypatch.setattr(osm_pipeline.osm, "save_overpass_cache", lambda *a, **k: None)
+    monkeypatch.setattr(osm_pipeline.osm, "load_overpass_cache", lambda *a, **k: None)
+
+    fb = _FeedbackDuplo(cancela_na_chamada=1)
+    dados = osm_pipeline.compute_osm_network(
+        "3106200", "Belo Horizonte", bbox, mun_geom, cache_dir=tmp_path, feedback=fb)
+
+    assert dados["metadata"].get("cancelado") is True
+    assert dados["arcos_todos"] is not None
+    assert dados["arcos"] is not None
+    assert dados["problemas"] is None
+
+
+def test_montar_camadas_devolve_quatro_camadas_com_campos_certos(qgis_app, monkeypatch, tmp_path):
+    _skip_sem_qgis(qgis_app)
+    from gisbr.core import osm_pipeline
+
+    municipio = _municipio_fake()
+    bbox = osm_pipeline._bbox_da_camada(municipio)
+    mun_geom = osm_pipeline._geometria_municipio(municipio)
+
+    monkeypatch.setattr(osm_pipeline.osm, "fetch_overpass_json", lambda *a, **k: _payload_um_way())
+    monkeypatch.setattr(osm_pipeline.osm, "save_overpass_cache", lambda *a, **k: None)
+    monkeypatch.setattr(osm_pipeline.osm, "load_overpass_cache", lambda *a, **k: None)
+
+    dados = osm_pipeline.compute_osm_network("3106200", "Belo Horizonte", bbox, mun_geom, cache_dir=tmp_path)
+    layers = osm_pipeline.montar_camadas(dados)
+
+    assert layers["osm_links"].featureCount() == 1
+    assert layers["osm_nodes"].featureCount() == 2
+    assert layers["osm_problemas"] is not None
+
+    campos_link = {f.name() for f in layers["osm_links"].fields()}
+    assert campos_link == {n for n, _k in osm_pipeline._LINK_FIELDS}
+    campos_node = {f.name() for f in layers["osm_nodes"].fields()}
+    assert campos_node == {n for n, _k in osm_pipeline._NODE_FIELDS}
+    campos_problema = {f.name() for f in layers["osm_problemas"].fields()}
+    assert campos_problema == {n for n, _k in osm_pipeline._PROBLEMA_FIELDS}
+
+
+def test_montar_camadas_sem_arcos_todos_devolve_tudo_none(qgis_app):
+    _skip_sem_qgis(qgis_app)
+    from gisbr.core import osm_pipeline
+
+    layers = osm_pipeline.montar_camadas({
+        "arcos_todos": None, "arcos": None, "diag_veicular": None,
+        "diag_pedestre": None, "nodes_dict": None, "problemas": None,
+        "metadata": {"code_muni": "0000000", "nome_muni": None},
+    })
+    assert layers == {"osm_links_raw": None, "osm_links": None, "osm_nodes": None, "osm_problemas": None}
+
+
+def test_osm_vias_ja_existe(qgis_app):
+    _skip_sem_qgis(qgis_app)
+    from gisbr.core import osm_pipeline
+
+    existentes = {"osm_links_3106200", "osm_nodes_3106200", "outra_camada"}
+    assert osm_pipeline.osm_vias_ja_existe(existentes, "3106200") is True
+    assert osm_pipeline.osm_vias_ja_existe(existentes, "9999999") is False
+    assert osm_pipeline.osm_vias_ja_existe({"osm_links_3106200"}, "3106200") is False
+
+
 # --- build_osm_network_layers monkeypatchado (Passo 1 + Passo 2) ----------
 
 def test_build_osm_network_layers_devolve_tres_camadas_sem_tocar_disco(qgis_app, monkeypatch, tmp_path):

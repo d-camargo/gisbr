@@ -14,6 +14,12 @@ mesma pasta do GeoPackage; numa reexecução o plugin reaproveita esse arquivo
 em vez de consultar a rede de novo — mesmo mecanismo do `osm_pois` (veja
 [Cache e volume](pois.md#cache-e-volume) no guia de POIs).
 
+**Roda em segundo plano.** Diferente das outras fontes do painel, `osm_vias`
+baixa e calcula a rede numa tarefa do QGIS (barra de progresso na aba Log) —
+dá para continuar usando o QGIS normalmente enquanto ela roda, e o botão
+**Cancelar** interrompe de verdade a tarefa em andamento, não só o
+carregamento das demais fontes.
+
 ## Topologia: por que o way é quebrado em arcos
 
 No OSM, uma via é um `way`: uma sequência de nós (`node_id`). É comum um
