@@ -7,7 +7,7 @@ pytest.importorskip("qgis.core")
 
 from qgis.PyQt.QtCore import Qt
 from gisbr.gui import diagnostico_dock
-from gisbr.gui.diagnostico_dock import DiagnosticoDock, TAB_CENSO, TAB_LOG
+from gisbr.gui.diagnostico_dock import DiagnosticoDock, TAB_CENSO, TAB_LOG, _LogFeedback
 from gisbr.core import catalog_censo
 
 _SETTINGS_STORE = {}
@@ -117,4 +117,46 @@ def test_mapbiomas_ano_qsettings_persistencia(dock, monkeypatch):
     new_dock.cmb_mapbiomas_ano.setCurrentIndex(idx_2020)
 
     assert _SETTINGS_STORE.get("gisbr/mapbiomas_ano") == 2020
+
+
+# --- Passo 6b: barra de progresso -------------------------------------
+
+def test_progress_bar_e_botao_cancelar_comecam_escondidos(dock):
+    assert dock.progress_bar.isVisible() is False
+    assert dock.btn_cancelar.isVisible() is False
+
+
+def test_logfeedback_sem_barra_continua_funcionando_como_antes(dock):
+    # Sem `progress_bar` (default None), _LogFeedback nao pode quebrar —
+    # so loga e reporta progresso pela API padrao do QgsProcessingFeedback.
+    fb = _LogFeedback(dock.txt_log)
+    fb.pushInfo("mensagem de teste")
+    fb.setProgressText("etapa")
+    fb.setProgress(42)
+    assert "mensagem de teste" in dock.txt_log.toPlainText()
+    assert fb.progress() == 42
+
+
+def test_logfeedback_com_barra_atualiza_valor_e_formato(dock):
+    fb = _LogFeedback(dock.txt_log, progress_bar=dock.progress_bar)
+    fb.setProgressText("Consultando Overpass")
+    fb.setProgress(55)
+    assert dock.progress_bar.value() == 55
+    assert "Consultando Overpass" in dock.progress_bar.format()
+
+
+def test_on_cancelar_chama_cancel_do_feedback_atual(dock):
+    fb = _LogFeedback(dock.txt_log, progress_bar=dock.progress_bar)
+    dock._feedback_atual = fb
+    dock.btn_cancelar.setEnabled(True)
+
+    dock._on_cancelar()
+
+    assert fb.isCanceled() is True
+    assert dock.btn_cancelar.isEnabled() is False
+
+
+def test_on_cancelar_sem_feedback_atual_nao_quebra(dock):
+    dock._feedback_atual = None
+    dock._on_cancelar()  # nao deve lancar excecao
 

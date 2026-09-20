@@ -165,16 +165,18 @@ def _render_algoritmos(v1, v2, lang):
     linhas = []
     linhas.append(
         "# Algorithms\n\n" if en else "# Algoritmos\n\n")
-    total = len(v1) + len(v2) + 2
+    total = len(v1) + len(v2) + 3
     linhas.append(
         "The `gisbr` Processing provider ships **%d algorithms**: %d "
         "`read_*` (legacy GeoPackage backend, v1.7.0), %d `read_*_v2` "
-        "(Parquet backend, v2.0.0), `join_censo` (censobr) and `export_poi_gmns` (diagnostic).\n\n"
+        "(Parquet backend, v2.0.0), `join_censo` (censobr) and 2 diagnostic "
+        "algorithms (`export_poi_gmns`, `osm_network`).\n\n"
         % (total, len(v1), len(v2))
         if en else
         "O provedor de Processamento `gisbr` traz **%d algoritmos**: %d "
         "`read_*` (backend legado GeoPackage, v1.7.0), %d `read_*_v2` "
-        "(backend Parquet, v2.0.0), `join_censo` (censobr) e `export_poi_gmns` (diagnóstico).\n\n"
+        "(backend Parquet, v2.0.0), `join_censo` (censobr) e 2 algoritmos de "
+        "diagnóstico (`export_poi_gmns`, `osm_network`).\n\n"
         % (total, len(v1), len(v2)))
     linhas.append(
         "This page is generated from `gisbr/core/constants.py` — do not "
@@ -211,11 +213,15 @@ def _render_algoritmos(v1, v2, lang):
         "| Algoritmo |\n|---|\n| `gisbr:join_censo` |\n")
 
     linhas.append(
-        "\n## Diagnóstico — 1\n\n"
-        "| Algorithm | Description |\n|---|---|\n| `gisbr:export_poi_gmns` | Export POIs to GMNS (csv) |\n"
+        "\n## Diagnóstico — 2\n\n"
+        "| Algorithm | Description |\n|---|---|\n"
+        "| `gisbr:export_poi_gmns` | Export POIs to GMNS (csv) |\n"
+        "| `gisbr:osm_network` | OSM road network of a municipality (links/nodes/problems), same core as the diagnostic panel |\n"
         if en else
-        "\n## Diagnóstico — 1\n\n"
-        "| Algoritmo | Descrição |\n|---|---|\n| `gisbr:export_poi_gmns` | Exporta POIs para o padrão GMNS (csv) |\n")
+        "\n## Diagnóstico — 2\n\n"
+        "| Algoritmo | Descrição |\n|---|---|\n"
+        "| `gisbr:export_poi_gmns` | Exporta POIs para o padrão GMNS (csv) |\n"
+        "| `gisbr:osm_network` | Rede viária OSM de um município (links/nós/problemas), mesmo núcleo do painel de diagnóstico |\n")
     return "".join(linhas)
 
 

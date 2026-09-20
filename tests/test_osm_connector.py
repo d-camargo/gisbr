@@ -170,6 +170,15 @@ def test_osm_pipeline_cache_logging(tmp_path, monkeypatch):
             self.infos = []
         def pushInfo(self, msg):
             self.infos.append(msg)
+        # Passo 6a (osm_network): build_osm_municipal_network agora reporta
+        # progresso via feedback.setProgressText/setProgress e verifica
+        # isCanceled() — o duplo precisa da interface minima.
+        def setProgressText(self, texto):
+            pass
+        def setProgress(self, pct):
+            pass
+        def isCanceled(self):
+            return False
 
     # 1. Cache valido
     cache_path = tmp_path / "osm_overpass_3106200.json"

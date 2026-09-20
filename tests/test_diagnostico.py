@@ -8,7 +8,7 @@ import pytest
 pytest.importorskip("qgis.core")
 
 from qgis.core import QgsVectorLayer, QgsProject, QgsFeature, QgsGeometry, QgsPointXY
-from gisbr.core import catalog, diagnostico
+from gisbr.core import catalog, diagnostico, osm_pipeline
 from gisbr.core.censo_join import CensoJoinError
 
 
@@ -410,3 +410,25 @@ def test_carregar_fontes_raster_cog_skip_e_tree(tmp_path, monkeypatch):
     assert len(res2["pulou"]) == 1
     assert res2["pulou"][0][0] == "mapbiomas_cobertura"
     assert "ja existe" in res2["pulou"][0][1]
+
+
+# --- Passo 6c: cancelamento do osm_vias vira "pulou", nao "falhou" --------
+
+def test_carregar_fontes_osm_vias_cancelado_vira_pulou(tmp_path, monkeypatch):
+    gpkg = str(tmp_path / "test.gpkg")
+
+    monkeypatch.setattr(diagnostico, "_layers_existentes", lambda path: set())
+    monkeypatch.setattr(
+        osm_pipeline, "build_osm_municipal_network",
+        lambda *args, **kwargs: {
+            "raw_cache": None,
+            "layers": {"osm_links_raw": None, "osm_links": None, "osm_nodes": None, "osm_problemas": None},
+            "metadata": {"code_muni": "3106200", "nome_muni": "Contagem", "cancelado": True},
+        })
+
+    res = diagnostico.carregar_fontes(["osm_vias"], 3106200, "Contagem", None, gpkg)
+
+    assert res["ok"] == []
+    assert res["falhou"] == []
+    assert len(res["pulou"]) == 1
+    assert res["pulou"][0] == ("osm_vias", "cancelado pelo usuário")

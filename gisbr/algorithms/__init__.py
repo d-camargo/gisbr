@@ -51,6 +51,9 @@ from .join_censo import JoinCenso
 # --- Diagnóstico: export de POIs para GMNS/grid2demand ---
 from .diagnostico.export_poi_gmns import ExportPoiGmns
 
+# --- Diagnóstico: rede viária municipal OSM (links/nós/problemas) ---
+from .diagnostico.osm_network import OsmNetwork
+
 # Ordem de registro no provider.
 ALGORITHMS = [
     # politico-administrativa
@@ -89,4 +92,5 @@ ALGORITHMS = [
     JoinCenso,
     # diagnostico
     ExportPoiGmns,
+    OsmNetwork,
 ]

@@ -15,6 +15,7 @@ from gisbr.core.osm_topologia import (
     diagnostica,
     grau,
     sentido,
+    velocidade_kmh,
 )
 
 
@@ -317,3 +318,46 @@ def test_diagnostica_pedestre_ignora_oneway_mao_unica_sempre_vazia():
 
     diag_p = diagnostica(arcos, "pedestre")
     assert diag_p["mao_unica_sem_saida"] == []
+
+
+# --- velocidade_kmh (Passo 2 do plano `osm_network`) -----------------------
+
+def test_velocidade_kmh_maxspeed_numerico():
+    assert velocidade_kmh({"maxspeed": "60"}) == 60.0
+
+
+def test_velocidade_kmh_maxspeed_mph_converte():
+    # 50 mph * 1.60934 ~= 80.467
+    assert velocidade_kmh({"maxspeed": "50 mph"}) == pytest.approx(80.467, abs=0.01)
+
+
+def test_velocidade_kmh_maxspeed_inutilizavel_cai_no_highway():
+    # "none"/vazio/lixo (sem digito) nao dao um maxspeed usavel -> tabela
+    # por highway (aqui, "residential" -> 40.0)
+    assert velocidade_kmh({"maxspeed": "none", "highway": "residential"}) == 40.0
+    assert velocidade_kmh({"maxspeed": "", "highway": "residential"}) == 40.0
+    assert velocidade_kmh({"maxspeed": "lixo", "highway": "residential"}) == 40.0
+    assert velocidade_kmh({"highway": "residential"}) == 40.0
+
+
+def test_velocidade_kmh_highway_conhecido_da_tabela():
+    assert velocidade_kmh({"highway": "primary"}) == 70.0
+    assert velocidade_kmh({"highway": "motorway"}) == 110.0
+
+
+def test_velocidade_kmh_highway_fora_da_tabela_usa_default_40():
+    assert velocidade_kmh({"highway": "cycleway"}) == 40.0
+    assert velocidade_kmh({}) == 40.0
+
+
+def test_constroi_arcos_guarda_maxspeed_cru_no_dict_do_arco():
+    nodes_dict = _nodes_dict([1, 2])
+    ways = [_way(1, [1, 2], {"highway": "residential", "maxspeed": "60"})]
+    arcos, _, _ = constroi_arcos(ways, nodes_dict)
+    assert len(arcos) == 1
+    assert arcos[0]["maxspeed"] == "60"
+
+    # way sem maxspeed -> string vazia, nao ausencia de chave
+    ways_sem = [_way(2, [1, 2], {"highway": "residential"})]
+    arcos_sem, _, _ = constroi_arcos(ways_sem, nodes_dict)
+    assert arcos_sem[0]["maxspeed"] == ""

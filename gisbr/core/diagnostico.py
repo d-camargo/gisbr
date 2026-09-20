@@ -327,7 +327,12 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             else:
                 result = osm_pipeline.build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=force, feedback=feedback)
                 meta = result.get("metadata", {})
-                if meta.get("sem_vias"):
+                if meta.get("cancelado"):
+                    # Passo 6c: botao "Cancelar" do painel -> feedback.cancel();
+                    # sem excecao, a fonte volta como pulada (nao falhou).
+                    res["pulou"].append((sid, "cancelado pelo usuário"))
+                    log("Aviso: {} — cancelado pelo usuário".format(sid))
+                elif meta.get("sem_vias"):
                     # regra da casa: 0 feições entra em pulou com aviso, nao em falhou
                     res["pulou"].append((sid, meta.get("erro", "nenhuma via")))
                     log("Aviso: {} — {}".format(sid, meta.get("erro", "nenhuma via")))

@@ -18,7 +18,7 @@ from qgis.core import (QgsVectorLayer, QgsField, QgsFeature, QgsGeometry,
 
 from . import qgis_compat
 from .connectors import osm
-from .osm_topologia import constroi_arcos, diagnostica
+from .osm_topologia import constroi_arcos, diagnostica, velocidade_kmh
 
 # Tolerância de "ponta quase conectada" (D — verificação geométrica a).
 TOL_PONTA_M = 10.0
@@ -37,6 +37,12 @@ _LINK_FIELDS = [
     ("bridge", "string"), ("tunnel", "string"), ("layer", "string"),
     ("veicular", "int"), ("pedestre", "int"),
     ("componente", "int"), ("componente_tam", "int"), ("componente_pe", "int"),
+    # Passo 2 do plano `osm_network`: atributos de custo p/ o logis parar de
+    # calcular por conta propria (`_parse_speed`/`_calcular_comprimento_metros`
+    # em ~/projects/logis/logis/core/network/osm_pipeline.py). `comprimento_m`
+    # e do ARCO INTEIRO (mesma geometria de `osm_links`), inclusive quando o
+    # arco cruza a divisa municipal — nao e recortado na fronteira.
+    ("maxspeed", "string"), ("velocidade_kmh", "double"), ("comprimento_m", "double"),
 ]
 
 _NODE_FIELDS = [
@@ -49,6 +55,22 @@ _PROBLEMA_FIELDS = [
     ("tipo", "string"), ("severidade", "string"), ("detalhe", "string"),
     ("node_id", "int"), ("arc_id", "int"), ("rede", "string"),
 ]
+
+
+def _reporta_progresso(feedback, pct, texto=None):
+    """Passo 6a: `feedback` e sempre opcional — protege TODAS as chamadas."""
+    if feedback is None:
+        return
+    if texto is not None:
+        feedback.setProgressText(texto)
+    feedback.setProgress(pct)
+
+
+def _interpola(faixa, fracao):
+    if faixa is None:
+        return None
+    lo, hi = faixa
+    return lo + (hi - lo) * fracao
 
 
 def _uri(geometry_type, campos):
@@ -105,12 +127,14 @@ def _cria_links_raw(arcos, diag_veicular, diag_pedestre, layer_name="osm_links_r
     node_comp_v = diag_veicular["node_comp"]
     comp_tam_v = diag_veicular["comp_tam"]
     node_comp_p = diag_pedestre["node_comp"]
+    medidor = _medidor_area()
     for arco in arcos:
         geom = _arco_para_linestring(arco)
         if geom is None:
             continue
+        qgeom = QgsGeometry(geom)
         feat = QgsFeature(campos)
-        feat.setGeometry(QgsGeometry(geom))
+        feat.setGeometry(qgeom)
         if arco["veicular"]:
             comp = node_comp_v.get(arco["from_node"], -1)
         else:
@@ -136,6 +160,9 @@ def _cria_links_raw(arcos, diag_veicular, diag_pedestre, layer_name="osm_links_r
         feat["componente"] = comp
         feat["componente_tam"] = comp_tam
         feat["componente_pe"] = comp_pe
+        feat["maxspeed"] = arco.get("maxspeed", "")
+        feat["velocidade_kmh"] = velocidade_kmh(arco)
+        feat["comprimento_m"] = medidor.measureLength(qgeom)
         layer.addFeature(feat)
 
     layer.commitChanges()
@@ -233,7 +260,7 @@ def _bbox_tolerancia_graus(lon, lat, tol_m):
     return QgsRectangle(lon - dlon, lat - dlat, lon + dlon, lat + dlat)
 
 
-def ponta_quase_conectada(arcos, diag, nodes_dict):
+def ponta_quase_conectada(arcos, diag, nodes_dict, feedback=None, faixa=None):
     """Nós de grau 1 a <= TOL_PONTA_M de um arco NÃO incidente neles.
 
     Busca no índice espacial com bbox da tolerância (convertida em graus);
@@ -246,6 +273,11 @@ def ponta_quase_conectada(arcos, diag, nodes_dict):
     dentro do bbox de busca do arco mas fora da geometria dele, inflando
     toda ponta cujo bbox de tolerância toca outro arco em falso positivo a
     0,0 m.
+
+    Passo 6a: `feedback`/`faixa` (tupla `(lo, hi)`) são opcionais — a cada
+    ~200 nós reporta progresso interpolado dentro de `faixa` e verifica
+    `feedback.isCanceled()`; se cancelado, interrompe o laço e devolve os
+    achados parciais (quem decide abortar o pipeline é o chamador).
 
     Devolve lista de dicts `{node_id, arc_id, way_id, distancia_m, detalhe}`.
     """
@@ -266,8 +298,15 @@ def ponta_quase_conectada(arcos, diag, nodes_dict):
         index.addFeature(feat)
 
     medidor = _medidor_area()
+    total = len(pontas)
     resultados = []
-    for node_id in pontas:
+    for i, node_id in enumerate(pontas):
+        if feedback is not None and i % 200 == 0:
+            if feedback.isCanceled():
+                break
+            pct = _interpola(faixa, i / total) if total else None
+            if pct is not None:
+                _reporta_progresso(feedback, int(pct))
         if node_id not in nodes_dict:
             continue
         lon, lat = nodes_dict[node_id]
@@ -322,13 +361,18 @@ def _pontos_da_intersecao(geom):
     return pontos
 
 
-def cruzamento_sem_no(arcos):
+def cruzamento_sem_no(arcos, feedback=None, faixa=None):
     """Pares de arcos cujas geometrias se cruzam num ponto que NÃO é nó
     compartilhado pelos dois.
 
     Ignora o par se algum dos dois tem `bridge`/`tunnel` com valor não vazio
     e != "no", ou se `layer` difere (vazio = "0"). Um registro por ponto de
     interseção (par A-B/B-A deduplicado).
+
+    Passo 6a: `feedback`/`faixa` (tupla `(lo, hi)`) são opcionais — a cada
+    ~200 arcos reporta progresso interpolado dentro de `faixa` e verifica
+    `feedback.isCanceled()`; se cancelado, interrompe o laço e devolve os
+    achados parciais (quem decide abortar o pipeline é o chamador).
 
     Devolve lista de dicts `{arc_a, arc_b, x, y, detalhe}`.
     """
@@ -346,7 +390,15 @@ def cruzamento_sem_no(arcos):
 
     resultados = []
     vistos = set()
-    for arc_id in sorted(geom_por_arco):
+    arc_ids_ordenados = sorted(geom_por_arco)
+    total = len(arc_ids_ordenados)
+    for i, arc_id in enumerate(arc_ids_ordenados):
+        if feedback is not None and i % 200 == 0:
+            if feedback.isCanceled():
+                break
+            pct = _interpola(faixa, i / total) if total else None
+            if pct is not None:
+                _reporta_progresso(feedback, int(pct))
         geom, arco = geom_por_arco[arc_id]
         for cand_id in index.intersects(geom.boundingBox()):
             if cand_id <= arc_id:
@@ -382,7 +434,7 @@ def cruzamento_sem_no(arcos):
     return resultados
 
 
-def _monta_problemas(arcos_rede, diag, nodes_dict, engine, rede):
+def _monta_problemas(arcos_rede, diag, nodes_dict, engine, rede, feedback=None, faixa=None):
     """Monta os registros de `osm_problemas` de UMA rede (`rede` =
     "veicular"|"pedestre"), filtrados aos pontos DENTRO do polígono
     municipal (`engine` já preparado sobre a geometria do município).
@@ -390,7 +442,15 @@ def _monta_problemas(arcos_rede, diag, nodes_dict, engine, rede):
     `arcos_rede`/`diag` já vêm filtrados para a rede pedida (ver
     `diagnostica(arcos, rede)`). Na rede pedestre, `ponta_solta` NÃO é
     emitido (becos de calçada são a norma); os demais tipos, sim.
+
+    Passo 6a: `faixa` (tupla `(lo, hi)`) é dividida ao meio entre os dois
+    laços longos — `ponta_quase_conectada` (primeira metade) e
+    `cruzamento_sem_no` (segunda metade) — que reportam progresso e checam
+    `feedback.isCanceled()` por conta própria.
     """
+    meio = _interpola(faixa, 0.5) if faixa is not None else None
+    faixa_pontas = (faixa[0], meio) if faixa is not None else None
+    faixa_cruzamentos = (meio, faixa[1]) if faixa is not None else None
     def dentro(x, y):
         return engine.contains(QgsPoint(x, y))
 
@@ -420,7 +480,8 @@ def _monta_problemas(arcos_rede, diag, nodes_dict, engine, rede):
 
     # pontas de grau 1: quase conectada (alta se <= TOL_PONTA_ALTA_M, senão
     # media) ou solta (baixa, so fora da rede pedestre)
-    quase_conectadas_por_no = {p["node_id"]: p for p in ponta_quase_conectada(arcos_rede, diag, nodes_dict)}
+    quase_conectadas_por_no = {p["node_id"]: p for p in ponta_quase_conectada(
+        arcos_rede, diag, nodes_dict, feedback=feedback, faixa=faixa_pontas)}
     for node_id in diag["pontas_soltas"]:
         coord = nodes_dict.get(node_id)
         if coord is None:
@@ -473,7 +534,7 @@ def _monta_problemas(arcos_rede, diag, nodes_dict, engine, rede):
             })
 
     # cruzamento sem nó
-    for c in cruzamento_sem_no(arcos_rede):
+    for c in cruzamento_sem_no(arcos_rede, feedback=feedback, faixa=faixa_cruzamentos):
         x, y = c["x"], c["y"]
         if not dentro(x, y):
             continue
@@ -532,19 +593,54 @@ def _vazio(code_muni, nome_muni):
     return {"osm_links_raw": None, "osm_links": None, "osm_nodes": None, "osm_problemas": None}
 
 
-def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, feedback=None):
-    """Constrói as camadas de topologia OSM (links/nós/problemas) do município."""
+_CACHE_DIR_PADRAO = Path(os.path.expanduser("~/.cache/gisbr-diagnostico"))
+
+
+def build_osm_network_layers(code_muni, nome_muni=None, cache_dir=None, force=False, feedback=None):
+    """Monta as camadas OSM (links/nós/problemas) do município EM MEMÓRIA.
+
+    Passo 1 do plano `osm_network`: extraído de `build_osm_municipal_network`
+    (que virou uma casca em cima desta função — grava as camadas no GPKG e
+    acrescenta `gpkg_ok` ao metadata). Faz tudo, inclusive o cache do
+    Overpass em `cache_dir` (default `~/.cache/gisbr-diagnostico`, criado se
+    não existir), mas NÃO grava GeoPackage. Devolve o MESMO formato de dict
+    de sempre (`raw_cache`, `layers`, `metadata`), sem `gpkg_ok`.
+
+    Passo 6a — `feedback` (um `QgsProcessingFeedback`, sempre opcional) reporta
+    progresso via `setProgressText`/`setProgress` em faixas fixas:
+
+    | Faixa  | Etapa                                            |
+    |--------|---------------------------------------------------|
+    | 0–5    | resolver município                                |
+    | 5–25   | consulta ao Overpass (ou cache)                   |
+    | 25–35  | `constroi_arcos` + `diagnostica` das duas redes   |
+    | 35–55  | montar camadas de links e nós                     |
+    | 55–90  | verificação geométrica (pontas/cruzamentos)       |
+    | 90–100 | montar a camada de problemas                      |
+
+    Dentro da verificação geométrica, `feedback.isCanceled()` é checado a
+    cada ~200 itens (ver `ponta_quase_conectada`/`cruzamento_sem_no`); se
+    cancelado, esta função aborta SEM exceção, devolvendo
+    `metadata["cancelado"] = True` com as camadas já prontas até ali
+    (`osm_links_raw`/`osm_links`/`osm_nodes`; `osm_problemas` fica `None`).
+    """
     def log(msg):
         if feedback is not None:
             feedback.pushInfo(msg)
 
+    _reporta_progresso(feedback, 0, "Resolvendo município")
     municipio = _municipio_poligono(code_muni, nome_muni)
     if municipio is None:
         return {"raw_cache": None, "layers": _vazio(code_muni, nome_muni),
                 "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "erro": "nao foi possivel resolver o municipio"}}
+    _reporta_progresso(feedback, 5)
 
     bbox = _bbox_da_camada(municipio)
-    cache_dir = Path(os.path.dirname(gpkg_path) or ".")
+    if cache_dir is None:
+        cache_dir = _CACHE_DIR_PADRAO
+    else:
+        cache_dir = Path(cache_dir)
+    cache_dir.mkdir(parents=True, exist_ok=True)
     cache_path = cache_dir / "osm_overpass_{}.json".format(code_muni)
     payload = None
     if cache_path.exists() and not force:
@@ -554,6 +650,7 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
         else:
             log(f"OSM: cache invalido ou corrompido em {cache_path}, consultando Overpass")
     if payload is None:
+        _reporta_progresso(feedback, 5, "Consultando Overpass")
         log("OSM: consultando Overpass")
         try:
             payload = osm.fetch_overpass_json(bbox, timeout=180, cache_path=cache_path, feedback=feedback)
@@ -562,12 +659,14 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
             log(f"Erro no Overpass: {e}")
             return {"raw_cache": None, "layers": _vazio(code_muni, nome_muni),
                     "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "erro": str(e)}}
+    _reporta_progresso(feedback, 25)
 
     # Extrair ways e nós, e quebrar em arcos pela topologia real do OSM
     ways = _parse_osm_ways(payload)
     nodes_dict = _build_nodes_dict(payload)
     log(f"OSM: {len(ways)} ways encontrados, {len(nodes_dict)} nós")
 
+    _reporta_progresso(feedback, 25, "Construindo topologia")
     arcos, n_orfaos, descartados = constroi_arcos(ways, nodes_dict)
     if n_orfaos:
         log(f"OSM: {n_orfaos} refs de nó órfãs descartadas")
@@ -586,6 +685,7 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
     diag_pedestre = diagnostica(arcos, "pedestre")
     log(f"OSM: {len(arcos)} arcos — veicular: {len(diag_veicular['comp_tam'])} componentes, "
         f"pedestre: {len(diag_pedestre['comp_tam'])} componentes")
+    _reporta_progresso(feedback, 35)
 
     mun_geom = _geometria_municipio(municipio)
     if mun_geom is None:
@@ -597,6 +697,7 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
     engine = QgsGeometry.createGeometryEngine(mun_geom.constGet())
     engine.prepareGeometry()
 
+    _reporta_progresso(feedback, 35, "Montando camadas de links e nós")
     osm_links_raw = _cria_links_raw(arcos, diag_veicular, diag_pedestre)
     log(f"OSM: {osm_links_raw.featureCount()} arcos no bbox")
 
@@ -614,18 +715,38 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
 
     osm_nodes = _cria_nodes_layer(osm_links, diag_veicular, diag_pedestre, nodes_dict)
     log(f"OSM: {osm_nodes.featureCount()} nós (from/to dos arcos mantidos)")
+    _reporta_progresso(feedback, 55)
 
     # Verificações geométricas/topológicas RODAM DUAS VEZES (veicular e
     # pedestre), cada uma só sobre os arcos da própria rede — sobre TODOS
     # os arcos (antes do filtro por município); só entram problemas com o
-    # ponto dentro do polígono.
+    # ponto dentro do polígono. Faixa 55-90 dividida ao meio entre as duas
+    # redes; `_monta_problemas` subdivide sua metade entre os dois laços
+    # longos (ver docstring dela).
+    _reporta_progresso(feedback, 55, "Verificação geométrica")
     arcos_veiculares = [a for a in arcos if a["veicular"]]
     arcos_pedestres = [a for a in arcos if a["pedestre"]]
-    problemas = (
-        _monta_problemas(arcos_veiculares, diag_veicular, nodes_dict, engine, "veicular")
-        + _monta_problemas(arcos_pedestres, diag_pedestre, nodes_dict, engine, "pedestre")
-    )
+    problemas_veicular = _monta_problemas(
+        arcos_veiculares, diag_veicular, nodes_dict, engine, "veicular",
+        feedback=feedback, faixa=(55, 72.5))
+    if feedback is not None and feedback.isCanceled():
+        return {"raw_cache": str(cache_path),
+                "layers": {"osm_links_raw": osm_links_raw, "osm_links": osm_links, "osm_nodes": osm_nodes, "osm_problemas": None},
+                "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "bbox": bbox, "municipio_layer": municipio.name(),
+                             "cancelado": True}}
+    problemas_pedestre = _monta_problemas(
+        arcos_pedestres, diag_pedestre, nodes_dict, engine, "pedestre",
+        feedback=feedback, faixa=(72.5, 90))
+    if feedback is not None and feedback.isCanceled():
+        return {"raw_cache": str(cache_path),
+                "layers": {"osm_links_raw": osm_links_raw, "osm_links": osm_links, "osm_nodes": osm_nodes, "osm_problemas": None},
+                "metadata": {"code_muni": str(code_muni), "nome_muni": nome_muni, "bbox": bbox, "municipio_layer": municipio.name(),
+                             "cancelado": True}}
+    problemas = problemas_veicular + problemas_pedestre
+
+    _reporta_progresso(feedback, 90, "Montando camada de problemas")
     osm_problemas = _cria_problemas_layer(problemas)
+    _reporta_progresso(feedback, 100)
 
     contagem_tipos = {"veicular": {}, "pedestre": {}}
     for p in problemas:
@@ -638,18 +759,6 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
             ))
         else:
             log("OSM: verificação ({}) — nenhum problema encontrado".format(rede_nome))
-
-    # ponytail: gravar em GeoPackage (reutiliza _grava_gpkg existente)
-    from .diagnostico import _grava_gpkg
-    ok_links, _ = _grava_gpkg(osm_links, gpkg_path, f"osm_links_{code_muni}")
-    ok_nodes, _ = _grava_gpkg(osm_nodes, gpkg_path, f"osm_nodes_{code_muni}")
-    ok_problemas, _ = _grava_gpkg(osm_problemas, gpkg_path, f"osm_problemas_{code_muni}")
-    if ok_links:
-        log(f"OSM: gravados {osm_links.featureCount()} arcos em osm_links.gpkg")
-    if ok_nodes:
-        log(f"OSM: gravados {osm_nodes.featureCount()} nós em osm_nodes.gpkg")
-    if ok_problemas:
-        log(f"OSM: gravados {osm_problemas.featureCount()} problemas em osm_problemas.gpkg")
 
     return {
         "raw_cache": str(cache_path),
@@ -670,6 +779,48 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
                 "pedestre": len(diag_pedestre["comp_tam"]),
             },
             "verificacao": contagem_tipos,
-            "gpkg_ok": ok_links and ok_nodes and ok_problemas,
         },
     }
+
+
+def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, feedback=None):
+    """Constrói as camadas de topologia OSM (links/nós/problemas) do município
+    e grava no GeoPackage.
+
+    Casca do Passo 1 do plano `osm_network`: monta as camadas via
+    `build_osm_network_layers` (cache em `Path(os.path.dirname(gpkg_path))`,
+    mesma pasta do GPKG — igual ao comportamento de antes) e grava as três
+    no GeoPackage. **Assinatura e retorno inalterados** em relação à versão
+    anterior à divisão — `gisbr/core/diagnostico.py` não muda.
+    """
+    def log(msg):
+        if feedback is not None:
+            feedback.pushInfo(msg)
+
+    cache_dir = Path(os.path.dirname(gpkg_path) or ".")
+    resultado = build_osm_network_layers(code_muni, nome_muni, cache_dir=cache_dir, force=force, feedback=feedback)
+    layers = resultado["layers"]
+    metadata = dict(resultado["metadata"])
+
+    osm_links = layers.get("osm_links")
+    osm_nodes = layers.get("osm_nodes")
+    osm_problemas = layers.get("osm_problemas")
+    if osm_links is None or osm_nodes is None or osm_problemas is None:
+        # erro / sem_vias / cancelado: nada (ou camadas incompletas) para
+        # gravar — devolve tal como veio do núcleo, sem `gpkg_ok`.
+        return {"raw_cache": resultado["raw_cache"], "layers": layers, "metadata": metadata}
+
+    # ponytail: gravar em GeoPackage (reutiliza _grava_gpkg existente)
+    from .diagnostico import _grava_gpkg
+    ok_links, _ = _grava_gpkg(osm_links, gpkg_path, f"osm_links_{code_muni}")
+    ok_nodes, _ = _grava_gpkg(osm_nodes, gpkg_path, f"osm_nodes_{code_muni}")
+    ok_problemas, _ = _grava_gpkg(osm_problemas, gpkg_path, f"osm_problemas_{code_muni}")
+    if ok_links:
+        log(f"OSM: gravados {osm_links.featureCount()} arcos em osm_links.gpkg")
+    if ok_nodes:
+        log(f"OSM: gravados {osm_nodes.featureCount()} nós em osm_nodes.gpkg")
+    if ok_problemas:
+        log(f"OSM: gravados {osm_problemas.featureCount()} problemas em osm_problemas.gpkg")
+
+    metadata["gpkg_ok"] = ok_links and ok_nodes and ok_problemas
+    return {"raw_cache": resultado["raw_cache"], "layers": layers, "metadata": metadata}

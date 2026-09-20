@@ -8,7 +8,7 @@ from qgis.gui import QgsDockWidget
 from qgis.PyQt.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QTreeWidget, QTreeWidgetItem, QCheckBox, QPushButton, QFileDialog,
     QLabel, QPlainTextEdit, QComboBox, QCompleter, QGroupBox, QListWidget,
-    QListWidgetItem, QTabWidget)
+    QListWidgetItem, QTabWidget, QProgressBar, QApplication)
 from qgis.PyQt.QtCore import Qt, QCoreApplication, QSettings
 from qgis.core import QgsProject, QgsProcessingFeedback
 from ..core.sources import SOURCES
@@ -21,17 +21,39 @@ class _LogFeedback(QgsProcessingFeedback):
     Sem isso o motor roda com feedback=None e avisos importantes (tamanho dos
     downloads do censobr, backend Parquet ausente, join que casou 0 setores)
     nunca chegam ao usuario do painel.
+
+    Passo 6b (progresso visivel): `progress_bar` e opcional — sem ela, o
+    comportamento segue igual ao de antes (so log). Com ela, `setProgress`/
+    `setProgressText` atualizam a barra e chamam `processEvents()` para a
+    interface repintar durante o carregamento sincrono (e para o botao
+    "Cancelar" do 6c conseguir reagir a clique no meio da chamada) — mesmo
+    truque em `pushInfo`.
     """
 
-    def __init__(self, log_widget):
+    def __init__(self, log_widget, progress_bar=None):
         super().__init__()
         self._log = log_widget
+        self._progress_bar = progress_bar
 
     def pushInfo(self, message):
         self._log.appendPlainText(message)
+        QCoreApplication.processEvents()
 
     def pushWarning(self, message):
         self._log.appendPlainText(self.tr("Warning: {message}").format(message=message))
+        QCoreApplication.processEvents()
+
+    def setProgress(self, pct):
+        super().setProgress(pct)
+        if self._progress_bar is not None:
+            self._progress_bar.setValue(int(pct))
+        QCoreApplication.processEvents()
+
+    def setProgressText(self, texto):
+        super().setProgressText(texto)
+        if self._progress_bar is not None:
+            self._progress_bar.setFormat("{} — %p%".format(texto) if texto else "%p%")
+        QCoreApplication.processEvents()
 
 _EIXO_NOMES = {
     "transportes": QCoreApplication.translate("GisBR", "1. Transport"),
@@ -65,6 +87,7 @@ class DiagnosticoDock(QgsDockWidget):
         super().__init__("GISBR", parent)
         self.iface = iface
         self._munis = {}
+        self._feedback_atual = None
         self._build_ui()
 
     def _build_ui(self):
@@ -242,6 +265,19 @@ class DiagnosticoDock(QgsDockWidget):
         self.txt_log = QPlainTextEdit()
         self.txt_log.setReadOnly(True)
         layout.addWidget(self.txt_log)
+
+        # 6.1) Barra de progresso (Passo 6b) + botao Cancelar (Passo 6c) —
+        # escondidos fora da execucao.
+        progress_layout = QHBoxLayout()
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setVisible(False)
+        progress_layout.addWidget(self.progress_bar, 1)
+        self.btn_cancelar = QPushButton(self.tr("Cancel"))
+        self.btn_cancelar.setVisible(False)
+        self.btn_cancelar.clicked.connect(self._on_cancelar)
+        progress_layout.addWidget(self.btn_cancelar)
+        layout.addLayout(progress_layout)
 
         return widget
 
@@ -518,15 +554,37 @@ class DiagnosticoDock(QgsDockWidget):
             self._log(self.tr("Failed to resolve municipality: {error}").format(error=exc), focar=True)
             return
         self._log(self.tr("Municipality: {name} ({code})").format(name=nome, code=code), focar=True)
-        res = diagnostico.carregar_fontes(
-            ids, code_muni=code, nome_muni=nome, bbox=bbox, gpkg_path=gpkg,
-            add_basemap=self.chk_satelite.isChecked(),
-            force=self.chk_atualizar.isChecked(),
-            feedback=_LogFeedback(self.txt_log),
-            censo_ano=censo_ano, censo_datasets=censo_datasets,
-            mapbiomas_ano=mapbiomas_ano)
+
+        feedback = _LogFeedback(self.txt_log, progress_bar=self.progress_bar)
+        self._feedback_atual = feedback
+        self.btn_carregar.setEnabled(False)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(True)
+        self.btn_cancelar.setEnabled(True)
+        self.btn_cancelar.setVisible(True)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            res = diagnostico.carregar_fontes(
+                ids, code_muni=code, nome_muni=nome, bbox=bbox, gpkg_path=gpkg,
+                add_basemap=self.chk_satelite.isChecked(),
+                force=self.chk_atualizar.isChecked(),
+                feedback=feedback,
+                censo_ano=censo_ano, censo_datasets=censo_datasets,
+                mapbiomas_ano=mapbiomas_ano)
+        finally:
+            QApplication.restoreOverrideCursor()
+            self.btn_carregar.setEnabled(True)
+            self.progress_bar.setVisible(False)
+            self.btn_cancelar.setVisible(False)
+            self._feedback_atual = None
+
         self._log(self.tr("OK: {layers}").format(layers=", ".join(res["ok"]) or "-"))
         for sid, msg in res["falhou"]:
             self._log(self.tr("FAILED {id}: {error}").format(id=sid, error=msg))
         for sid, msg in res["pulou"]:
             self._log(self.tr("SKIPPED {id}: {reason}").format(id=sid, reason=msg))
+
+    def _on_cancelar(self):
+        if self._feedback_atual is not None:
+            self._feedback_atual.cancel()
+        self.btn_cancelar.setEnabled(False)

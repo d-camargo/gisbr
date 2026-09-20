@@ -56,6 +56,9 @@ O motor grava três tabelas no GeoPackage, com sufixo `_<código IBGE>`
 | `veicular`, `pedestre` | 1/0 — o arco pertence à rede veicular / à rede a pé |
 | `componente`, `componente_tam` | id e tamanho (em arcos) da componente conexa do arco na rede **veicular**; `-1`/vazio se o arco não é veicular |
 | `componente_pe` | id da componente conexa na rede **a pé**; `-1` se o arco não é pedestre |
+| `maxspeed` | valor bruto da tag `maxspeed` (vazio quando ausente) |
+| `velocidade_kmh` | velocidade em km/h: `maxspeed` (convertendo mph), ou, sem um valor utilizável, a tabela padrão por `highway` (default 40,0) — mesma regra que o logis usava por conta própria |
+| `comprimento_m` | comprimento do **arco inteiro**, em metros, medido no elipsoide GRS80 (SIRGAS 2000); não é recortado na divisa municipal, mesmo quando o arco a cruza (ver [Limites conhecidos](#limites-conhecidos)) |
 
 ### `osm_nodes_<código IBGE>` — os nós (Point)
 
@@ -132,6 +135,28 @@ ex.: `"severidade" = 'alta' AND "rede" = 'veicular'`) para priorizar o que
 olhar primeiro. `ponta_solta` e os dois tipos `*_borda` são **informativos**,
 não erro — não exigem correção, só contexto sobre o limite do recorte ou o
 formato normal da malha.
+
+## Usar de outro plugin ou do Processing
+
+O mesmo núcleo que o painel usa (`build_osm_network_layers`, em
+`core/osm_pipeline.py`) também está disponível como algoritmo do Processing,
+`gisbr:osm_network` — a porta para outro plugin (ex.: o **logis**) consumir a
+rede/topologia via `processing.run()` em vez de copiar o pipeline. Ele monta
+as mesmas três camadas em memória (sem gravar GeoPackage):
+
+```python
+processing.run("gisbr:osm_network", {"CODE": "3118601", "FORCE": False,
+    "LINKS": "TEMPORARY_OUTPUT", "NODES": "TEMPORARY_OUTPUT", "PROBLEMAS": "TEMPORARY_OUTPUT"})
+```
+
+Parâmetros: `CODE` (código IBGE de 7 dígitos), `FORCE` (ignora o cache do
+Overpass, default `False`) e `CACHE_DIR` (pasta do cache, opcional — vazio
+usa `~/.cache/gisbr-diagnostico`). Saídas: `LINKS`, `NODES`, `PROBLEMAS`, com
+os mesmos campos das três tabelas acima (inclusive `maxspeed`,
+`velocidade_kmh` e `comprimento_m`). O algoritmo roda sempre na thread
+principal (`FlagNoThreading`): o núcleo chama `processing.run` e mexe em
+objetos do QGIS que não são seguros numa `QgsTask` hoje (ver
+`OSM_ARQUITETURA.md`, no repositório).
 
 ## Limites conhecidos
 

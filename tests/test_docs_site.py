@@ -68,6 +68,7 @@ def test_todo_algoritmo_aparece(tmp_path):
         assert "`gisbr:%s_v2`" % funcao in texto
     assert "`gisbr:join_censo`" in texto
     assert "`gisbr:export_poi_gmns`" in texto
+    assert "`gisbr:osm_network`" in texto
 
 
 def test_changelog_traz_versao_corrente_primeiro(tmp_path):

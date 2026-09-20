@@ -52,6 +52,52 @@ HIGHWAY_PEDESTRE = (
 
 _OVERRIDE_PERMITE = {"yes", "designated", "permissive", "destination"}
 
+# Velocidade padrao por highway quando o arco nao tem um `maxspeed`
+# utilizavel — copiada VERBATIM de `_DEFAULT_SPEEDS` em
+# ~/projects/logis/logis/core/network/osm_pipeline.py, para o gisbr e o
+# logis produzirem o MESMO valor (Passo 2 do plano `osm_network`: o logis
+# vai apagar a copia e passar a chamar `gisbr:osm_network`).
+_DEFAULT_SPEEDS = {
+    "motorway": 110.0,
+    "trunk": 90.0,
+    "primary": 70.0,
+    "secondary": 60.0,
+    "tertiary": 50.0,
+    "residential": 40.0,
+    "living_street": 30.0,
+    "motorway_link": 60.0,
+    "trunk_link": 50.0,
+    "primary_link": 50.0,
+    "secondary_link": 40.0,
+    "tertiary_link": 40.0,
+    "unclassified": 40.0,
+    "service": 30.0,
+    "track": 30.0,
+}
+
+
+def velocidade_kmh(tags: Dict[str, Any]) -> float:
+    """Velocidade do arco em km/h.
+
+    Le `maxspeed` (aceita `tags` no formato bruto do OSM ou o proprio dict
+    do arco, que guarda `maxspeed`/`highway` como strings de topo): extrai
+    os digitos e converte de mph (x1.60934) quando o texto contem "mph".
+    Sem um `maxspeed` utilizavel (ausente, vazio, ou sem digito — ex.:
+    "none"), cai na tabela `_DEFAULT_SPEEDS` por `highway`; `highway` fora
+    da tabela usa o default de 40.0 (mesmo default do logis).
+    """
+    maxspeed = str((tags or {}).get("maxspeed") or "")
+    if maxspeed:
+        digits = "".join(c for c in maxspeed if c.isdigit())
+        if digits:
+            speed_val = float(digits)
+            if "mph" in maxspeed.lower():
+                speed_val = speed_val * 1.60934
+            return speed_val
+
+    highway = str((tags or {}).get("highway") or "").strip().lower()
+    return _DEFAULT_SPEEDS.get(highway, 40.0)
+
 
 def classifica_modos(tags: Dict[str, Any]) -> Dict[str, bool]:
     """Classifica um way OSM em `{"veicular": bool, "pedestre": bool}`.
@@ -129,8 +175,9 @@ def constroi_arcos(ways: Sequence[Dict[str, Any]],
     `{highway: n_ways}`. Cada arco é um dict com `arc_id` (inteiro
     sequencial a partir de 1), `way_id`, `seq` (ordem dentro do way, 0..),
     `from_node`, `to_node`, `nodes` (lista de node_ids), `coords` (lista de
-    (lon, lat)), `highway`, `name`, `oneway`, `junction`, `bridge`, `tunnel`,
-    `layer` (strings, "" se ausente), `veicular`, `pedestre` (bool).
+    (lon, lat)), `highway`, `name`, `oneway`, `junction`, `maxspeed`,
+    `bridge`, `tunnel`, `layer` (strings, "" se ausente), `veicular`,
+    `pedestre` (bool).
     """
     n_orfaos = 0
     ways_filtrados = []  # [(way, [node_id, ...])]
@@ -189,6 +236,7 @@ def constroi_arcos(ways: Sequence[Dict[str, Any]],
                 "name": str(tags.get("name") or ""),
                 "oneway": str(tags.get("oneway") or ""),
                 "junction": str(tags.get("junction") or ""),
+                "maxspeed": str(tags.get("maxspeed") or ""),
                 "bridge": str(tags.get("bridge") or ""),
                 "tunnel": str(tags.get("tunnel") or ""),
                 "layer": str(tags.get("layer") or ""),
