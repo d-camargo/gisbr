@@ -4,7 +4,7 @@
 
 GISBR brings official Brazilian spatial data **into QGIS**, using **only PyQGIS and the Python stdlib** (with one optional exception for Parquet). It does two things:
 
-1. **Master Plan Diagnostic** — a dock panel that, given a municipality, loads the official layers a city needs to draft or review its *Plano Diretor*, organized in 8 thematic axes.
+1. **Master Plan Diagnostic** — a dock panel that, given a municipality, loads the official layers a city needs to draft or review its *Plano Diretor*, organized in 9 thematic axes.
 2. **geobr / censobr mirror** — "1-line → 1-layer" access to the datasets of the [**geobr**](https://github.com/ipeaGIT/geobr) and [**censobr**](https://github.com/ipeaGIT/censobr) (IPEA) packages, as Processing algorithms.
 
 All data is output in **SIRGAS 2000 / EPSG:4674**.
@@ -13,18 +13,19 @@ All data is output in **SIRGAS 2000 / EPSG:4674**.
 
 Open the **GISBR** panel (toolbar button / *Plugins → GISBR*). Pick a **state → municipality**, choose the sources you want (checkboxes grouped by axis), a destination **GeoPackage**, and click **Load**. GISBR downloads each source **filtered to that municipality**, clips it to the municipality polygon, saves one layer per source in the GeoPackage, and adds them to the project.
 
-- **46 sources** across **8 axes**: Transport · Drainage & Sanitation · Demography · Environment · Education · Health · Urban · Administrative. Since 0.5.0 the catalog also covers geological risk (SGB/CPRM), mining claims (ANM/SIGMINE), groundwater wells (SIAGAS), IBGE BC250 2025 layers, IBGE urbanised areas (2019), subnormal agglomerations (2010), and the IBGE BDIA physical-environment set (soil, geology, geomorphology, vegetation).
+- **54 sources** across **9 axes**: Transport · Drainage & Sanitation · Demography · Environment · Education · Health · Urban · Administrative · Agriculture & Livestock. Since 0.5.0 the catalog also covers geological risk (SGB/CPRM), mining claims (ANM/SIGMINE), groundwater wells (SIAGAS), IBGE BC250 2025 layers, IBGE urbanised areas (2019), subnormal agglomerations (2010), and the IBGE BDIA physical-environment set (soil, geology, geomorphology, vegetation).
 - **Connectors** (one per protocol): **WFS** (`CQL_FILTER`, GeoJSON via the QGIS network stack + `/vsicurl/` fallback), **ArcGIS REST** (`where=` query), **OSM/Overpass** (municipal road network — links and node topology, same skip-if-exists behavior as the other sources), **geobr** (v1/v2), and an optional **Esri World Imagery** satellite basemap (added at the bottom of the layer tree).
+- **OSM road network engine**: the `osm_vias` source (Transport axis) builds the municipal road network from the real OpenStreetMap topology — ways split into arcs at shared node IDs, vehicle and pedestrian networks kept separate — with a connectivity-check layer (islands, dangling ends, one-way traps, node-less crossings) and the `gisbr:osm_network` Processing algorithm for other plugins to reuse the same network.
 - **OSM Points of Interest engine**: the `osm_pois` source (Urban axis) downloads buildings, amenities and station-like POIs via Overpass for the selected municipality — same POI predicate as osm2gmns — writing `osm_pois_<code>` (points) and `osm_pois_area_<code>` (footprints) layers with areas in m²/ft²; the `gisbr:export_poi_gmns` algorithm exports them as a grid2demand-ready `poi.csv`. See the guide at [gisbr.dcamargo.com.br](https://gisbr.dcamargo.com.br).
 - **Server-side filter** by municipality when the service supports it, plus a **client-side clip to the municipality polygon** (avoids pulling neighbors). Empty layers are skipped; already-downloaded layers are skipped unless you tick *Update*.
 
 ## geobr / censobr mirror
 
-The plugin also acts as a QGIS **Processing Provider** (`gisbr`) with **55 algorithms**:
+The plugin also acts as a QGIS **Processing Provider** (`gisbr`) with **57 algorithms**:
 
 - **Phase 1 (GeoPackage legacy v1.7.0)** — 26 `read_*` algorithms: `read_country`, `read_state`, `read_municipality`, `read_census_tract`, `read_biomes`, `read_amazon`, `read_health_facilities`, `read_schools`, etc.
 - **Phase 2 (Parquet v2.0.0 + censobr)** — 28 `read_*_v2` algorithms (loaded via the GDAL Parquet driver or an optional `pyarrow` fallback), plus v2-only geographies (`read_favela_v2`, `read_polling_places_v2`, `read_quilombola_land_v2`).
-- **Integration** — `join_censo` joins geobr census tracts with censobr demographic tables using `code_tract`.
+- **Integration & diagnostic** — `join_censo` joins geobr census tracts with censobr demographic tables using `code_tract`; `export_poi_gmns` exports the OSM POI layers as a grid2demand-ready `poi.csv`; `osm_network` builds the same municipal road network topology (links/nodes/connectivity) as the diagnostic panel, for other plugins to consume via `processing.run()`.
 
 Each `read_*` algorithm parses the official IPEA metadata catalog, selects the right URL by `geo`/`year`/`simplified`, downloads to a local disk cache with a **mirror fallback chain** (IPEA primary → GitHub mirror), and loads the result as a QGIS vector layer, filtered by code/state.
 
@@ -112,7 +113,7 @@ Downloaded files are stored in `QStandardPaths.CacheLocation` → `.../geobr-qgi
 
 O GISBR traz dados espaciais oficiais do Brasil **para dentro do QGIS**, usando **apenas PyQGIS e a stdlib do Python** (com uma exceção opcional para Parquet). Ele faz duas coisas:
 
-1. **Diagnóstico de Plano Diretor** — um painel (dock) que, dado um município, sobe as camadas oficiais que uma cidade precisa para elaborar ou revisar o *Plano Diretor*, organizadas em 8 eixos temáticos.
+1. **Diagnóstico de Plano Diretor** — um painel (dock) que, dado um município, sobe as camadas oficiais que uma cidade precisa para elaborar ou revisar o *Plano Diretor*, organizadas em 9 eixos temáticos.
 2. **Espelho geobr / censobr** — acesso **"1 linha → 1 camada"** aos dados dos pacotes [**geobr**](https://github.com/ipeaGIT/geobr) e [**censobr**](https://github.com/ipeaGIT/censobr) (IPEA), como algoritmos de Processamento.
 
 Todos os dados são entregues em **SIRGAS 2000 / EPSG:4674**.
@@ -121,18 +122,19 @@ Todos os dados são entregues em **SIRGAS 2000 / EPSG:4674**.
 
 Abra o painel **GISBR** (botão na barra / *Complementos → GISBR*). Escolha **UF → Município**, marque as fontes desejadas (checkboxes agrupados por eixo), um **GeoPackage** de destino e clique em **Carregar**. O GISBR baixa cada fonte **filtrada pelo município**, recorta pelo polígono do município, grava uma camada por fonte no GeoPackage e adiciona ao projeto.
 
-- **46 fontes** em **8 eixos**: Transportes · Drenagem e Saneamento · Demografia · Ambiental · Educação · Saúde · Urbano · Político-administrativo. Desde a 0.5.0 o catálogo também cobre risco geológico (SGB/CPRM), processos minerários (ANM/SIGMINE), poços (SIAGAS), camadas BC250 2025 do IBGE, áreas urbanizadas (2019) e aglomerados subnormais (2010) do IBGE, e o conjunto de meio físico do BDIA/IBGE (pedologia, geologia, geomorfologia, vegetação).
+- **54 fontes** em **9 eixos**: Transportes · Drenagem e Saneamento · Demografia · Ambiental · Educação · Saúde · Urbano · Político-administrativo · Agropecuária. Desde a 0.5.0 o catálogo também cobre risco geológico (SGB/CPRM), processos minerários (ANM/SIGMINE), poços (SIAGAS), camadas BC250 2025 do IBGE, áreas urbanizadas (2019) e aglomerados subnormais (2010) do IBGE, e o conjunto de meio físico do BDIA/IBGE (pedologia, geologia, geomorfologia, vegetação).
 - **Conectores** (um por protocolo): **WFS** (`CQL_FILTER`, GeoJSON pela pilha de rede do QGIS + fallback `/vsicurl/`), **ArcGIS REST** (consulta `where=`), **OSM/Overpass** (malha viária municipal — vias e a topologia de nós, com o mesmo skip-if-exists das demais fontes), **geobr** (v1/v2) e um **basemap de satélite** opcional (Esri World Imagery, adicionado ao fundo da árvore de camadas).
+- **Motor de rede viária do OSM**: a fonte `osm_vias` (eixo Transportes) monta a malha viária do município pela topologia real do OpenStreetMap — vias quebradas em arcos por nós compartilhados, redes veicular e a pé separadas — com uma camada de verificação de conectividade (ilhas, pontas soltas, mão única sem saída, cruzamentos sem nó) e o algoritmo de Processamento `gisbr:osm_network` para outros plugins reaproveitarem a mesma rede.
 - **Motor de Pontos de Interesse do OSM**: a fonte `osm_pois` (eixo Urbano) baixa edificações, amenidades e POIs tipo estação via Overpass para o município selecionado — mesmo predicado de POIs do osm2gmns — gravando as camadas `osm_pois_<code>` (pontos) e `osm_pois_area_<code>` (footprints), com áreas em m²/ft²; o algoritmo `gisbr:export_poi_gmns` as exporta como um `poi.csv` pronto para o grid2demand. Veja o guia em [gisbr.dcamargo.com.br](https://gisbr.dcamargo.com.br).
 - **Filtro no servidor** por município quando o serviço permite, mais um **recorte pelo polígono do município** no cliente (evita trazer vizinhos). Camadas vazias são puladas; bases já baixadas são puladas, salvo se marcar *Atualizar*.
 
 ## Espelho geobr / censobr
 
-O plugin também é um **Processing Provider** (`gisbr`) com **55 algoritmos**:
+O plugin também é um **Processing Provider** (`gisbr`) com **57 algoritmos**:
 
 - **Fase 1 (GeoPackage legacy v1.7.0)** — 26 algoritmos `read_*`: `read_country`, `read_state`, `read_municipality`, `read_census_tract`, `read_biomes`, `read_amazon`, `read_health_facilities`, `read_schools`, etc.
 - **Fase 2 (Parquet v2.0.0 + censobr)** — 28 algoritmos `read_*_v2` (lidos via driver GDAL Parquet ou fallback opcional `pyarrow`), mais geografias só-v2 (`read_favela_v2`, `read_polling_places_v2`, `read_quilombola_land_v2`).
-- **Integração** — `join_censo` une os setores censitários do geobr com as tabelas demográficas do censobr pela chave `code_tract`.
+- **Integração e diagnóstico** — `join_censo` une os setores censitários do geobr com as tabelas demográficas do censobr pela chave `code_tract`; `export_poi_gmns` exporta as camadas de POIs do OSM como um `poi.csv` pronto para o grid2demand; `osm_network` monta a mesma topologia de rede viária municipal (links/nós/conectividade) do painel de diagnóstico, para outros plugins consumirem via `processing.run()`.
 
 Cada `read_*` lê o catálogo oficial de metadados do IPEA, seleciona a URL por `geo`/`ano`/`simplificado`, baixa para um cache em disco com **cadeia de mirrors** (IPEA primário → espelho GitHub) e carrega como camada vetorial, filtrada por código/UF.
 

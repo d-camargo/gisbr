@@ -4,7 +4,10 @@ O **GISBR** traz dados espaciais oficiais do Brasil para dentro do QGIS: ele é 
 mesmo tempo um **espelho do geobr/censobr** (IPEA), com acesso "1 linha → 1 camada"
 aos dados do IBGE como algoritmos de Processamento, e um **painel de diagnóstico
 municipal** que, dado um município, sobe as camadas oficiais necessárias para
-elaborar ou revisar o Plano Diretor, organizadas em 8 eixos temáticos.
+elaborar ou revisar o Plano Diretor, organizadas em 9 eixos temáticos. Desde a
+0.11.0, o eixo Transportes também monta a rede viária do OSM pela topologia
+real do OpenStreetMap, com uma camada de verificação de conectividade e o
+algoritmo `gisbr:osm_network`.
 
 O princípio é inegociável: **apenas PyQGIS e a stdlib do Python**. Não há
 `pip install` para usar o plugin — a única exceção é opcional (`pyarrow` ou o

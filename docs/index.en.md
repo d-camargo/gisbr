@@ -4,7 +4,10 @@
 **geobr/censobr mirror** (IPEA), offering "1 line → 1 layer" access to IBGE
 datasets as Processing algorithms, and a **municipal diagnostic panel** that,
 given a municipality, loads the official layers a city needs in order to draft or
-review its *Plano Diretor* (Master Plan), organized in 8 thematic axes.
+review its *Plano Diretor* (Master Plan), organized in 9 thematic axes. Since
+0.11.0, the Transport axis also builds the OSM road network from the real
+OpenStreetMap topology, with a connectivity-check layer and the
+`gisbr:osm_network` algorithm.
 
 The guiding principle is non-negotiable: **only PyQGIS and the Python stdlib**.
 There is no `pip install` to use the plugin — the single exception is optional
