@@ -145,6 +145,13 @@ def parse_agregados_v3(
                 if not isinstance(ser, dict):
                     continue
 
+                loc = ser.get("localidade")
+                loc_id = (
+                    str(loc.get("id"))
+                    if isinstance(loc, dict) and loc.get("id") is not None
+                    else ""
+                )
+
                 serie_dict = ser.get("serie")
                 if not isinstance(serie_dict, dict):
                     continue
@@ -159,6 +166,7 @@ def parse_agregados_v3(
                             produto,
                             str(periodo),
                             valor,
+                            loc_id,
                         )
                     )
 

@@ -311,3 +311,226 @@ def test_on_osm_concluida_com_dados_sintéticos_adiciona_camadas(dock, tmp_path)
         depois_ids = set(QgsProject.instance().mapLayers().keys())
         QgsProject.instance().removeMapLayers(list(depois_ids - antes))
 
+
+# --- testes da selecao de modo de recorte (Municipio x RM) ---
+
+def test_modo_recorte_inicial_e_municipio(dock):
+    from gisbr.gui.diagnostico_dock import ModoRecorte
+    assert dock.modo_recorte == ModoRecorte.MUNICIPIO
+    assert dock.rad_muni.isChecked() is True
+    assert dock.rad_rm.isChecked() is False
+
+    # Widgets do modo municipio habilitados
+    assert dock.cmb_muni.isEnabled() is True
+    assert dock.ed_muni.isEnabled() is True
+    assert dock.lbl_muni.isEnabled() is True
+    assert dock.lbl_ed_muni.isEnabled() is True
+
+    # Widgets do modo RM desabilitados
+    assert dock.cmb_rm.isEnabled() is False
+    assert dock.lst_rm_munis.isEnabled() is False
+    assert dock.lbl_rm.isEnabled() is False
+    assert dock.lbl_rm_munis_count.isEnabled() is False
+
+
+def test_troca_modo_habilita_deshabilita_widgets_e_limpa_estado(dock):
+    from gisbr.gui.diagnostico_dock import ModoRecorte
+
+    # Alterna para modo RM
+    dock.rad_rm.setChecked(True)
+
+    assert dock.modo_recorte == ModoRecorte.RM
+    assert dock.rad_rm.isChecked() is True
+    assert dock.rad_muni.isChecked() is False
+
+    # Widgets do modo municipio desabilitados
+    assert dock.cmb_muni.isEnabled() is False
+    assert dock.ed_muni.isEnabled() is False
+    assert dock.lbl_muni.isEnabled() is False
+    assert dock.lbl_ed_muni.isEnabled() is False
+
+    # Widgets do modo RM habilitados
+    assert dock.cmb_rm.isEnabled() is True
+    assert dock.lst_rm_munis.isEnabled() is True
+    assert dock.lbl_rm.isEnabled() is True
+    assert dock.lbl_rm_munis_count.isEnabled() is True
+
+    # Alterna de volta para modo municipio
+    dock.rad_muni.setChecked(True)
+    assert dock.modo_recorte == ModoRecorte.MUNICIPIO
+    assert dock.cmb_muni.isEnabled() is True
+    assert dock.cmb_rm.isEnabled() is False
+
+
+def test_modo_rm_selecao_uf_mg_e_rm_bh(dock, monkeypatch):
+    # Garantir que _listar_municipios NAO e chamado em modo RM
+    listar_muni_chamado = False
+    def _fake_listar_muni(uf):
+        nonlocal listar_muni_chamado
+        listar_muni_chamado = True
+        return {}
+
+    monkeypatch.setattr(dock, "_listar_municipios", _fake_listar_muni)
+
+    # Marca modo RM
+    dock.rad_rm.setChecked(True)
+
+    # Escolhe UF MG
+    idx_mg = dock.cmb_uf.findData("MG")
+    assert idx_mg != -1
+    dock.cmb_uf.setCurrentIndex(idx_mg)
+
+    # _listar_municipios nao deve ter sido chamado (sem download de malha)
+    assert listar_muni_chamado is False
+
+    # cmb_rm deve conter 4 RMs
+    assert dock.cmb_rm.count() == 4
+
+    # Escolher RM de BH (id "03101" ou texto contendo "Belo Horizonte")
+    idx_bh = -1
+    for i in range(dock.cmb_rm.count()):
+        text = dock.cmb_rm.itemText(i)
+        if "Belo Horizonte" in text and "Colar" not in text:
+            idx_bh = i
+            break
+
+    assert idx_bh != -1
+    dock.cmb_rm.setCurrentIndex(idx_bh)
+
+    # Lista de municipios membros deve conter 34 itens
+    assert dock.lst_rm_munis.count() == 34
+    assert "34" in dock.lbl_rm_munis_count.text()
+
+
+def test_modo_rm_desabilita_e_desmarca_fontes_osm_e_loga_motivo(dock):
+    vias_item = _find_tree_item_by_user_data(dock.tree, "osm_vias")
+    pois_item = _find_tree_item_by_user_data(dock.tree, "osm_pois")
+    assert vias_item is not None
+    assert pois_item is not None
+    vias_item.setCheckState(0, Qt.CheckState.Checked)
+    pois_item.setCheckState(0, Qt.CheckState.Checked)
+
+    # Entra no modo RM
+    dock.rad_rm.setChecked(True)
+
+    # Verifica se foram desmarcados e desabilitados
+    assert vias_item.checkState(0) == Qt.CheckState.Unchecked
+    assert pois_item.checkState(0) == Qt.CheckState.Unchecked
+    assert bool(vias_item.flags() & Qt.ItemFlag.ItemIsEnabled) is False
+    assert bool(pois_item.flags() & Qt.ItemFlag.ItemIsEnabled) is False
+
+    # Verifica se a razão foi logada no log
+    log_text = dock.txt_log.toPlainText()
+    assert "disabled" in log_text or "municipality" in log_text
+
+    # Volta para modo município
+    dock.rad_muni.setChecked(True)
+    assert bool(vias_item.flags() & Qt.ItemFlag.ItemIsEnabled) is True
+    assert bool(pois_item.flags() & Qt.ItemFlag.ItemIsEnabled) is True
+
+
+def test_modo_rm_on_carregar_sem_rm_escolhida_valida_mensagem(dock, monkeypatch):
+    carregar_chamado = False
+    def _fake_carregar_fontes(*args, **kwargs):
+        nonlocal carregar_chamado
+        carregar_chamado = True
+        return {"ok": [], "falhou": [], "pulou": []}
+
+    monkeypatch.setattr(diagnostico_dock.diagnostico, "carregar_fontes", _fake_carregar_fontes)
+
+    dock.rad_rm.setChecked(True)
+    dock.ed_gpkg.setText("/tmp/test.gpkg")
+
+    item = _find_tree_item_by_user_data(dock.tree, "geobr_setores")
+    item.setCheckState(0, Qt.CheckState.Checked)
+
+    # Não seleciona NENHUMA RM
+    dock._on_carregar()
+
+    assert carregar_chamado is False
+    assert "Select a metropolitan region" in dock.txt_log.toPlainText()
+
+
+def test_modo_rm_on_carregar_chama_carregar_fontes_com_recorte_rm_e_sem_task_osm(dock, monkeypatch):
+    captured_kwargs = {}
+    def _fake_carregar_fontes(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        captured_kwargs["source_ids"] = args[0]
+        return {"ok": ["geobr_setores"], "falhou": [], "pulou": []}
+
+    osm_iniciado = False
+    def _fake_iniciar_osm_vias(*args, **kwargs):
+        nonlocal osm_iniciado
+        osm_iniciado = True
+
+    monkeypatch.setattr(diagnostico_dock.diagnostico, "carregar_fontes", _fake_carregar_fontes)
+    monkeypatch.setattr(dock, "_iniciar_osm_vias", _fake_iniciar_osm_vias)
+
+    dock.rad_rm.setChecked(True)
+    idx_mg = dock.cmb_uf.findData("MG")
+    dock.cmb_uf.setCurrentIndex(idx_mg)
+
+    idx_bh = -1
+    for i in range(dock.cmb_rm.count()):
+        if dock.cmb_rm.itemData(i) == "04501":
+            idx_bh = i
+            break
+    assert idx_bh != -1
+    dock.cmb_rm.setCurrentIndex(idx_bh)
+
+    dock.ed_gpkg.setText("/tmp/rm_test.gpkg")
+
+    item = _find_tree_item_by_user_data(dock.tree, "geobr_setores")
+    item.setCheckState(0, Qt.CheckState.Checked)
+
+    dock._on_carregar()
+
+    assert osm_iniciado is False
+    assert "recorte" in captured_kwargs
+    recorte = captured_kwargs["recorte"]
+    assert recorte.tipo == "rm"
+    assert recorte.id == "04501"
+    assert len(recorte.codes) == 34
+    assert recorte.rotulo == "RM de Belo Horizonte"
+
+    log_text = dock.txt_log.toPlainText()
+    assert "Metropolitan region: RM de Belo Horizonte — 34 municipalities" in log_text
+
+
+def test_modo_municipio_on_carregar_continua_chamando_como_antes(dock, monkeypatch):
+    captured_kwargs = {}
+    def _fake_carregar_fontes(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        captured_kwargs["args"] = args
+        return {"ok": ["geobr_setores"], "falhou": [], "pulou": []}
+
+    osm_calls = []
+    def _fake_iniciar_osm_vias(code, nome, gpkg, force):
+        osm_calls.append((code, nome, gpkg, force))
+
+    monkeypatch.setattr(diagnostico_dock.diagnostico, "carregar_fontes", _fake_carregar_fontes)
+    monkeypatch.setattr(dock, "_iniciar_osm_vias", _fake_iniciar_osm_vias)
+    monkeypatch.setattr(dock, "_info_municipio", lambda code: ("Belo Horizonte", (-44, -20, -43, -19)))
+
+    dock.rad_muni.setChecked(True)
+    dock.ed_muni.setText("3106200")
+    dock.ed_gpkg.setText("/tmp/muni_test.gpkg")
+
+    item = _find_tree_item_by_user_data(dock.tree, "geobr_setores")
+    item.setCheckState(0, Qt.CheckState.Checked)
+    vias_item = _find_tree_item_by_user_data(dock.tree, "osm_vias")
+    vias_item.setCheckState(0, Qt.CheckState.Checked)
+
+    dock._on_carregar()
+
+    assert "recorte" in captured_kwargs
+    recorte = captured_kwargs["recorte"]
+    assert recorte.tipo == "municipio"
+    assert recorte.id == "3106200"
+
+    assert len(osm_calls) == 1
+    assert osm_calls[0][0] == "3106200"
+    assert "Municipality: Belo Horizonte (3106200)" in dock.txt_log.toPlainText()
+
+
+

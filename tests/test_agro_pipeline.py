@@ -222,3 +222,83 @@ def test_tabela_como_qgsvectorlayer(monkeypatch, qgis_app):
     field_names = [f.name() for f in layer.fields()]
     assert "cafe" in field_names
     assert "laranja" not in field_names
+
+
+def test_tabela_para_camada_modo_rm_n_feicoes(monkeypatch, qgis_app):
+    """Valida modo RM: N municípios -> N feições, 1 feição por município com valores corretos."""
+    monkeypatch.setattr(
+        agro_pipeline,
+        "_municipio_poligono",
+        lambda code, name=None: _dummy_muni_layer(),
+    )
+
+    tabela = [
+        # (var_id, var_nome, unidade, produto, periodo, valor, code_muni)
+        ("109", "Área plantada", "Hectares", "Soja (em grão)", "2023", 100.0, "3106200"),
+        ("109", "Área plantada", "Hectares", "Soja (em grão)", "2023", 250.0, "3170404"),
+    ]
+
+    layer, relatorio = tabela_para_camada(
+        tabela=tabela,
+        code_muni=["3106200", "3170404"],
+        layer_name="pam_rm",
+    )
+
+    assert layer.isValid()
+    assert layer.featureCount() == 2
+
+    feats = list(layer.getFeatures())
+    feats_map = {f["code_muni"]: f for f in feats}
+
+    assert "3106200" in feats_map
+    assert "3170404" in feats_map
+
+    assert feats_map["3106200"]["soja_em_grao"] == 100.0
+    assert feats_map["3170404"]["soja_em_grao"] == 250.0
+
+
+def test_tabela_para_camada_municipio_sem_dado_presente_com_null(monkeypatch, qgis_app):
+    """Valida que município sem dados/com códigos especiais ('-', 'X') permanece na camada com NULL (JAMAIS 0)."""
+    monkeypatch.setattr(
+        agro_pipeline,
+        "_municipio_poligono",
+        lambda code, name=None: _dummy_muni_layer(),
+    )
+
+    # 3106200 tem dados; 3170404 tem código especial '-' (None); 3170405 não tem registro algum na tabela
+    tabela = [
+        ("109", "Área plantada", "Hectares", "Soja (em grão)", "2023", 150.0, "3106200"),
+        ("109", "Área plantada", "Hectares", "Soja (em grão)", "2023", "-", "3170404"),
+    ]
+
+    layer, relatorio = tabela_para_camada(
+        tabela=tabela,
+        code_muni=["3106200", "3170404", "3170405"],
+        layer_name="pam_null_test",
+    )
+
+    assert layer.isValid()
+    # Os 3 municípios solicitados devem estar presentes como feições na camada
+    assert layer.featureCount() == 3
+
+    feats = list(layer.getFeatures())
+    feats_map = {f["code_muni"]: f for f in feats}
+
+    assert "3106200" in feats_map
+    assert "3170404" in feats_map
+    assert "3170405" in feats_map
+
+    # 3106200 tem valor numérico 150.0
+    assert feats_map["3106200"]["soja_em_grao"] == 150.0
+
+    # 3170404 tem '-' -> deve ser None (NULL), JAMAIS 0
+    from qgis.core import NULL
+    val_3170404 = feats_map["3170404"]["soja_em_grao"]
+    assert val_3170404 is None or val_3170404 == NULL
+    assert val_3170404 != 0
+
+    # 3170405 não tinha dados na tabela -> deve estar na camada com coluna nula (NULL), JAMAIS 0
+    val_3170405 = feats_map["3170405"]["soja_em_grao"]
+    assert val_3170405 is None or val_3170405 == NULL
+    assert val_3170405 != 0
+

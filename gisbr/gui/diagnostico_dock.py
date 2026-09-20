@@ -5,17 +5,25 @@ Permite ao usuario escolher o municipio, selecionar as fontes de dados ativas,
 definir o caminho de destino do GeoPackage e carregar os dados.
 """
 import os
+from enum import Enum
 
 from qgis.gui import QgsDockWidget
 from qgis.PyQt.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QTreeWidget, QTreeWidgetItem, QCheckBox, QPushButton, QFileDialog,
     QLabel, QPlainTextEdit, QComboBox, QCompleter, QGroupBox, QListWidget,
-    QListWidgetItem, QTabWidget, QProgressBar, QApplication)
+    QListWidgetItem, QTabWidget, QProgressBar, QApplication,
+    QRadioButton, QButtonGroup)
 from qgis.PyQt.QtCore import Qt, QCoreApplication, QSettings
 from qgis.core import QgsApplication, QgsProject, QgsProcessingFeedback, QgsVectorLayer
 from ..core.sources import SOURCES
-from ..core import diagnostico, catalog_censo, censo_join, osm_pipeline
+from ..core import diagnostico, catalog_censo, censo_join, osm_pipeline, regioes_metropolitanas
+from ..core.recorte import Recorte
 from ..core.osm_task import OsmNetworkTask
+
+
+class ModoRecorte(Enum):
+    MUNICIPIO = "municipio"
+    RM = "rm"
 
 
 class _LogFeedback(QgsProcessingFeedback):
@@ -134,8 +142,24 @@ class DiagnosticoDock(QgsDockWidget):
         widget = QWidget()
         layout = QVBoxLayout(widget)
 
+        # 1.0) Modo de recorte (Municipio x RM)
+        mode_layout = QHBoxLayout()
+        self.grp_modo = QButtonGroup(widget)
+        self.rad_muni = QRadioButton(self.tr("Municipality"))
+        self.rad_rm = QRadioButton(self.tr("Metropolitan region"))
+        self.grp_modo.addButton(self.rad_muni)
+        self.grp_modo.addButton(self.rad_rm)
+        mode_layout.addWidget(self.rad_muni)
+        mode_layout.addWidget(self.rad_rm)
+        mode_layout.addStretch()
+        layout.addLayout(mode_layout)
+
+        self.rad_muni.toggled.connect(self._on_modo_changed)
+        self.rad_rm.toggled.connect(self._on_modo_changed)
+
         # 1.1) Estado (UF)
-        layout.addWidget(QLabel(self.tr("State:")))
+        self.lbl_uf = QLabel(self.tr("State:"))
+        layout.addWidget(self.lbl_uf)
         self.cmb_uf = QComboBox()
         self.cmb_uf.addItem(self.tr("— select —"), "")
         for sig, nom in _UFS:
@@ -144,7 +168,8 @@ class DiagnosticoDock(QgsDockWidget):
         layout.addWidget(self.cmb_uf)
 
         # 1.2) Municipio
-        layout.addWidget(QLabel(self.tr("Municipality:")))
+        self.lbl_muni = QLabel(self.tr("Municipality:"))
+        layout.addWidget(self.lbl_muni)
         self.cmb_muni = QComboBox()
         self.cmb_muni.currentIndexChanged.connect(self._on_muni_changed)
         self.cmb_muni.setEditable(True)
@@ -156,13 +181,97 @@ class DiagnosticoDock(QgsDockWidget):
         layout.addWidget(self.cmb_muni)
 
         # 1.3) Codigo do Municipio (IBGE 7 digitos)
-        layout.addWidget(QLabel(self.tr("IBGE code (optional / filled by selection):")))
+        self.lbl_ed_muni = QLabel(self.tr("IBGE code (optional / filled by selection):"))
+        layout.addWidget(self.lbl_ed_muni)
         self.ed_muni = QLineEdit()
         self.ed_muni.setPlaceholderText(self.tr("Ex: 3106200"))
         layout.addWidget(self.ed_muni)
 
+        # 1.4) Regiao Metropolitana (modo RM)
+        self.lbl_rm = QLabel(self.tr("Metropolitan region:"))
+        layout.addWidget(self.lbl_rm)
+        self.cmb_rm = QComboBox()
+        self.cmb_rm.currentIndexChanged.connect(self._on_rm_changed)
+        layout.addWidget(self.cmb_rm)
+
+        self.lbl_rm_munis_count = QLabel(self.tr("0 municipalities"))
+        self.lbl_rm_count = self.lbl_rm_munis_count
+        layout.addWidget(self.lbl_rm_munis_count)
+
+        self.lst_rm_munis = QListWidget()
+        self.lst_rm_munis.setSelectionMode(QListWidget.SelectionMode.NoSelection)
+        layout.addWidget(self.lst_rm_munis)
+
+        self.rad_muni.setChecked(True)
+        self._update_modo_ui()
+
         layout.addStretch()
         return widget
+
+    @property
+    def modo_recorte(self) -> ModoRecorte:
+        if self.rad_rm.isChecked():
+            return ModoRecorte.RM
+        return ModoRecorte.MUNICIPIO
+
+    def _update_modo_ui(self):
+        modo = self.modo_recorte
+        is_muni = (modo == ModoRecorte.MUNICIPIO)
+
+        self.lbl_muni.setEnabled(is_muni)
+        self.cmb_muni.setEnabled(is_muni)
+        self.lbl_ed_muni.setEnabled(is_muni)
+        self.ed_muni.setEnabled(is_muni)
+
+        self.lbl_rm.setEnabled(not is_muni)
+        self.cmb_rm.setEnabled(not is_muni)
+        self.lbl_rm_munis_count.setEnabled(not is_muni)
+        self.lst_rm_munis.setEnabled(not is_muni)
+
+    def _on_modo_changed(self):
+        sender = self.sender()
+        if sender and hasattr(sender, "isChecked") and not sender.isChecked():
+            return
+
+        self._update_modo_ui()
+
+        modo = self.modo_recorte
+        if modo == ModoRecorte.MUNICIPIO:
+            self.cmb_rm.blockSignals(True)
+            self.cmb_rm.clear()
+            self.cmb_rm.blockSignals(False)
+            self.lst_rm_munis.clear()
+            self.lbl_rm_munis_count.setText(self.tr("0 municipalities"))
+            self._atualizar_fontes_osm(habilitar=True)
+        else:
+            self.cmb_muni.blockSignals(True)
+            self.cmb_muni.clear()
+            self.cmb_muni.blockSignals(False)
+            self.ed_muni.clear()
+            self._munis = {}
+            self._atualizar_fontes_osm(habilitar=False)
+
+        self._on_uf_changed()
+
+    def _on_rm_changed(self):
+        id_rm = self.cmb_rm.currentData()
+        self.lst_rm_munis.clear()
+        if not id_rm:
+            self.lbl_rm_munis_count.setText(self.tr("0 municipalities"))
+            return
+
+        rm = regioes_metropolitanas.por_id(id_rm)
+        if not rm:
+            self.lbl_rm_munis_count.setText(self.tr("0 municipalities"))
+            return
+
+        munis = rm.get("municipios", [])
+        for code, nome in sorted(munis, key=lambda m: m[1]):
+            self.lst_rm_munis.addItem("{} ({})".format(nome, code))
+
+        self.lbl_rm_munis_count.setText(
+            self.tr("{count} municipalities").format(count=len(munis))
+        )
 
     def _build_tab_fontes(self):
         widget = QWidget()
@@ -321,6 +430,29 @@ class DiagnosticoDock(QgsDockWidget):
                         ids.append(source_id)
         return ids
 
+    def _find_tree_item(self, target_id):
+        for i in range(self.tree.topLevelItemCount()):
+            parent_item = self.tree.topLevelItem(i)
+            for j in range(parent_item.childCount()):
+                child = parent_item.child(j)
+                if child.data(0, Qt.ItemDataRole.UserRole) == target_id:
+                    return child
+        return None
+
+    def _atualizar_fontes_osm(self, habilitar: bool):
+        if not hasattr(self, "tree"):
+            return
+        for sid in ("osm_vias", "osm_pois"):
+            item = self._find_tree_item(sid)
+            if item:
+                if not habilitar:
+                    item.setCheckState(0, Qt.CheckState.Unchecked)
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
+                else:
+                    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEnabled)
+        if not habilitar:
+            self._log(self.tr("OSM road network and POIs are available for single municipality mode only (disabled in RM mode)."))
+
     def _log(self, msg, focar=False):
         self.txt_log.appendPlainText(msg)
         if focar:
@@ -396,23 +528,44 @@ class DiagnosticoDock(QgsDockWidget):
 
     def _on_uf_changed(self):
         uf = self.cmb_uf.currentData()
+        modo = self.modo_recorte
+
         self.cmb_muni.blockSignals(True)
         self.cmb_muni.clear()
-        if not uf:
-            self.cmb_muni.blockSignals(False)
-            return
-        self._log(self.tr("Loading municipalities of {uf}...").format(uf=uf))
-        try:
-            self._munis = self._listar_municipios(uf)
-        except Exception as exc:
-            self._log(self.tr("Failed to list municipalities: {error}").format(error=exc), focar=True)
-            self.cmb_muni.blockSignals(False)
-            return
-        for code in sorted(self._munis, key=lambda c: self._munis[c][0]):
-            self.cmb_muni.addItem(self._munis[code][0], code)
-        self.cmb_muni.setCurrentIndex(-1)
         self.cmb_muni.blockSignals(False)
-        self._log(self.tr("{count} municipalities loaded.").format(count=len(self._munis)))
+        self.ed_muni.clear()
+        self._munis = {}
+
+        self.cmb_rm.blockSignals(True)
+        self.cmb_rm.clear()
+        self.cmb_rm.blockSignals(False)
+        self.lst_rm_munis.clear()
+        self.lbl_rm_munis_count.setText(self.tr("0 municipalities"))
+
+        if not uf:
+            return
+
+        if modo == ModoRecorte.MUNICIPIO:
+            self._log(self.tr("Loading municipalities of {uf}...").format(uf=uf))
+            try:
+                self._munis = self._listar_municipios(uf)
+            except Exception as exc:
+                self._log(self.tr("Failed to list municipalities: {error}").format(error=exc), focar=True)
+                return
+            self.cmb_muni.blockSignals(True)
+            for code in sorted(self._munis, key=lambda c: self._munis[c][0]):
+                self.cmb_muni.addItem(self._munis[code][0], code)
+            self.cmb_muni.setCurrentIndex(-1)
+            self.cmb_muni.blockSignals(False)
+            self._log(self.tr("{count} municipalities loaded.").format(count=len(self._munis)))
+
+        elif modo == ModoRecorte.RM:
+            rms = regioes_metropolitanas.listar_por_uf(uf)
+            self.cmb_rm.blockSignals(True)
+            for rm in rms:
+                self.cmb_rm.addItem(rm["nome"], rm["id"])
+            self.cmb_rm.setCurrentIndex(-1)
+            self.cmb_rm.blockSignals(False)
 
     def _on_muni_changed(self):
         code = self.cmb_muni.currentData()
@@ -538,12 +691,43 @@ class DiagnosticoDock(QgsDockWidget):
 
     def _on_carregar(self):
         self.txt_log.clear()
-        code = self.ed_muni.text().strip()
+        modo = self.modo_recorte
         gpkg = self.ed_gpkg.text().strip()
         ids = self._selected_source_ids()
-        if not code or not gpkg or not ids:
-            self._log(self.tr("Specify municipality, GeoPackage and at least 1 source."), focar=True)
-            return
+
+        if modo == ModoRecorte.MUNICIPIO:
+            code = self.ed_muni.text().strip()
+            if not code or not gpkg or not ids:
+                self._log(self.tr("Specify municipality, GeoPackage and at least 1 source."), focar=True)
+                return
+            try:
+                if getattr(self, "_munis", None) and code in self._munis:
+                    nome, bbox = self._munis[code]
+                else:
+                    nome, bbox = self._info_municipio(code)
+            except Exception as exc:
+                self._log(self.tr("Failed to resolve municipality: {error}").format(error=exc), focar=True)
+                return
+            recorte = Recorte.de_municipio(code, nome, bbox)
+            self._log(self.tr("Municipality: {name} ({code})").format(name=nome, code=code), focar=True)
+        else:
+            id_rm = self.cmb_rm.currentData()
+            rm = regioes_metropolitanas.por_id(id_rm) if id_rm else None
+            if not id_rm or not rm:
+                self._log(self.tr("Select a metropolitan region."), focar=True)
+                return
+            if not gpkg or not ids:
+                self._log(self.tr("Specify GeoPackage and at least 1 source."), focar=True)
+                return
+            codes_rm = regioes_metropolitanas.codes(id_rm)
+            nomes_rm = [nome for _code, nome in rm.get("municipios", [])]
+            recorte = Recorte.de_rm(id_rm, rm["nome"], codes_rm, nomes=nomes_rm)
+            code = recorte.sufixo
+            nome = recorte.rotulo
+            bbox = None
+            self._log(self.tr("Metropolitan region: {rotulo} — {count} municipalities").format(
+                rotulo=recorte.rotulo, count=len(recorte.codes)), focar=True)
+
         # Mesma normalização que `diagnostico.carregar_fontes` faz por
         # dentro — precisa acontecer aqui também porque `osm_vias` não passa
         # mais por `carregar_fontes`, e as duas trilhas têm de gravar no
@@ -551,9 +735,9 @@ class DiagnosticoDock(QgsDockWidget):
         if not gpkg.lower().endswith(".gpkg"):
             gpkg = gpkg + ".gpkg"
         # `osm_vias` roda como `OsmNetworkTask` (QgsTask, em segundo plano,
-        # sem travar a UI) — as demais fontes continuam por
+        # sem travar a UI) em modo município — as demais fontes continuam por
         # `diagnostico.carregar_fontes` como sempre (síncronas).
-        osm_vias_selecionada = "osm_vias" in ids
+        osm_vias_selecionada = (modo == ModoRecorte.MUNICIPIO) and ("osm_vias" in ids)
         ids_sincronas = [sid for sid in ids if sid != "osm_vias"]
         censo_ano = None
         censo_datasets = ()
@@ -567,15 +751,6 @@ class DiagnosticoDock(QgsDockWidget):
         mapbiomas_ano = None
         if "mapbiomas_cobertura" in ids:
             mapbiomas_ano = self.cmb_mapbiomas_ano.currentData()
-        try:
-            if getattr(self, "_munis", None) and code in self._munis:
-                nome, bbox = self._munis[code]
-            else:
-                nome, bbox = self._info_municipio(code)
-        except Exception as exc:
-            self._log(self.tr("Failed to resolve municipality: {error}").format(error=exc), focar=True)
-            return
-        self._log(self.tr("Municipality: {name} ({code})").format(name=nome, code=code), focar=True)
 
         feedback = _LogFeedback(self.txt_log, progress_bar=self.progress_bar)
         self._feedback_atual = feedback
@@ -592,6 +767,7 @@ class DiagnosticoDock(QgsDockWidget):
                     add_basemap=self.chk_satelite.isChecked(),
                     force=self.chk_atualizar.isChecked(),
                     feedback=feedback,
+                    recorte=recorte,
                     censo_ano=censo_ano, censo_datasets=censo_datasets,
                     mapbiomas_ano=mapbiomas_ano)
             else:

@@ -123,6 +123,7 @@ def test_parse_fixture_real(ibge_v3_real_bytes):
         "Soja (em grao)",
         "2023",
         185000,
+        "3170404",
     )
     assert rows[1] == (
         "214",
@@ -131,6 +132,7 @@ def test_parse_fixture_real(ibge_v3_real_bytes):
         "Soja (em grao)",
         "2023",
         699300,
+        "3170404",
     )
     assert rows[2] == (
         "215",
@@ -139,6 +141,7 @@ def test_parse_fixture_real(ibge_v3_real_bytes):
         "Soja (em grao)",
         "2023",
         1847725,
+        "3170404",
     )
 
 

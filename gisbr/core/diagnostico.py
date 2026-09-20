@@ -42,15 +42,48 @@ def _por_id(ids):
     return [s for s in SOURCES if s["id"] in ids]
 
 
-def _filtro_para(s, code_muni, nome_muni):
+def _filtro_para(s, code_muni, nome_muni=None):
     f = s.get("filtro") or {"tipo": "bbox"}
     t = f.get("tipo")
+    if t not in ("cql_codigo", "cql_nome"):
+        return None, True
+
+    codes = []
+    nomes = []
+
+    if hasattr(code_muni, "codes"):
+        codes = [str(c) for c in code_muni.codes]
+        if getattr(code_muni, "nomes", None):
+            nomes = list(code_muni.nomes)
+    elif isinstance(code_muni, (list, tuple)):
+        codes = [str(c) for c in code_muni]
+    elif code_muni is not None:
+        codes = [str(code_muni)]
+
+    if nome_muni is not None:
+        if isinstance(nome_muni, (list, tuple)):
+            nomes = list(nome_muni)
+        else:
+            nomes = [str(nome_muni)]
+
     if t == "cql_codigo":
-        return "{} = {}".format(f["campo"], int(code_muni)), False
+        if not codes:
+            return None, True
+        if len(codes) == 1:
+            return "{} = {}".format(f["campo"], int(codes[0])), False
+        return "{} IN ({})".format(f["campo"], ",".join(str(int(c)) for c in codes)), False
+
     if t == "cql_nome":
-        nome = (nome_muni or "").replace("'", "''")
-        return "{} = '{}'".format(f["campo"], nome), False
+        if not nomes:
+            return None, True
+        if len(nomes) == 1:
+            nome = (nomes[0] or "").replace("'", "''")
+            return "{} = '{}'".format(f["campo"], nome), False
+        nomes_fmt = ["'{}'".format((n or "").replace("'", "''")) for n in nomes]
+        return "{} IN ({})".format(f["campo"], ",".join(nomes_fmt)), False
+
     return None, True
+
 
 
 def _usou_bbox(s, usa_bbox):
@@ -124,18 +157,31 @@ def _recorta_poligono(layer, poligono, layer_name):
         return _invalida(layer_name, "recorte por poligono: {}".format(exc))
 
 
-def _carrega_geobr(s, code_muni, layer_name, ano=None):
+def _carrega_geobr(s, code_muni, layer_name, ano=None, feedback=None):
     """recorte 'code' filtra por code_muni; 'bbox' baixa nacional (sera recortado
     pelo poligono no carregar_fontes)."""
-    import processing
     if s.get("requer_parquet"):
         from . import capabilities
         if capabilities.parquet_backend() is None:
             return _invalida(layer_name, "requer driver Parquet ou pyarrow (fonte v2)")
+    import processing
+    from .recorte import Recorte, camada_do_recorte
     algo = s["algo"]
-    code_param = str(code_muni) if s.get("recorte", "code") == "code" else "all"
+    recorte_obj = None
+    codes = []
+    if isinstance(code_muni, Recorte):
+        recorte_obj = code_muni
+        codes = recorte_obj.codes
+    elif hasattr(code_muni, "codes"):
+        recorte_obj = code_muni
+        codes = recorte_obj.codes
+    elif isinstance(code_muni, (list, tuple)):
+        codes = [str(c) for c in code_muni]
+    elif code_muni is not None:
+        codes = [str(code_muni)]
+
     params = {
-        "CODE": code_param, "SIMPLIFIED": True, "OUTPUT": "TEMPORARY_OUTPUT",
+        "SIMPLIFIED": True, "OUTPUT": "TEMPORARY_OUTPUT",
     }
     ano_invalido_msg = None
     if ano is not None:
@@ -145,6 +191,20 @@ def _carrega_geobr(s, code_muni, layer_name, ano=None):
             params["YEAR"] = idx
         except Exception as exc:
             ano_invalido_msg = "ano {} indisponivel para setores censitarios ({})".format(ano, exc)
+
+    if s.get("recorte", "code") == "code" and len(codes) > 1:
+        if recorte_obj is None:
+            recorte_obj = Recorte.de_rm("temp", "RM", codes)
+        res_layer = camada_do_recorte(recorte_obj, feedback=feedback, algo=algo, extra_params=params)
+        if res_layer is None or (hasattr(res_layer, "isValid") and not res_layer.isValid()):
+            return _invalida(layer_name, "geobr {}: falha no recorte RM".format(algo))
+        res_layer = _resolve_out(res_layer, layer_name)
+        if res_layer is not None and ano_invalido_msg:
+            res_layer.ano_invalido_msg = ano_invalido_msg
+        return res_layer
+
+    code_param = codes[0] if (s.get("recorte", "code") == "code" and codes) else "all"
+    params["CODE"] = code_param
     try:
         out = processing.run("gisbr:{}".format(algo), params)["OUTPUT"]
     except Exception as exc:
@@ -196,7 +256,8 @@ def _msg_fonte_indisponivel(s):
 
 
 def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path,
-                  feedback=None, caminho_manual=None, censo_ano=None, nome_muni=None):
+                  feedback=None, caminho_manual=None, censo_ano=None, nome_muni=None,
+                  recorte=None):
     proto = s.get("protocolo")
     srs = s.get("srs", "EPSG:4674")
     if proto == "wfs":
@@ -211,7 +272,7 @@ def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path,
                                        feedback=feedback)
     if proto == "geobr":
         ano = censo_ano if s.get("id") == "geobr_setores" else None
-        return _carrega_geobr(s, code_muni, layer_name, ano=ano)
+        return _carrega_geobr(s, recorte or code_muni, layer_name, ano=ano, feedback=feedback)
     if proto == "arquivo":
         return local_file.fetch_layer(caminho_manual, layer_name, srs=srs,
                                       feedback=feedback)
@@ -225,15 +286,25 @@ def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path,
         variaveis = s.get("variaveis", "all")
         classificacao = s.get("classificacao")
         periodo = s.get("periodo_default", "-1")
+        # modo RM: lista de códigos -> localidades=N6[a,b,c] (D9); modo
+        # município: a lista de 1 elemento produz a MESMA URL de antes
+        if recorte is not None:
+            codes_param = list(recorte.codes)
+            nomes_param = list(recorte.nomes) if recorte.nomes else None
+            if nomes_param is None and isinstance(nome_muni, str):
+                nomes_param = nome_muni
+        else:
+            codes_param = code_muni
+            nomes_param = nome_muni
         tbl = ibge_agregados.fetch_layer(
-            agregado, code_muni, layer_name,
+            agregado, codes_param, layer_name,
             variaveis=variaveis, periodo=periodo,
             classificacao=classificacao, feedback=feedback
         )
         if tbl is None or not tbl.isValid():
             return tbl
         poly_layer, rel = agro_pipeline.tabela_para_camada(
-            tbl, code_muni, nome_muni=nome_muni,
+            tbl, codes_param, nome_muni=nomes_param,
             layer_name=layer_name, feedback=feedback
         )
         if poly_layer is not None:
@@ -248,7 +319,11 @@ def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path,
 
 def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
                     add_basemap=False, force=False, feedback=None,
-                    *, censo_ano=None, censo_datasets=(), mapbiomas_ano=None):
+                    *, recorte=None, censo_ano=None, censo_datasets=(), mapbiomas_ano=None):
+    if recorte is None:
+        from .recorte import Recorte
+        recorte = Recorte.de_municipio(code_muni, nome_muni, bbox)
+
     def log(m):
         if feedback is not None:
             feedback.pushInfo(m)
@@ -256,11 +331,46 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
     if gpkg_path and not gpkg_path.lower().endswith(".gpkg"):
         gpkg_path = gpkg_path + ".gpkg"
 
-    uf = _UF_POR_CODIGO.get(str(code_muni)[:2], "").lower()
+    uf = _UF_POR_CODIGO.get(str(recorte.codes[0])[:2], "").lower() if recorte.codes else ""
     res = {"ok": [], "falhou": [], "pulou": []}
     existentes = _layers_existentes(gpkg_path)
     poligono = None
     poligono_tentado = False
+
+    def _obter_poligono():
+        nonlocal poligono, poligono_tentado
+        if poligono_tentado:
+            return poligono
+        poligono_tentado = True
+
+        from . import recorte as recorte_mod
+
+        nome_limite = recorte.nome_camada_limite  # D7: rm_<id_rm>; None no modo município
+        if nome_limite and not force and nome_limite in existentes:
+            layer = QgsVectorLayer("{}|layername={}".format(gpkg_path, nome_limite), recorte.rotulo, "ogr")
+            if layer.isValid():
+                poligono = layer
+                return poligono
+
+        if recorte.tipo == "municipio":
+            poligono = _municipio_poligono(recorte.codes[0])
+            if poligono is not None:
+                return poligono
+
+        poligono = recorte_mod.camada_do_recorte(recorte, feedback=feedback)
+
+        if nome_limite and poligono is not None and poligono.isValid():
+            ok, msg = _grava_gpkg(poligono, gpkg_path, nome_limite)
+            if ok:
+                existentes.add(nome_limite)
+                gl = QgsVectorLayer("{}|layername={}".format(gpkg_path, nome_limite), recorte.rotulo, "ogr")
+                if gl.isValid():
+                    from qgis.core import QgsProject
+                    QgsProject.instance().addMapLayer(gl)
+                    log("OK: {}".format(nome_limite))
+            else:
+                log("Aviso: falha ao gravar limite da RM: {}".format(msg))
+        return poligono
 
 
     raster_sources = [s for s in _por_id(source_ids) if s.get("protocolo") == "raster_cog"]
@@ -271,18 +381,16 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
         else:
             ano = s.get("ano_default") or s.get("ano", "")
         gpkg_dir = os.path.dirname(gpkg_path) if gpkg_path else ""
-        tif_filename = "{}_{}_{}.tif".format(sid, ano, code_muni) if ano else "{}_{}.tif".format(sid, code_muni)
+        tif_filename = "{}_{}_{}.tif".format(sid, ano, recorte.sufixo) if ano else "{}_{}.tif".format(sid, recorte.sufixo)
         tif_path = os.path.join(gpkg_dir, tif_filename)
 
-        layer_name = "{}_{}".format(sid, code_muni)
+        layer_name = "{}_{}".format(sid, recorte.sufixo)
 
         if (not force) and os.path.exists(tif_path):
             res["pulou"].append((sid, "ja existe ({}) (marque 'Atualizar bases já baixadas' para rebaixar)".format(tif_filename)))
             continue
 
-        if not poligono_tentado:
-            poligono = _municipio_poligono(code_muni)
-            poligono_tentado = True
+        poligono = _obter_poligono()
         if poligono is None:
             res["falhou"].append((sid, "nao obtive o poligono do municipio p/ recorte"))
             continue
@@ -319,11 +427,19 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
     osm_sources = [s for s in _por_id(source_ids) if s.get("protocolo") == "osm"]
     for osm_source in osm_sources:
         sid = osm_source["id"]
+        if recorte.tipo == "rm":
+            msg = QCoreApplication.translate(
+                "GisBR",
+                "a rede viária e os POIs do OpenStreetMap rodam por município; escolha o recorte Município para carregá-los"
+            )
+            res["pulou"].append((sid, msg))
+            log("Aviso: {} — {}".format(sid, msg))
+            continue
         if sid == "osm_vias":
             if (not force) and osm_pipeline.osm_vias_ja_existe(existentes, code_muni):
                 res["pulou"].append((sid, "ja existe no GeoPackage (osm_links_{}/osm_nodes_{}) (marque 'Atualizar bases já baixadas' para rebaixar)".format(code_muni, code_muni)))
             else:
-                result = osm_pipeline.build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=force, feedback=feedback)
+                result = osm_pipeline.build_osm_municipal_network(recorte.sufixo, recorte.rotulo, gpkg_path, force=force, feedback=feedback)
                 meta = result.get("metadata", {})
                 if meta.get("cancelado"):
                     # o botao "Cancelar" do painel chama feedback.cancel();
@@ -362,7 +478,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             if (not force) and poi_layer_name in existentes and area_layer_name in existentes:
                 res["pulou"].append((sid, "ja existe no GeoPackage ({}/{}) (marque 'Atualizar bases já baixadas' para rebaixar)".format(poi_layer_name, area_layer_name)))
             else:
-                result = poi_pipeline.build_osm_municipal_pois(code_muni, nome_muni, gpkg_path, force=force, feedback=feedback)
+                result = poi_pipeline.build_osm_municipal_pois(recorte.sufixo, recorte.rotulo, gpkg_path, force=force, feedback=feedback)
                 meta = result.get("metadata", {})
                 if meta.get("sem_pois"):
                     # regra da casa: 0 feições entra em pulou com aviso, nao em falhou
@@ -399,7 +515,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             res["pulou"].append((s["id"], "conector {} ainda nao implementado".format(proto)))
             continue
 
-        layer_name = "{}_{}".format(s["id"], code_muni)
+        layer_name = "{}_{}".format(s["id"], recorte.sufixo)
         if (not force) and layer_name in existentes:
             res["pulou"].append((s["id"], "ja existe no GeoPackage ({}) (marque 'Atualizar bases já baixadas' para rebaixar)".format(layer_name)))
             continue
@@ -418,12 +534,27 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
                 res["pulou"].append((s["id"], _msg_arquivo_ausente(s, pasta)))
                 continue
 
-        cql, usa_bbox = _filtro_para(s, code_muni, nome_muni)
-        layer = _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni,
+        cql, usa_bbox = _filtro_para(s, recorte)
+        if cql and (s.get("filtro") or {}).get("tipo") == "cql_nome" and recorte.e_rm:
+            log("filtro por nome: {} nomes de municípios pedidos para {} (a base pode grafar diferente do IBGE)".format(len(recorte.nomes), s["id"]))
+
+        # em modo RM o bbox do pedido sai do retângulo envolvente do próprio
+        # recorte (mesmo papel do bbox do município; o clip pelo polígono da RM
+        # continua afunilando depois) — sem isto, fontes bbox pediram a base
+        # nacional inteira. Só para fonte que de fato pede bbox ao servidor.
+        bbox_req = bbox
+        if _usou_bbox(s, usa_bbox) and recorte.e_rm and not bbox_req:
+            _poly = _obter_poligono()
+            if _poly is not None:
+                _ext = _poly.extent()
+                bbox_req = (_ext.xMinimum(), _ext.yMinimum(), _ext.xMaximum(), _ext.yMaximum())
+
+        layer = _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox_req, recorte.sufixo,
                               gpkg_path, feedback=feedback,
                               caminho_manual=caminho_manual,
                               censo_ano=censo_ano,
-                              nome_muni=nome_muni)
+                              nome_muni=recorte.rotulo,
+                              recorte=recorte)
         if layer is None or not layer.isValid():
             msg = getattr(layer, "error_msg", "camada invalida") if layer else "protocolo desconhecido"
             res["falhou"].append((s["id"], msg))
@@ -449,9 +580,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
 
         # fontes filtradas por bbox -> recorta pelo POLIGONO do municipio
         if _usou_bbox(s, usa_bbox):
-            if not poligono_tentado:
-                poligono = _municipio_poligono(code_muni)
-                poligono_tentado = True
+            poligono = _obter_poligono()
             if poligono is None:
                 res["falhou"].append((s["id"], "nao obtive o poligono do municipio p/ recorte"))
                 continue
@@ -481,7 +610,8 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
                     log("Aviso: catalogo censobr indisponivel ({})".format(exc))
                 try:
                     joined_layer, rel = censo_join.anexar_censo(
-                        layer, censo_ano, censo_datasets, code_muni=code_muni,
+                        layer, censo_ano, censo_datasets,
+                        code_muni=(None if recorte.e_rm else recorte.sufixo),
                         feedback=feedback
                     )
                     for _info in rel.get("infos", []):

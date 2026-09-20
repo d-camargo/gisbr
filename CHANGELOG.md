@@ -2,6 +2,18 @@
 
 Generated from the `changelog` block of `gisbr/metadata.txt` by `tools/build_docs_site.py` — do not edit by hand.
 
+## 1.0.0
+
+- New extent selector: choose between single Municipality or
+Metropolitan Region (RM) mode in the diagnostic panel.
+- Embedded official IBGE metropolitan composition data (extracted on
+2026-09-20) covering the 84 state-instituted metropolitan regions
+in Brazil (RIDEs are not part of this catalog).
+- Added boundary layer rm_<id> containing individual municipality
+polygons for the selected metropolitan region.
+- Note: OSM network and POI sources remain scoped to the target municipality
+in RM mode to keep query performance fast and light.
+
 ## 0.12.0
 
 - The OSM road network verification and layers are now built for ONE

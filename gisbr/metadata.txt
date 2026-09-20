@@ -3,13 +3,13 @@
 [general]
 name=GISBR
 qgisMinimumVersion=3.16
-description=Load official Brazilian spatial data (IBGE/IPEA geobr + censobr), build an OSM road network with real topology and connectivity checks, and run a municipal Master Plan diagnostic with 54 data sources across 9 axes, using only the native QGIS API.
-version=0.12.0
+description=Load official Brazilian spatial data (IBGE/IPEA geobr + censobr), build an OSM road network with real topology and connectivity checks, and run a municipal or metropolitan Master Plan diagnostic with 54 data sources across 9 axes, using only the native QGIS API.
+version=1.0.0
 author=Diego Camargo
 email=dg.camargo@proton.me
 supportsQt6=True
 
-about=GISBR brings the "one line -> one layer" access of the geobr/censobr packages (IPEA) into QGIS as a Processing provider, using only the native QGIS/Qt API and the Python standard library (no geopandas/requests/pandas). Phase 1: legacy GeoPackage backend (geobr v1.7.0), fully native. Phase 2: Parquet backend (geobr v2.0.0) read via the GDAL Parquet driver or a pyarrow fallback, plus a join with census tables from censobr. On top of the geobr mirror, GISBR adds a municipal Master Plan diagnostic: a dock panel (state -> municipality) that loads 54 official data sources organized in 9 axes (transport, sanitation, demography, environment, education, health, urban, administrative, agriculture) from WFS, ArcGIS REST, Overpass, IBGE Agregados v3 and COG raster services, clipped to the municipality polygon and saved to a local GeoPackage, with an optional Esri World Imagery satellite basemap. The OSM road network is built from the real OpenStreetMap topology, splitting ways into arcs at shared node_ids; the connectivity check runs against one network per execution, vehicle by default, with the pedestrian network available on demand through the Processing algorithm. A connectivity check layer flags islands, dangling and near-connected dead ends, one-way traps and node-less crossings, each with a type and a severity. The road network is also available as a Processing algorithm (gisbr:osm_network) and loads in the background, without freezing QGIS. Data in SIRGAS 2000 / EPSG:4674. Licensed under GPL-3.0.
+about=GISBR brings the "one line -> one layer" access of the geobr/censobr packages (IPEA) into QGIS as a Processing provider, using only the native QGIS/Qt API and the Python standard library (no geopandas/requests/pandas). Phase 1: legacy GeoPackage backend (geobr v1.7.0), fully native. Phase 2: Parquet backend (geobr v2.0.0) read via the GDAL Parquet driver or a pyarrow fallback, plus a join with census tables from censobr. On top of the geobr mirror, GISBR adds a municipal or metropolitan Master Plan diagnostic: a dock panel (state -> municipality/RM) that loads 54 official data sources organized in 9 axes (transport, sanitation, demography, environment, education, health, urban, administrative, agriculture) from WFS, ArcGIS REST, Overpass, IBGE Agregados v3 and COG raster services, clipped to the municipality or metropolitan area polygon and saved to a local GeoPackage, with an optional Esri World Imagery satellite basemap. The OSM road network is built from the real OpenStreetMap topology, splitting ways into arcs at shared node_ids; the connectivity check runs against one network per execution, vehicle by default, with the pedestrian network available on demand through the Processing algorithm. A connectivity check layer flags islands, dangling and near-connected dead ends, one-way traps and node-less crossings, each with a type and a severity. The road network is also available as a Processing algorithm (gisbr:osm_network) and loads in the background, without freezing QGIS. Data in SIRGAS 2000 / EPSG:4674. Licensed under GPL-3.0.
 
 tracker=https://github.com/d-camargo/gisbr/issues
 repository=https://github.com/d-camargo/gisbr
@@ -18,6 +18,16 @@ homepage=https://github.com/d-camargo/gisbr
 hasProcessingProvider=yes
 
 changelog=
+    1.0.0
+    - New extent selector: choose between single Municipality or
+      Metropolitan Region (RM) mode in the diagnostic panel.
+    - Embedded official IBGE metropolitan composition data (extracted on
+      2026-09-20) covering the 84 state-instituted metropolitan regions
+      in Brazil (RIDEs are not part of this catalog).
+    - Added boundary layer rm_<id> containing individual municipality
+      polygons for the selected metropolitan region.
+    - Note: OSM network and POI sources remain scoped to the target municipality
+      in RM mode to keep query performance fast and light.
     0.12.0
     - The OSM road network verification and layers are now built for ONE
       network per run, vehicle by default, instead of running vehicle and

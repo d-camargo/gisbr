@@ -305,9 +305,13 @@ def _render_changelog_raiz(texto):
 # Interface
 # ---------------------------------------------------------------------------
 
-def gerar(raiz, destino):
+def gerar(raiz, destino, changelog_raiz=None):
     """Gera as páginas derivadas do site (em ``destino``) e o CHANGELOG.md
     da raiz do repositório (sempre em ``raiz``, independente de ``destino``).
+
+    ``changelog_raiz`` permite redirecionar o CHANGELOG.md da raiz (usado pelos
+    testes, que rodam com o repo montado read-only no container do gate; o
+    caminho padrão continua sendo ``<raiz>/CHANGELOG.md``).
 
     Retorna a lista do que foi escrito em ``destino`` (as páginas do site;
     o CHANGELOG.md da raiz não entra nessa lista — tem outro consumidor,
@@ -332,7 +336,8 @@ def gerar(raiz, destino):
         caminho.write_text(conteudo, encoding="utf-8")
         escritas.append(pagina)
 
-    (raiz / "CHANGELOG.md").write_text(
+    caminho_changelog_raiz = Path(changelog_raiz) if changelog_raiz else (raiz / "CHANGELOG.md")
+    caminho_changelog_raiz.write_text(
         _render_changelog_raiz(changelog), encoding="utf-8")
 
     return escritas

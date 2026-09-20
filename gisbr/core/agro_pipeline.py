@@ -79,6 +79,11 @@ def _extract_records(tabela: Any) -> List[Dict[str, Any]]:
             return []
         fields = [f.name() for f in tabela.fields()]
         for feat in tabela.getFeatures():
+            code_muni = (
+                str(feat["code_muni"])
+                if "code_muni" in fields and feat["code_muni"] is not None
+                else ""
+            )
             var_id = (
                 str(feat["var_id"])
                 if "var_id" in fields and feat["var_id"] is not None
@@ -96,6 +101,7 @@ def _extract_records(tabela: Any) -> List[Dict[str, Any]]:
             )
             valor_raw = feat["valor"] if "valor" in fields else None
             records.append({
+                "code_muni": code_muni,
                 "var_id": var_id,
                 "var_nome": var_nome,
                 "produto": produto,
@@ -104,18 +110,23 @@ def _extract_records(tabela: Any) -> List[Dict[str, Any]]:
     elif isinstance(tabela, (list, tuple)):
         for item in tabela:
             if isinstance(item, dict):
+                code_muni = str(item.get("code_muni", ""))
                 var_id = str(item.get("var_id", ""))
                 var_nome = str(item.get("var_nome", item.get("var", "")))
                 produto = str(item.get("produto", ""))
                 valor_raw = item.get("valor")
                 records.append({
+                    "code_muni": code_muni,
                     "var_id": var_id,
                     "var_nome": var_nome,
                     "produto": produto,
                     "valor": _parse_val(valor_raw),
                 })
             elif isinstance(item, (list, tuple)):
-                if len(item) == 6:
+                code_muni = ""
+                if len(item) == 7:
+                    var_id, var_nome, _unidade, produto, _periodo, valor_raw, code_muni = item
+                elif len(item) == 6:
                     var_id, var_nome, _unidade, produto, _periodo, valor_raw = item
                 elif len(item) == 4:
                     var_id, var_nome, produto, valor_raw = item
@@ -128,6 +139,7 @@ def _extract_records(tabela: Any) -> List[Dict[str, Any]]:
                 else:
                     continue
                 records.append({
+                    "code_muni": str(code_muni or ""),
                     "var_id": str(var_id or ""),
                     "var_nome": str(var_nome or ""),
                     "produto": str(produto or ""),
@@ -187,92 +199,112 @@ def _gerar_nomes_campos(
 
 def tabela_para_camada(
     tabela: Any,
-    code_muni: Union[int, str],
-    nome_muni: Optional[str] = None,
+    code_muni: Union[int, str, List[Union[int, str]], Tuple[Union[int, str], ...], set],
+    nome_muni: Optional[Union[str, List[Optional[str]], Tuple[Optional[str], ...]]] = None,
     layer_name: str = "agro_municipal",
     feedback: Any = None,
 ) -> Tuple[QgsVectorLayer, Dict[str, Any]]:
-    """Converte tabela agropecuária IBGE + malha municipal em camada espacial (D5).
+    """Converte tabela agropecuária IBGE + malha municipal em camada espacial (D5/D9).
+
+    Suporta 1 ou N municípios (modo RM). Produz 1 feição por município com a sua geometria.
+    Produtos sem valor numérico em nenhuma variável/município são descartados.
 
     Args:
         tabela: QgsVectorLayer sem geometria ou lista de registros/tuplas/dicts.
-        code_muni: Código IBGE do município (ex: "3106200" ou 3106200).
-        nome_muni: Nome do município (opcional).
+        code_muni: Código IBGE ou lista/tupla de códigos (ex: "3106200" ou ["3106200", "3170404"]).
+        nome_muni: Nome ou lista de nomes de municípios (opcional).
         layer_name: Nome da camada de saída.
         feedback: QgsProcessingFeedback / QgsFeedback para progresso e logs.
 
     Returns:
-        (layer, relatorio): Camada QgsVectorLayer de 1 feição (polígono municipal formato largo)
+        (layer, relatorio): Camada QgsVectorLayer (N feições, polígonos municipais formato largo)
         e dicionário relatório com contagem de produtos aproveitados/descartados.
     """
     def log(msg: str):
         if feedback is not None:
             feedback.pushInfo(msg)
 
-    code_str = str(code_muni).strip()
-
-    # 1. Obtém o polígono municipal via _municipio_poligono (medição 16 / reusar)
-    poligono = _municipio_poligono(code_str, nome_muni)
-    if poligono is None or not poligono.isValid():
-        err_msg = f"Nao foi possivel obter o poligono do municipio '{code_str}'"
-        log(f"AgroPipeline: {err_msg}")
-        inv = _invalid_layer(layer_name, err_msg)
-        relatorio = {
-            "produtos_aproveitados": 0,
-            "produtos_descartados": 0,
-            "produtos_aproveitados_lista": [],
-            "produtos_descartados_lista": [],
-            "infos": [],
-            "avisos": [err_msg],
-        }
-        return inv, relatorio
-
-    # Extrai feição de polígono do município
-    muni_feats = list(poligono.getFeatures())
-    if not muni_feats:
-        err_msg = f"Poligono do municipio '{code_str}' retornou 0 feicoes"
-        log(f"AgroPipeline: {err_msg}")
-        inv = _invalid_layer(layer_name, err_msg)
-        relatorio = {
-            "produtos_aproveitados": 0,
-            "produtos_descartados": 0,
-            "produtos_aproveitados_lista": [],
-            "produtos_descartados_lista": [],
-            "infos": [],
-            "avisos": [err_msg],
-        }
-        return inv, relatorio
-
-    if len(muni_feats) == 1:
-        muni_geom = muni_feats[0].geometry()
+    # 1. Normaliza lista de municípios (códigos e nomes)
+    if isinstance(code_muni, (list, tuple, set)):
+        code_list = [str(c).strip() for c in code_muni]
     else:
-        muni_geom = QgsGeometry.unaryUnion([f.geometry() for f in muni_feats])
+        code_list = [str(code_muni).strip()]
 
-    # 2. Extrai registros e analisa produtos
+    if isinstance(nome_muni, (list, tuple)):
+        nome_list = [str(n) if n is not None else None for n in nome_muni]
+    elif nome_muni is not None:
+        nome_list = [str(nome_muni)] * len(code_list)
+    else:
+        nome_list = [None] * len(code_list)
+
+    # 2. Obtém polígono de cada município
+    muni_geoms = {}
+    crs_auth = "EPSG:4674"
+    wkb_type = "MultiPolygon"
+
+    for c_code, c_nome in zip(code_list, nome_list):
+        poligono = _municipio_poligono(c_code, c_nome)
+        if poligono is not None and poligono.isValid():
+            muni_feats = list(poligono.getFeatures())
+            if muni_feats:
+                crs_auth = poligono.crs().authid() or "EPSG:4674"
+                wkb_type = QgsWkbTypes.displayString(poligono.wkbType()) or "MultiPolygon"
+                if len(muni_feats) == 1:
+                    muni_geoms[c_code] = muni_feats[0].geometry()
+                else:
+                    muni_geoms[c_code] = QgsGeometry.unaryUnion([f.geometry() for f in muni_feats])
+
+    if not muni_geoms:
+        if len(code_list) == 1:
+            err_msg = f"Nao foi possivel obter o poligono do municipio '{code_list[0]}'"
+        else:
+            err_msg = f"Nao foi possivel obter poligonos para os municipios: {code_list}"
+        log(f"AgroPipeline: {err_msg}")
+        inv = _invalid_layer(layer_name, err_msg)
+        relatorio = {
+            "produtos_aproveitados": 0,
+            "produtos_descartados": 0,
+            "produtos_aproveitados_lista": [],
+            "produtos_descartados_lista": [],
+            "infos": [],
+            "avisos": [err_msg],
+        }
+        return inv, relatorio
+
+    # 3. Extrai registros e atribui code_muni padrão se houver apenas 1 município no filtro
     records = _extract_records(tabela)
+    if len(code_list) == 1:
+        single_code = code_list[0]
+        for r in records:
+            if not r["code_muni"]:
+                r["code_muni"] = single_code
 
     # Coleta produtos na ordem de aparecimento
     unique_products = []
     for rec in records:
         prod = rec["produto"]
-        if prod not in unique_products:
+        if prod and prod not in unique_products:
             unique_products.append(prod)
 
     # Classifica produtos em aproveitados vs descartados (D5)
     produtos_aproveitados = []
     produtos_descartados = []
 
-    # Mapa (var_key, prod_key) -> valor
+    # Mapa (code_muni, var_key, prod_key) -> valor
     values_map = {}
+
+    for rec in records:
+        c_code = rec["code_muni"]
+        var_key = rec["var_nome"] or rec["var_id"]
+        prod = rec["produto"]
+        if c_code and prod:
+            values_map[(c_code, var_key, prod)] = rec["valor"]
 
     for prod in unique_products:
         prod_recs = [r for r in records if r["produto"] == prod]
         has_value = any(r["valor"] is not None for r in prod_recs)
         if has_value:
             produtos_aproveitados.append(prod)
-            for r in prod_recs:
-                var_key = r["var_nome"] or r["var_id"]
-                values_map[(var_key, prod)] = r["valor"]
         else:
             produtos_descartados.append(prod)
 
@@ -281,16 +313,13 @@ def tabela_para_camada(
     for rec in records:
         if rec["produto"] in produtos_aproveitados:
             var_key = rec["var_nome"] or rec["var_id"]
-            if var_key not in unique_vars:
+            if var_key and var_key not in unique_vars:
                 unique_vars.append(var_key)
 
-    # 3. Monta definição dos campos
+    # 4. Monta definição dos campos
     field_tuples, col_map = _gerar_nomes_campos(produtos_aproveitados, unique_vars)
 
-    # 4. Cria a camada de memória formato largo
-    crs_auth = poligono.crs().authid() or "EPSG:4674"
-    wkb_type = QgsWkbTypes.displayString(poligono.wkbType()) or "MultiPolygon"
-
+    # 5. Cria a camada de memória formato largo
     out_layer = QgsVectorLayer(
         f"{wkb_type}?crs={crs_auth}", layer_name, "memory"
     )
@@ -303,20 +332,35 @@ def tabela_para_camada(
     dp.addAttributes(qfields)
     out_layer.updateFields()
 
-    # 5. Adiciona 1 feição com a geometria do município e atributos em formato largo
-    feat = QgsFeature(out_layer.fields())
-    feat.setGeometry(muni_geom)
+    # 6. Adiciona feições: 1 por município em code_list
+    out_features = []
+    for c_code in code_list:
+        muni_geom = muni_geoms.get(c_code)
+        feat = QgsFeature(out_layer.fields())
+        if muni_geom is not None:
+            feat.setGeometry(muni_geom)
 
-    attrs = [code_str]
-    for var_key, prod_key, _col_name in field_tuples:
-        val = values_map.get((var_key, prod_key))
-        attrs.append(val)
+        attrs = [c_code]
+        for var_key, prod_key, _col_name in field_tuples:
+            val = values_map.get((c_code, var_key, prod_key))
+            attrs.append(val)
 
-    feat.setAttributes(attrs)
-    dp.addFeatures([feat])
+        feat.setAttributes(attrs)
+        out_features.append(feat)
+
+        # Log por município
+        muni_val_count = sum(
+            1 for var_key, prod_key, _ in field_tuples if values_map.get((c_code, var_key, prod_key)) is not None
+        )
+        log(
+            f"AgroPipeline [{c_code}]: {muni_val_count} valores preenchidos de "
+            f"{len(field_tuples)} campos em {len(produtos_aproveitados)} produtos aproveitados."
+        )
+
+    dp.addFeatures(out_features)
     out_layer.updateExtents()
 
-    # 6. Monta relatório no molde do censo_join
+    # 7. Monta relatório
     relatorio = {
         "produtos_aproveitados": len(produtos_aproveitados),
         "produtos_descartados": len(produtos_descartados),
@@ -324,20 +368,20 @@ def tabela_para_camada(
         "produtos_descartados_lista": produtos_descartados,
         "infos": [
             f"AgroPipeline: {len(produtos_aproveitados)} produtos aproveitados, "
-            f"{len(produtos_descartados)} produtos descartados (100% None)."
+            f"{len(produtos_descartados)} produtos descartados em {len(code_list)} municipios."
         ],
         "avisos": [],
     }
 
     if produtos_descartados:
         relatorio["avisos"].append(
-            f"AgroPipeline: descartados {len(produtos_descartados)} produtos sem valor numérico "
-            f"em nenhuma variável: {', '.join(produtos_descartados)}"
+            f"AgroPipeline: descartados {len(produtos_descartados)} produtos sem valor numerico "
+            f"em nenhuma variavel/municipio: {', '.join(produtos_descartados)}"
         )
 
     log(
-        f"AgroPipeline: camada '{layer_name}' criada com {len(produtos_aproveitados)} produtos "
-        f"e {len(qfields)} campos."
+        f"AgroPipeline: camada '{layer_name}' criada com {len(out_features)} feicoes (municipios), "
+        f"{len(produtos_aproveitados)} produtos e {len(qfields)} campos."
     )
 
     return out_layer, relatorio

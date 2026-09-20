@@ -36,9 +36,13 @@ def build_url(agregado, code_muni, variaveis="all", periodo="-1", classificacao=
 
     Exemplo:
       https://servicodados.ibge.gov.br/api/v3/agregados/1612/periodos/2023/variaveis/109|214?localidades=N6[3106200]&classificacao=81[all]
+      https://servicodados.ibge.gov.br/api/v3/agregados/1612/periodos/2023/variaveis/109|214?localidades=N6[3106200,3170404]&classificacao=81[all]
     """
     agregado_str = str(agregado)
-    code_str = str(code_muni)
+    if isinstance(code_muni, (list, tuple, set)):
+        code_str = ",".join(str(c) for c in code_muni)
+    else:
+        code_str = str(code_muni)
     periodo_str = str(periodo) if periodo is not None else "-1"
 
     if isinstance(variaveis, (list, tuple, set)):
@@ -63,7 +67,7 @@ def build_url(agregado, code_muni, variaveis="all", periodo="-1", classificacao=
             cls_str = str(classificacao)
         params.append(("classificacao", cls_str))
 
-    return base + "?" + urllib.parse.urlencode(params, safe="[]|")
+    return base + "?" + urllib.parse.urlencode(params, safe="[],|")
 
 
 def fetch_layer(
@@ -122,13 +126,14 @@ def fetch_layer(
         )
 
     uri = (
-        "None?field=var_id:string&field=var_nome:string&field=unidade:string&"
+        "None?field=code_muni:string&field=var_id:string&field=var_nome:string&field=unidade:string&"
         "field=produto:string&field=periodo:string&field=valor:double"
     )
     layer = QgsVectorLayer(uri, layer_name, "memory")
 
     if not layer.isValid():
         fields = [
+            QgsField("code_muni", field_type("string")),
             QgsField("var_id", field_type("string")),
             QgsField("var_nome", field_type("string")),
             QgsField("unidade", field_type("string")),
@@ -142,9 +147,19 @@ def fetch_layer(
         layer.updateFields()
 
     features = []
-    for var_id, var_nome, unidade, produto, periodo_val, valor in rows:
+    for row in rows:
+        if len(row) >= 7 and row[6]:
+            row_muni = str(row[6])
+        else:
+            row_muni = (
+                str(code_muni) if not isinstance(code_muni, (list, tuple, set)) else ""
+            )
+
+        var_id, var_nome, unidade, produto, periodo_val, valor = row[:6]
         feat = QgsFeature(layer.fields())
-        feat.setAttributes([var_id, var_nome, unidade, produto, periodo_val, valor])
+        feat.setAttributes(
+            [row_muni, var_id, var_nome, unidade, produto, periodo_val, valor]
+        )
         features.append(feat)
 
     layer.dataProvider().addFeatures(features)
