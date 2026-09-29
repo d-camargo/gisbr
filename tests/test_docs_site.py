@@ -83,7 +83,7 @@ def test_changelog_traz_versao_corrente_primeiro(tmp_path):
               if linha.startswith("## ")]
     assert secoes[0] == versao
     # a versão corrente do pacote nesta rodada
-    assert versao == "1.0.0"
+    assert versao == "1.0.1"
 
 
 def test_destino_alternativo(tmp_path):

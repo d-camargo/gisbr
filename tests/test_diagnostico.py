@@ -782,6 +782,44 @@ def test_carregar_fontes_modo_rm_integracao(tmp_path, monkeypatch):
     assert len(wfs_calls) == 0
 
 
+def test_carregar_fontes_modo_rm_bbox_sem_poligono_falha_sem_download(tmp_path, monkeypatch):
+    from gisbr.core.recorte import Recorte
+
+    gpkg = str(tmp_path / "test_rm_bbox_sem_poly.gpkg")
+
+    sources = [
+        {
+            "id": "wfs_bbox",
+            "protocolo": "wfs",
+            "endpoint": "http://example.com/wfs",
+            "type_name": "ns:camada_bbox",
+            "filtro": {"tipo": "bbox"},
+        },
+    ]
+    monkeypatch.setattr(diagnostico, "SOURCES", sources)
+
+    recorte_rm = Recorte.de_rm("04501", "RM Belo Horizonte", ["3106200", "3106705", "3101508"])
+
+    monkeypatch.setattr("gisbr.core.recorte.camada_do_recorte", lambda rec, **kwargs: None)
+
+    busca_calls = 0
+
+    def mock_busca_camada(*args, **kwargs):
+        nonlocal busca_calls
+        busca_calls += 1
+        return None
+
+    monkeypatch.setattr(diagnostico, "_busca_camada", mock_busca_camada)
+
+    res = diagnostico.carregar_fontes(["wfs_bbox"], None, None, None, gpkg, recorte=recorte_rm)
+
+    assert busca_calls == 0
+    falhou_dict = dict(res["falhou"])
+    assert "wfs_bbox" in falhou_dict
+    assert recorte_rm.rotulo in falhou_dict["wfs_bbox"]
+
+
+
 
 
 

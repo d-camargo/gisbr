@@ -392,7 +392,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
 
         poligono = _obter_poligono()
         if poligono is None:
-            res["falhou"].append((sid, "nao obtive o poligono do municipio p/ recorte"))
+            res["falhou"].append((sid, "nao obtive o poligono do recorte ({}) p/ recorte".format(recorte.rotulo)))
             continue
 
         url_template = s.get("url_template")
@@ -548,6 +548,9 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             if _poly is not None:
                 _ext = _poly.extent()
                 bbox_req = (_ext.xMinimum(), _ext.yMinimum(), _ext.xMaximum(), _ext.yMaximum())
+            else:
+                res["falhou"].append((s["id"], "nao obtive o poligono do recorte ({}) p/ recorte".format(recorte.rotulo)))
+                continue
 
         layer = _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox_req, recorte.sufixo,
                               gpkg_path, feedback=feedback,
@@ -582,7 +585,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
         if _usou_bbox(s, usa_bbox):
             poligono = _obter_poligono()
             if poligono is None:
-                res["falhou"].append((s["id"], "nao obtive o poligono do municipio p/ recorte"))
+                res["falhou"].append((s["id"], "nao obtive o poligono do recorte ({}) p/ recorte".format(recorte.rotulo)))
                 continue
             layer = _recorta_poligono(layer, poligono, layer_name)
             if layer is None or not layer.isValid():

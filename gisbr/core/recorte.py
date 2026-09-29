@@ -75,7 +75,7 @@ def camada_do_recorte(recorte: Recorte, feedback=None, algo: str = "read_municip
     camadas_uf = []
     for uf, codes in grupos_uf.items():
         try:
-            params = {"CODE": uf}
+            params = {"CODE": uf, "SIMPLIFIED": True, "OUTPUT": "TEMPORARY_OUTPUT"}
             if extra_params:
                 params.update(extra_params)
             res = processing.run(

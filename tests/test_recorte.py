@@ -149,3 +149,35 @@ def test_camada_do_recorte_camada_vazia(monkeypatch):
     
     assert res is None
     feedback.reportError.assert_called_once()
+
+
+def test_camada_do_recorte_sem_extra_params_passa_output(monkeypatch):
+    layer_mock = MagicMock()
+    layer_mock.featureCount.return_value = 1
+
+    run_calls = []
+
+    def mock_run(alg, params, **kwargs):
+        run_calls.append((alg, params))
+        if alg.startswith("gisbr:"):
+            if "OUTPUT" not in params:
+                raise ValueError(f"Parâmetro obrigatório 'OUTPUT' não fornecido para {alg}")
+        if alg == "gisbr:read_municipality":
+            return {"OUTPUT": "layer_mg"}
+        if alg == "native:extractbyexpression":
+            return {"OUTPUT": layer_mock}
+        return {}
+
+    mock_proc = types.ModuleType("processing")
+    mock_proc.run = mock_run
+    monkeypatch.setitem(sys.modules, "processing", mock_proc)
+
+    r = Recorte.de_municipio("3106200", "Contagem")
+    res = camada_do_recorte(r)
+
+    assert res is not None
+    gisbr_calls = [params for alg, params in run_calls if alg == "gisbr:read_municipality"]
+    assert len(gisbr_calls) == 1
+    assert gisbr_calls[0].get("OUTPUT") == "TEMPORARY_OUTPUT"
+    assert gisbr_calls[0].get("SIMPLIFIED") is True
+

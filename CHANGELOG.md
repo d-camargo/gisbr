@@ -2,6 +2,12 @@
 
 Generated from the `changelog` block of `gisbr/metadata.txt` by `tools/build_docs_site.py` — do not edit by hand.
 
+## 1.0.1
+
+- Fix: Metropolitan Region mode now clips bbox-filtered sources (DNIT, SGB,
+ANA, schools, neighbourhoods) by the RM boundary; previously they failed
+with "could not get the clipping polygon".
+
 ## 1.0.0
 
 - New extent selector: choose between single Municipality or
