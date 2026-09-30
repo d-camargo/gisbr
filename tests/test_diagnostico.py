@@ -533,6 +533,90 @@ def test_filtro_para_cql_nome_n_nomes():
     assert usa_bbox_rec is False
 
 
+# --- testes do _filtro_para na escala UF/macro (D6) ------------
+
+
+def test_filtro_para_escala_uf_macro_sigla():
+    s = {
+        "filtro": {
+            "tipo": "cql_nome",
+            "campo": "municipio",
+            "uf": {"campo": "uf", "modo": "sigla"},
+        }
+    }
+    # Escala UF: 1 UF -> uf = 'MG'
+    recorte_uf = Recorte.de_agregado("uf", "MG", "Minas Gerais", ["3106200"])
+    cql, usa_bbox = diagnostico._filtro_para(s, recorte_uf)
+    assert cql == "uf = 'MG'"
+    assert usa_bbox is False
+
+    # Escala Macrorregião: várias UFs -> uf IN ('ES','MG','RJ','SP')
+    recorte_macro = Recorte.de_agregado(
+        "macro", "3", "Sudeste",
+        ["3200000", "3106200", "3300000", "3500000"]
+    )
+    cql_macro, usa_bbox_macro = diagnostico._filtro_para(s, recorte_macro)
+    assert cql_macro == "uf IN ('ES','MG','RJ','SP')"
+    assert usa_bbox_macro is False
+
+
+def test_filtro_para_escala_uf_macro_prefixo():
+    s = {
+        "filtro": {
+            "tipo": "cql_codigo",
+            "campo": "cd_mun",
+            "uf": {"campo": "cd_mun", "modo": "prefixo"},
+        }
+    }
+    # Escala UF: 1 UF -> cd_mun LIKE '31%'
+    recorte_uf = Recorte.de_agregado("uf", "MG", "Minas Gerais", ["3106200"])
+    cql, usa_bbox = diagnostico._filtro_para(s, recorte_uf)
+    assert cql == "cd_mun LIKE '31%'"
+    assert usa_bbox is False
+
+    # Escala Macrorregião: várias UFs -> cd_mun LIKE '31%' OR cd_mun LIKE '32%' OR cd_mun LIKE '33%' OR cd_mun LIKE '35%'
+    recorte_macro = Recorte.de_agregado(
+        "macro", "3", "Sudeste",
+        ["3200000", "3106200", "3300000", "3500000"]
+    )
+    cql_macro, usa_bbox_macro = diagnostico._filtro_para(s, recorte_macro)
+    assert cql_macro == "cd_mun LIKE '31%' OR cd_mun LIKE '32%' OR cd_mun LIKE '33%' OR cd_mun LIKE '35%'"
+    assert usa_bbox_macro is False
+
+
+def test_filtro_para_regressao_meso():
+    # Para mesorregião (e micro/RM/município), mesmo com filtro["uf"],
+    # continua gerando a cláusula IN com os códigos dos municípios (byte a byte).
+    s_cod = {
+        "filtro": {
+            "tipo": "cql_codigo",
+            "campo": "cd_mun",
+            "uf": {"campo": "cd_mun", "modo": "prefixo"},
+        }
+    }
+    recorte_meso = Recorte.de_agregado(
+        "meso", "3107", "Metropolitana de Belo Horizonte", ["3106200", "3118601"]
+    )
+    cql, usa_bbox = diagnostico._filtro_para(s_cod, recorte_meso)
+    assert cql == "cd_mun IN (3106200,3118601)"
+    assert usa_bbox is False
+
+    s_nome = {
+        "filtro": {
+            "tipo": "cql_nome",
+            "campo": "municipio",
+            "uf": {"campo": "uf", "modo": "sigla"},
+        }
+    }
+    recorte_meso_nomes = Recorte.de_agregado(
+        "meso", "3107", "Metropolitana de Belo Horizonte",
+        ["3106200", "3118601"], nomes=["Belo Horizonte", "Contagem"]
+    )
+    cql_nome, usa_bbox_nome = diagnostico._filtro_para(s_nome, recorte_meso_nomes)
+    assert cql_nome == "municipio IN ('Belo Horizonte','Contagem')"
+    assert usa_bbox_nome is False
+
+
 def test_carrega_geobr_rm_multi_codigo(monkeypatch):
     from unittest.mock import MagicMock
     from gisbr.core.recorte import Recorte
@@ -823,3 +907,174 @@ def test_carregar_fontes_modo_rm_bbox_sem_poligono_falha_sem_download(tmp_path, 
 
 
 
+
+
+def test_d8_recorte_uf_fonte_regional_pula_sem_busca_camada(tmp_path, monkeypatch):
+    from gisbr.core.recorte import Recorte
+    from gisbr.core import diagnostico
+
+    gpkg = str(tmp_path / "test_d8_regional.gpkg")
+    source_regional = {
+        "id": "teste_regional",
+        "protocolo": "wfs",
+        "escala_max": "regional"
+    }
+    monkeypatch.setattr(diagnostico, "SOURCES", [source_regional])
+
+    recorte_uf = Recorte.de_agregado("uf", "MG", "Minas Gerais (MG)", ["3100000"])
+
+    busca_calls = 0
+    def mock_busca_camada(*args, **kwargs):
+        nonlocal busca_calls
+        busca_calls += 1
+        return None
+
+    monkeypatch.setattr(diagnostico, "_busca_camada", mock_busca_camada)
+
+    res = diagnostico.carregar_fontes(["teste_regional"], None, None, None, gpkg, recorte=recorte_uf)
+
+    assert busca_calls == 0
+    assert len(res["pulou"]) == 1
+    assert res["pulou"][0][0] == "teste_regional"
+    # mensagem do D8 (fonte EN; a PT-BR vem do .ts)
+    assert "unavailable at the state scale" in res["pulou"][0][1]
+    assert "choose a smaller area" in res["pulou"][0][1]
+
+
+def test_d8_recorte_uf_cobertura_pula(tmp_path, monkeypatch):
+    from gisbr.core.recorte import Recorte
+    from gisbr.core import diagnostico
+
+    gpkg = str(tmp_path / "test_d8_cobertura.gpkg")
+    source_mg = {
+        "id": "der_mg_rodovias",
+        "protocolo": "wfs",
+        "escala_max": "estado",
+        "ufs": ["MG"]
+    }
+    monkeypatch.setattr(diagnostico, "SOURCES", [source_mg])
+
+    recorte_se = Recorte.de_agregado("uf", "SE", "Sergipe (SE)", ["2800000"])
+
+    res = diagnostico.carregar_fontes(["der_mg_rodovias"], None, None, None, gpkg, recorte=recorte_se)
+
+    assert len(res["pulou"]) == 1
+    assert res["pulou"][0][0] == "der_mg_rodovias"
+    # mensagem do D8 (fonte EN; a PT-BR vem do .ts)
+    assert "state source (MG)" in res["pulou"][0][1]
+    assert "not available for this area" in res["pulou"][0][1]
+
+
+def test_d8_macro_fonte_estado_pula(tmp_path, monkeypatch):
+    """Critério de aceite 4: na macrorregião também ficam bloqueadas as fontes
+    escala_max=estado (e fontes ufs de uma UF só, pela regra do subset)."""
+    from gisbr.core.recorte import Recorte
+    from gisbr.core import diagnostico
+
+    gpkg = str(tmp_path / "test_d8_macro.gpkg")
+    source_estado = {
+        "id": "teste_estado",
+        "protocolo": "wfs",
+        "escala_max": "estado"
+    }
+    monkeypatch.setattr(diagnostico, "SOURCES", [source_estado])
+
+    recorte_macro = Recorte.de_agregado(
+        "macro", "3", "Região Sudeste", ["3106200", "3200000", "3300000", "3500000"])
+
+    res = diagnostico.carregar_fontes(
+        ["teste_estado"], None, None, None, gpkg, recorte=recorte_macro)
+
+    assert len(res["pulou"]) == 1
+    assert res["pulou"][0][0] == "teste_estado"
+    assert "unavailable at the macro-region scale" in res["pulou"][0][1]
+
+
+def test_d8_macro_fonte_uf_sozinha_pula_por_cobertura(tmp_path, monkeypatch):
+    """Fonte ufs=["MG"] na macrorregião Sudeste: o subset (ES,MG,RJ,SP) não cabe
+    em ["MG"] — bloqueada mesmo tendo MG entre as UFs do recorte."""
+    from gisbr.core.recorte import Recorte
+    from gisbr.core import diagnostico
+
+    gpkg = str(tmp_path / "test_d8_macro_ufs.gpkg")
+    source_mg = {
+        "id": "fonte_mg",
+        "protocolo": "wfs",
+        "escala_max": "macrorregiao",
+        "ufs": ["MG"]
+    }
+    monkeypatch.setattr(diagnostico, "SOURCES", [source_mg])
+
+    recorte_macro = Recorte.de_agregado(
+        "macro", "3", "Região Sudeste", ["3106200", "3200000", "3300000", "3500000"])
+
+    res = diagnostico.carregar_fontes(
+        ["fonte_mg"], None, None, None, gpkg, recorte=recorte_macro)
+
+    assert len(res["pulou"]) == 1
+    assert res["pulou"][0][0] == "fonte_mg"
+    assert "state source (MG)" in res["pulou"][0][1]
+
+
+def test_d7_recorte_uf_dissolve_bbox(tmp_path, monkeypatch):
+    from gisbr.core.recorte import Recorte
+    from gisbr.core import diagnostico
+    
+    gpkg = str(tmp_path / "test_d7_dissolve.gpkg")
+    source_bbox = {
+        "id": "wfs_bbox",
+        "protocolo": "wfs",
+        "filtro": {"tipo": "bbox"},
+        "escala_max": "macrorregiao"
+    }
+    monkeypatch.setattr(diagnostico, "SOURCES", [source_bbox])
+
+    recorte_uf = Recorte.de_agregado("uf", "MG", "Minas Gerais (MG)", ["3100000"])
+    
+    # Mock camada_do_recorte to return a valid layer
+    def mock_camada_do_recorte(rec, **kwargs):
+        from qgis.core import QgsVectorLayer, QgsFeature, QgsGeometry
+        vl = QgsVectorLayer("Polygon?crs=epsg:4326", "poly", "memory")
+        pr = vl.dataProvider()
+        f = QgsFeature()
+        f.setGeometry(QgsGeometry.fromWkt("POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))"))
+        pr.addFeatures([f])
+        return vl
+        
+    monkeypatch.setattr("gisbr.core.recorte.camada_do_recorte", mock_camada_do_recorte)
+    
+    dissolve_calls = 0
+    import sys
+    from unittest.mock import MagicMock
+    if "processing" not in sys.modules:
+        sys.modules["processing"] = MagicMock()
+    import processing
+    
+    def mock_processing_run(alg_name, params):
+        if alg_name == "native:dissolve":
+            nonlocal dissolve_calls
+            dissolve_calls += 1
+            # Return same as input to satisfy
+            return {"OUTPUT": params["INPUT"]}
+        return {"OUTPUT": None}
+        
+    monkeypatch.setattr(processing, "run", mock_processing_run)
+    
+    bbox_req_capturado = None
+    
+    def mock_busca_camada(s, layer_name, uf, cql, usa_bbox, bbox_req, *args, **kwargs):
+        nonlocal bbox_req_capturado
+        bbox_req_capturado = bbox_req
+        from qgis.core import QgsVectorLayer
+        return QgsVectorLayer("Point?crs=epsg:4326", "fake", "memory")
+        
+    monkeypatch.setattr(diagnostico, "_busca_camada", mock_busca_camada)
+    monkeypatch.setattr(diagnostico, "_recorta_poligono", lambda layer, poly, name: layer)
+    monkeypatch.setattr(diagnostico, "_grava_gpkg", lambda layer, path, name: (True, ""))
+    from qgis.core import QgsProject
+    monkeypatch.setattr(QgsProject.instance(), "addMapLayer", lambda lyr: None)
+    
+    res = diagnostico.carregar_fontes(["wfs_bbox"], None, None, None, gpkg, recorte=recorte_uf)
+    
+    assert dissolve_calls == 1
+    assert bbox_req_capturado == (0.0, 0.0, 1.0, 1.0)

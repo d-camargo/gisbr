@@ -102,6 +102,33 @@ _FILTRO_EN = {
 }
 
 
+_ESCALA_PT = {
+    "municipio": "Município",
+    "regional": "Regional",
+    "estado": "Estado",
+    "macrorregiao": "Macrorregião",
+}
+_ESCALA_EN = {
+    "municipio": "Municipality",
+    "regional": "Regional",
+    "estado": "State",
+    "macrorregiao": "Macro-region",
+}
+
+
+def _escala_max(fonte, mapa):
+    return mapa.get(fonte.get("escala_max"), "—")
+
+
+def _format_ufs(fonte):
+    ufs = fonte.get("ufs")
+    if not ufs:
+        return "—"
+    if isinstance(ufs, (list, tuple, set)):
+        return ", ".join(str(u) for u in ufs)
+    return str(ufs)
+
+
 def _tipo_filtro(fonte, mapa):
     if fonte["protocolo"] == "geobr":
         return mapa[fonte["recorte"]]
@@ -152,16 +179,19 @@ def _render_fontes(sources, lang):
         titulo = ("%s. %s" % (num, nome_en if en else nome_pt)) if num else (
             nome_en if en else nome_pt)
         linhas.append("\n## %s\n\n" % titulo)
-        linhas.append(("| Source | `id` | Protocol | Filter | License |\n"
-                       "|---|---|---|---|---|\n"
+        linhas.append(("| Source | `id` | Protocol | Filter | Max. scale | UFs | License |\n"
+                       "|---|---|---|---|---|---|---|\n"
                        if en else
-                       "| Fonte | `id` | Protocolo | Filtro | Licença |\n"
-                       "|---|---|---|---|---|\n"))
+                       "| Fonte | `id` | Protocolo | Filtro | Escala máxima | UFs | Licença |\n"
+                       "|---|---|---|---|---|---|---|\n"))
         fmap = _FILTRO_EN if en else _FILTRO_PT
+        emap = _ESCALA_EN if en else _ESCALA_PT
         for fonte in por_eixo[eixo]:
-            linhas.append("| %s | `%s` | %s | %s | %s |\n" % (
+            linhas.append("| %s | `%s` | %s | %s | %s | %s | %s |\n" % (
                 fonte["nome"], fonte["id"], fonte["protocolo"],
                 _tipo_filtro(fonte, fmap),
+                _escala_max(fonte, emap),
+                _format_ufs(fonte),
                 fonte.get("licenca", "—")))
     return "".join(linhas)
 

@@ -45,6 +45,48 @@ def test_total_de_fontes_e_calculado(tmp_path):
     assert "**%d fontes**" % len(sources) in texto
 
 
+def test_tabela_fontes_cabecalho_e_colunas(tmp_path):
+    gerar(RAIZ, tmp_path, changelog_raiz=tmp_path / "CHANGELOG.md")
+    pt = (tmp_path / "referencia/fontes.md").read_text(encoding="utf-8")
+    en = (tmp_path / "referencia/fontes.en.md").read_text(encoding="utf-8")
+
+    cab_pt = "| Fonte | `id` | Protocolo | Filtro | Escala máxima | UFs | Licença |"
+    cab_en = "| Source | `id` | Protocol | Filter | Max. scale | UFs | License |"
+    assert cab_pt in pt
+    assert cab_en in en
+
+    # Linhas de tabela devem ter 7 colunas (8 delimitadores '|')
+    for texto, cab in ((pt, cab_pt), (en, cab_en)):
+        for linha in texto.splitlines():
+            if linha.startswith("|") and not linha.startswith("|---"):
+                partes = [p.strip() for p in linha.strip().split("|")[1:-1]]
+                assert len(partes) == 7, f"Linha com número incorreto de colunas: {linha}"
+
+
+def test_tabela_fontes_escala_e_ufs_valores(tmp_path):
+    gerar(RAIZ, tmp_path, changelog_raiz=tmp_path / "CHANGELOG.md")
+    pt = (tmp_path / "referencia/fontes.md").read_text(encoding="utf-8")
+    en = (tmp_path / "referencia/fontes.en.md").read_text(encoding="utf-8")
+
+    # Escalas mapeadas em PT e EN
+    assert "| Município |" in pt
+    assert "| Municipality |" in en
+    assert "| Estado |" in pt
+    assert "| State |" in en
+    assert "| Macrorregião |" in pt
+    assert "| Macro-region |" in en
+    assert "| Regional |" in pt
+    assert "| Regional |" in en
+
+    # Fonte com UF específica (der_mg_rodovias: ufs=['MG'], escala='estado')
+    assert "| `der_mg_rodovias` | wfs | bbox + recorte | Estado | MG |" in pt
+    assert "| `der_mg_rodovias` | wfs | bbox + clip | State | MG |" in en
+
+    # Fonte de cobertura nacional (dnit_snv: sem ufs, escala='estado')
+    assert "| `dnit_snv` | wfs | bbox + recorte | Estado | — |" in pt
+    assert "| `dnit_snv` | wfs | bbox + clip | State | — |" in en
+
+
 def test_eixo_desconhecido_deruba_o_gerador(tmp_path, monkeypatch):
     import tools.build_docs_site as gerador
 
@@ -83,7 +125,7 @@ def test_changelog_traz_versao_corrente_primeiro(tmp_path):
               if linha.startswith("## ")]
     assert secoes[0] == versao
     # a versão corrente do pacote nesta rodada
-    assert versao == "1.0.1"
+    assert versao == "1.1.0"
 
 
 def test_destino_alternativo(tmp_path):

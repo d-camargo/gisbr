@@ -533,4 +533,333 @@ def test_modo_municipio_on_carregar_continua_chamando_como_antes(dock, monkeypat
     assert "Municipality: Belo Horizonte (3106200)" in dock.txt_log.toPlainText()
 
 
+def test_seis_modos_ui_e_tabela_d9(dock):
+    from gisbr.gui.diagnostico_dock import ModoRecorte
+
+    # Todos os 6 radios existem
+    assert hasattr(dock, "rad_muni")
+    assert hasattr(dock, "rad_micro")
+    assert hasattr(dock, "rad_meso")
+    assert hasattr(dock, "rad_rm")
+    assert hasattr(dock, "rad_uf")
+    assert hasattr(dock, "rad_macro")
+
+    # 1. Município: como hoje
+    dock.rad_muni.setChecked(True)
+    assert dock.modo_recorte == ModoRecorte.MUNICIPIO
+    assert dock.cmb_muni.isEnabled() is True
+    assert dock.cmb_uf.isEnabled() is True
+    assert dock.cmb_rm.isEnabled() is False
+    assert dock.lst_rm_munis.isEnabled() is False
+
+    # 2. Micro: escolhe UF, lista regiões da UF, municípios
+    dock.rad_micro.setChecked(True)
+    assert dock.modo_recorte == ModoRecorte.MICRO
+    assert dock.cmb_muni.isEnabled() is False
+    assert dock.cmb_uf.isEnabled() is True
+    assert dock.cmb_rm.isEnabled() is True
+    assert dock.lst_rm_munis.isEnabled() is True
+    assert dock.lbl_rm.text() == "Microregion:"
+
+    # 3. Meso: escolhe UF, lista regiões da UF, municípios
+    dock.rad_meso.setChecked(True)
+    assert dock.modo_recorte == ModoRecorte.MESO
+    assert dock.cmb_muni.isEnabled() is False
+    assert dock.cmb_uf.isEnabled() is True
+    assert dock.cmb_rm.isEnabled() is True
+    assert dock.lst_rm_munis.isEnabled() is True
+    assert dock.lbl_rm.text() == "Mesoregion:"
+
+    # 4. RM: como hoje
+    dock.rad_rm.setChecked(True)
+    assert dock.modo_recorte == ModoRecorte.RM
+    assert dock.cmb_muni.isEnabled() is False
+    assert dock.cmb_uf.isEnabled() is True
+    assert dock.cmb_rm.isEnabled() is True
+    assert dock.lst_rm_munis.isEnabled() is True
+    assert dock.lbl_rm.text() == "Metropolitan region:"
+
+    # 5. Estado (UF): escolhe UF, cmb_rm desabilitado, lista todos municípios da UF
+    dock.rad_uf.setChecked(True)
+    assert dock.modo_recorte == ModoRecorte.UF
+    assert dock.cmb_muni.isEnabled() is False
+    assert dock.cmb_uf.isEnabled() is True
+    assert dock.cmb_rm.isEnabled() is False
+    assert dock.lst_rm_munis.isEnabled() is True
+    assert dock.lbl_rm.text() == "State:"
+
+    # 6. Macrorregião: UF desabilitado, cmb_rm lista as 5 regiões, municípios
+    dock.rad_macro.setChecked(True)
+    assert dock.modo_recorte == ModoRecorte.MACRO
+    assert dock.cmb_muni.isEnabled() is False
+    assert dock.cmb_uf.isEnabled() is False
+    assert dock.cmb_rm.isEnabled() is True
+    assert dock.lst_rm_munis.isEnabled() is True
+    assert dock.lbl_rm.text() == "Macroregion (Large Region):"
+
+
+def test_modo_micro_on_carregar_monta_recorte_certo(dock, monkeypatch):
+    captured_kwargs = {}
+    def _fake_carregar_fontes(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        captured_kwargs["source_ids"] = args[0]
+        return {"ok": ["geobr_setores"], "falhou": [], "pulou": []}
+
+    monkeypatch.setattr(diagnostico_dock.diagnostico, "carregar_fontes", _fake_carregar_fontes)
+
+    dock.rad_micro.setChecked(True)
+    idx_mg = dock.cmb_uf.findData("MG")
+    dock.cmb_uf.setCurrentIndex(idx_mg)
+
+    # Microrregião de Belo Horizonte (31030)
+    idx_bh = dock.cmb_rm.findData("31030")
+    assert idx_bh != -1
+    dock.cmb_rm.setCurrentIndex(idx_bh)
+
+    assert dock.lst_rm_munis.count() == 24
+    assert "24" in dock.lbl_rm_munis_count.text()
+
+    dock.ed_gpkg.setText("/tmp/micro_test.gpkg")
+    item = _find_tree_item_by_user_data(dock.tree, "geobr_setores")
+    item.setCheckState(0, Qt.CheckState.Checked)
+
+    dock._on_carregar()
+
+    assert "recorte" in captured_kwargs
+    recorte = captured_kwargs["recorte"]
+    assert recorte.tipo == "micro"
+    assert recorte.id == "31030"
+    assert len(recorte.codes) == 24
+    assert len(recorte.nomes) == 24
+    assert recorte.rotulo == "Microrregião de Belo Horizonte"
+    assert recorte.sufixo == "micro31030"
+    assert recorte.nome_camada_limite == "micro_31030"
+
+    log_text = dock.txt_log.toPlainText()
+    assert "Microregion: Microrregião de Belo Horizonte — 24 municipalities" in log_text
+
+
+def test_modo_meso_on_carregar_monta_recorte_certo(dock, monkeypatch):
+    captured_kwargs = {}
+    def _fake_carregar_fontes(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        captured_kwargs["source_ids"] = args[0]
+        return {"ok": ["geobr_setores"], "falhou": [], "pulou": []}
+
+    monkeypatch.setattr(diagnostico_dock.diagnostico, "carregar_fontes", _fake_carregar_fontes)
+
+    dock.rad_meso.setChecked(True)
+    idx_mg = dock.cmb_uf.findData("MG")
+    dock.cmb_uf.setCurrentIndex(idx_mg)
+
+    # Mesorregião Metropolitana de Belo Horizonte (3107)
+    idx_meso = dock.cmb_rm.findData("3107")
+    assert idx_meso != -1
+    dock.cmb_rm.setCurrentIndex(idx_meso)
+
+    assert dock.lst_rm_munis.count() == 105
+    assert "105" in dock.lbl_rm_munis_count.text()
+
+    dock.ed_gpkg.setText("/tmp/meso_test.gpkg")
+    item = _find_tree_item_by_user_data(dock.tree, "geobr_setores")
+    item.setCheckState(0, Qt.CheckState.Checked)
+
+    dock._on_carregar()
+
+    assert "recorte" in captured_kwargs
+    recorte = captured_kwargs["recorte"]
+    assert recorte.tipo == "meso"
+    assert recorte.id == "3107"
+    assert len(recorte.codes) == 105
+    assert len(recorte.nomes) == 105
+    assert recorte.rotulo == "Mesorregião Metropolitana de Belo Horizonte"
+    assert recorte.sufixo == "meso3107"
+    assert recorte.nome_camada_limite == "meso_3107"
+
+    log_text = dock.txt_log.toPlainText()
+    assert "Mesoregion: Mesorregião Metropolitana de Belo Horizonte — 105 municipalities" in log_text
+
+
+def test_modo_uf_on_carregar_monta_recorte_certo(dock, monkeypatch):
+    captured_kwargs = {}
+    def _fake_carregar_fontes(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        captured_kwargs["source_ids"] = args[0]
+        return {"ok": ["geobr_setores"], "falhou": [], "pulou": []}
+
+    monkeypatch.setattr(diagnostico_dock.diagnostico, "carregar_fontes", _fake_carregar_fontes)
+
+    dock.rad_uf.setChecked(True)
+    idx_mg = dock.cmb_uf.findData("MG")
+    dock.cmb_uf.setCurrentIndex(idx_mg)
+
+    # cmb_rm fica desabilitado e lst_rm_munis recebe todos os municípios da UF
+    assert dock.cmb_rm.isEnabled() is False
+    assert dock.lst_rm_munis.count() == 853
+    assert "853" in dock.lbl_rm_munis_count.text()
+
+    dock.ed_gpkg.setText("/tmp/uf_test.gpkg")
+    item = _find_tree_item_by_user_data(dock.tree, "geobr_setores")
+    item.setCheckState(0, Qt.CheckState.Checked)
+
+    dock._on_carregar()
+
+    assert "recorte" in captured_kwargs
+    recorte = captured_kwargs["recorte"]
+    assert recorte.tipo == "uf"
+    assert recorte.id == "MG"
+    assert len(recorte.codes) == 853
+    assert len(recorte.nomes) == 853
+    assert recorte.rotulo == "Minas Gerais (MG)"
+    assert recorte.sufixo == "ufmg"
+    assert recorte.nome_camada_limite == "uf_mg"
+
+    log_text = dock.txt_log.toPlainText()
+    assert "State: Minas Gerais (MG) — 853 municipalities" in log_text
+
+
+def test_modo_macro_on_carregar_monta_recorte_certo(dock, monkeypatch):
+    captured_kwargs = {}
+    def _fake_carregar_fontes(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        captured_kwargs["source_ids"] = args[0]
+        return {"ok": ["geobr_setores"], "falhou": [], "pulou": []}
+
+    monkeypatch.setattr(diagnostico_dock.diagnostico, "carregar_fontes", _fake_carregar_fontes)
+
+    dock.rad_macro.setChecked(True)
+
+    # cmb_uf desabilitado e cmb_rm populado com as 5 macrorregiões
+    assert dock.cmb_uf.isEnabled() is False
+    assert dock.cmb_rm.count() == 5
+
+    # Região Sudeste (código 3)
+    idx_macro = dock.cmb_rm.findData("3")
+    assert idx_macro != -1
+    dock.cmb_rm.setCurrentIndex(idx_macro)
+
+    assert dock.lst_rm_munis.count() == 1668
+    assert "1668" in dock.lbl_rm_munis_count.text()
+
+    dock.ed_gpkg.setText("/tmp/macro_test.gpkg")
+    item = _find_tree_item_by_user_data(dock.tree, "geobr_setores")
+    item.setCheckState(0, Qt.CheckState.Checked)
+
+    dock._on_carregar()
+
+    assert "recorte" in captured_kwargs
+    recorte = captured_kwargs["recorte"]
+    assert recorte.tipo == "macro"
+    assert recorte.id == "3"
+    assert len(recorte.codes) == 1668
+    assert len(recorte.nomes) == 1668
+    assert recorte.rotulo == "Região Sudeste"
+    assert recorte.sufixo == "macro3"
+    assert recorte.nome_camada_limite == "macro_3"
+
+    log_text = dock.txt_log.toPlainText()
+    assert "Macroregion: Região Sudeste — 1668 municipalities" in log_text
+
+
+def test_novos_modos_on_carregar_sem_selecao_valida_mensagem(dock):
+    dock.ed_gpkg.setText("/tmp/val_test.gpkg")
+    item = _find_tree_item_by_user_data(dock.tree, "geobr_setores")
+    item.setCheckState(0, Qt.CheckState.Checked)
+
+    # Micro sem seleção
+    dock.rad_micro.setChecked(True)
+    dock.cmb_rm.setCurrentIndex(-1)
+    dock._on_carregar()
+    assert "Select a microregion" in dock.txt_log.toPlainText()
+
+    # Meso sem seleção
+    dock.rad_meso.setChecked(True)
+    dock.cmb_rm.setCurrentIndex(-1)
+    dock._on_carregar()
+    assert "Select a mesoregion" in dock.txt_log.toPlainText()
+
+    # UF sem seleção
+    dock.rad_uf.setChecked(True)
+    dock.cmb_uf.setCurrentIndex(0)
+    dock._on_carregar()
+    assert "Select a state" in dock.txt_log.toPlainText()
+
+    # Macro sem seleção
+    dock.rad_macro.setChecked(True)
+    dock.cmb_rm.setCurrentIndex(-1)
+    dock._on_carregar()
+    assert "Select a macroregion" in dock.txt_log.toPlainText()
+
+
+def test_desabilitar_fontes_por_escala_e_cobertura(dock):
+    item_sicar = _find_tree_item_by_user_data(dock.tree, "sicar_imoveis")
+    item_sgb = _find_tree_item_by_user_data(dock.tree, "sgb_rios")
+    item_osm = _find_tree_item_by_user_data(dock.tree, "osm_vias")
+    item_dnit = _find_tree_item_by_user_data(dock.tree, "dnit_snv")
+    item_der = _find_tree_item_by_user_data(dock.tree, "der_mg_rodovias")
+
+    assert item_sicar is not None
+    assert item_sgb is not None
+    assert item_osm is not None
+    assert item_dnit is not None
+    assert item_der is not None
+
+    # Inicialmente em Município, tudo está habilitado
+    assert bool(item_sicar.flags() & Qt.ItemFlag.ItemIsEnabled) is True
+    assert bool(item_sgb.flags() & Qt.ItemFlag.ItemIsEnabled) is True
+    assert bool(item_osm.flags() & Qt.ItemFlag.ItemIsEnabled) is True
+    assert bool(item_dnit.flags() & Qt.ItemFlag.ItemIsEnabled) is True
+    assert bool(item_der.flags() & Qt.ItemFlag.ItemIsEnabled) is True
+
+    # 1. em Estado, sicar_imoveis, sgb_rios e osm_vias ficam desabilitados, e dnit_snv fica habilitado;
+    dock.rad_uf.setChecked(True)
+    idx_mg = dock.cmb_uf.findData("MG")
+    assert idx_mg != -1
+    dock.cmb_uf.setCurrentIndex(idx_mg)
+
+    assert bool(item_sicar.flags() & Qt.ItemFlag.ItemIsEnabled) is False
+    assert item_sicar.checkState(0) == Qt.CheckState.Unchecked
+    assert item_sicar.toolTip(0) != ""
+
+    assert bool(item_sgb.flags() & Qt.ItemFlag.ItemIsEnabled) is False
+    assert item_sgb.checkState(0) == Qt.CheckState.Unchecked
+    assert item_sgb.toolTip(0) != ""
+
+    assert bool(item_osm.flags() & Qt.ItemFlag.ItemIsEnabled) is False
+    assert item_osm.checkState(0) == Qt.CheckState.Unchecked
+    assert item_osm.toolTip(0) != ""
+
+    assert bool(item_dnit.flags() & Qt.ItemFlag.ItemIsEnabled) is True
+    assert bool(item_der.flags() & Qt.ItemFlag.ItemIsEnabled) is True
+
+    log_text = dock.txt_log.toPlainText()
+    assert "sicar_imoveis" in log_text
+    assert "osm_vias" in log_text
+
+    # 2. em Macro, dnit_snv fica desabilitado;
+    dock.rad_macro.setChecked(True)
+    assert bool(item_dnit.flags() & Qt.ItemFlag.ItemIsEnabled) is False
+    assert item_dnit.checkState(0) == Qt.CheckState.Unchecked
+    assert item_dnit.toolTip(0) != ""
+
+    # 3. em Estado=SE, der_mg_rodovias fica desabilitado;
+    dock.rad_uf.setChecked(True)
+    idx_se = dock.cmb_uf.findData("SE")
+    assert idx_se != -1
+    dock.cmb_uf.setCurrentIndex(idx_se)
+    assert bool(item_der.flags() & Qt.ItemFlag.ItemIsEnabled) is False
+    assert item_der.checkState(0) == Qt.CheckState.Unchecked
+    assert item_der.toolTip(0) != ""
+
+    # 4. de volta a Município, tudo reabilita.
+    dock.rad_muni.setChecked(True)
+    assert bool(item_sicar.flags() & Qt.ItemFlag.ItemIsEnabled) is True
+    assert bool(item_sgb.flags() & Qt.ItemFlag.ItemIsEnabled) is True
+    assert bool(item_osm.flags() & Qt.ItemFlag.ItemIsEnabled) is True
+    assert bool(item_dnit.flags() & Qt.ItemFlag.ItemIsEnabled) is True
+    assert bool(item_der.flags() & Qt.ItemFlag.ItemIsEnabled) is True
+
+
+
+
 

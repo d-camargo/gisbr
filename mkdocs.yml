@@ -80,6 +80,7 @@ nav:
       - Processos minerários (ANM/SIGMINE): guias/anm.md
       - Cobertura do solo (MapBiomas): guias/mapbiomas.md
       - Regiões metropolitanas: guias/regioes-metropolitanas.md
+      - Recortes regionais e escala estadual: guias/recortes-regionais.md
   - Referência:
       - Fontes de dados: referencia/fontes.md
       - Algoritmos: referencia/algoritmos.md

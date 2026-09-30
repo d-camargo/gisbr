@@ -8,7 +8,7 @@ import os
 from enum import Enum
 
 from qgis.gui import QgsDockWidget
-from qgis.PyQt.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
+from qgis.PyQt.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit,
     QTreeWidget, QTreeWidgetItem, QCheckBox, QPushButton, QFileDialog,
     QLabel, QPlainTextEdit, QComboBox, QCompleter, QGroupBox, QListWidget,
     QListWidgetItem, QTabWidget, QProgressBar, QApplication,
@@ -16,14 +16,19 @@ from qgis.PyQt.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
 from qgis.PyQt.QtCore import Qt, QCoreApplication, QSettings
 from qgis.core import QgsApplication, QgsProject, QgsProcessingFeedback, QgsVectorLayer
 from ..core.sources import SOURCES
-from ..core import diagnostico, catalog_censo, censo_join, osm_pipeline, regioes_metropolitanas
+from ..core import (diagnostico, catalog_censo, censo_join, osm_pipeline,
+                    regioes_metropolitanas, divisao_regional, constants)
 from ..core.recorte import Recorte
 from ..core.osm_task import OsmNetworkTask
 
 
 class ModoRecorte(Enum):
     MUNICIPIO = "municipio"
+    MICRO = "micro"
+    MESO = "meso"
     RM = "rm"
+    UF = "uf"
+    MACRO = "macro"
 
 
 class _LogFeedback(QgsProcessingFeedback):
@@ -135,6 +140,7 @@ class DiagnosticoDock(QgsDockWidget):
         self.tree.itemChanged.connect(self._on_tree_item_changed)
         self._atualizar_aba_censo()
         self._atualizar_mapbiomas_ano()
+        self._atualizar_fontes_disponiveis()
 
         self.setWidget(central)
 
@@ -142,20 +148,37 @@ class DiagnosticoDock(QgsDockWidget):
         widget = QWidget()
         layout = QVBoxLayout(widget)
 
-        # 1.0) Modo de recorte (Municipio x RM)
-        mode_layout = QHBoxLayout()
+        # 1.0) Modo de recorte (6 modos em grid 3x2: Municipio, Micro, Meso, RM, Estado, Macro)
+        mode_grid = QGridLayout()
         self.grp_modo = QButtonGroup(widget)
         self.rad_muni = QRadioButton(self.tr("Municipality"))
+        self.rad_micro = QRadioButton(self.tr("Microregion"))
+        self.rad_meso = QRadioButton(self.tr("Mesoregion"))
         self.rad_rm = QRadioButton(self.tr("Metropolitan region"))
+        self.rad_uf = QRadioButton(self.tr("State"))
+        self.rad_macro = QRadioButton(self.tr("Macroregion (Large Region)"))
+
         self.grp_modo.addButton(self.rad_muni)
+        self.grp_modo.addButton(self.rad_micro)
+        self.grp_modo.addButton(self.rad_meso)
         self.grp_modo.addButton(self.rad_rm)
-        mode_layout.addWidget(self.rad_muni)
-        mode_layout.addWidget(self.rad_rm)
-        mode_layout.addStretch()
-        layout.addLayout(mode_layout)
+        self.grp_modo.addButton(self.rad_uf)
+        self.grp_modo.addButton(self.rad_macro)
+
+        mode_grid.addWidget(self.rad_muni, 0, 0)
+        mode_grid.addWidget(self.rad_micro, 0, 1)
+        mode_grid.addWidget(self.rad_meso, 1, 0)
+        mode_grid.addWidget(self.rad_rm, 1, 1)
+        mode_grid.addWidget(self.rad_uf, 2, 0)
+        mode_grid.addWidget(self.rad_macro, 2, 1)
+        layout.addLayout(mode_grid)
 
         self.rad_muni.toggled.connect(self._on_modo_changed)
+        self.rad_micro.toggled.connect(self._on_modo_changed)
+        self.rad_meso.toggled.connect(self._on_modo_changed)
         self.rad_rm.toggled.connect(self._on_modo_changed)
+        self.rad_uf.toggled.connect(self._on_modo_changed)
+        self.rad_macro.toggled.connect(self._on_modo_changed)
 
         # 1.1) Estado (UF)
         self.lbl_uf = QLabel(self.tr("State:"))
@@ -187,7 +210,7 @@ class DiagnosticoDock(QgsDockWidget):
         self.ed_muni.setPlaceholderText(self.tr("Ex: 3106200"))
         layout.addWidget(self.ed_muni)
 
-        # 1.4) Regiao Metropolitana (modo RM)
+        # 1.4) Entidade regional / agregada (grupo de agregacao reutilizado)
         self.lbl_rm = QLabel(self.tr("Metropolitan region:"))
         layout.addWidget(self.lbl_rm)
         self.cmb_rm = QComboBox()
@@ -212,21 +235,48 @@ class DiagnosticoDock(QgsDockWidget):
     def modo_recorte(self) -> ModoRecorte:
         if self.rad_rm.isChecked():
             return ModoRecorte.RM
+        if self.rad_micro.isChecked():
+            return ModoRecorte.MICRO
+        if self.rad_meso.isChecked():
+            return ModoRecorte.MESO
+        if self.rad_uf.isChecked():
+            return ModoRecorte.UF
+        if self.rad_macro.isChecked():
+            return ModoRecorte.MACRO
         return ModoRecorte.MUNICIPIO
 
     def _update_modo_ui(self):
         modo = self.modo_recorte
         is_muni = (modo == ModoRecorte.MUNICIPIO)
+        is_macro = (modo == ModoRecorte.MACRO)
 
         self.lbl_muni.setEnabled(is_muni)
         self.cmb_muni.setEnabled(is_muni)
         self.lbl_ed_muni.setEnabled(is_muni)
         self.ed_muni.setEnabled(is_muni)
 
-        self.lbl_rm.setEnabled(not is_muni)
-        self.cmb_rm.setEnabled(not is_muni)
-        self.lbl_rm_munis_count.setEnabled(not is_muni)
-        self.lst_rm_munis.setEnabled(not is_muni)
+        uf_enabled = not is_macro
+        self.lbl_uf.setEnabled(uf_enabled)
+        self.cmb_uf.setEnabled(uf_enabled)
+
+        rm_combo_enabled = modo in (ModoRecorte.RM, ModoRecorte.MICRO, ModoRecorte.MESO, ModoRecorte.MACRO)
+        self.lbl_rm.setEnabled(rm_combo_enabled)
+        self.cmb_rm.setEnabled(rm_combo_enabled)
+
+        lista_enabled = not is_muni
+        self.lbl_rm_munis_count.setEnabled(lista_enabled)
+        self.lst_rm_munis.setEnabled(lista_enabled)
+
+        if modo == ModoRecorte.MICRO:
+            self.lbl_rm.setText(self.tr("Microregion:"))
+        elif modo == ModoRecorte.MESO:
+            self.lbl_rm.setText(self.tr("Mesoregion:"))
+        elif modo == ModoRecorte.MACRO:
+            self.lbl_rm.setText(self.tr("Macroregion (Large Region):"))
+        elif modo == ModoRecorte.UF:
+            self.lbl_rm.setText(self.tr("State:"))
+        else:
+            self.lbl_rm.setText(self.tr("Metropolitan region:"))
 
     def _on_modo_changed(self):
         sender = self.sender()
@@ -242,36 +292,46 @@ class DiagnosticoDock(QgsDockWidget):
             self.cmb_rm.blockSignals(False)
             self.lst_rm_munis.clear()
             self.lbl_rm_munis_count.setText(self.tr("0 municipalities"))
-            self._atualizar_fontes_osm(habilitar=True)
         else:
             self.cmb_muni.blockSignals(True)
             self.cmb_muni.clear()
             self.cmb_muni.blockSignals(False)
             self.ed_muni.clear()
             self._munis = {}
-            self._atualizar_fontes_osm(habilitar=False)
 
         self._on_uf_changed()
 
     def _on_rm_changed(self):
-        id_rm = self.cmb_rm.currentData()
+        modo = self.modo_recorte
+        id_sel = self.cmb_rm.currentData()
         self.lst_rm_munis.clear()
-        if not id_rm:
+        if not id_sel:
             self.lbl_rm_munis_count.setText(self.tr("0 municipalities"))
+            self._atualizar_fontes_disponiveis()
             return
 
-        rm = regioes_metropolitanas.por_id(id_rm)
-        if not rm:
-            self.lbl_rm_munis_count.setText(self.tr("0 municipalities"))
-            return
+        if modo == ModoRecorte.RM:
+            rm = regioes_metropolitanas.por_id(id_sel)
+            if not rm:
+                self.lbl_rm_munis_count.setText(self.tr("0 municipalities"))
+                self._atualizar_fontes_disponiveis()
+                return
+            munis = rm.get("municipios", [])
+        elif modo in (ModoRecorte.MICRO, ModoRecorte.MESO, ModoRecorte.MACRO):
+            munis = divisao_regional.municipios(modo.value, id_sel)
+        elif modo == ModoRecorte.UF:
+            uf = self.cmb_uf.currentData()
+            munis = divisao_regional.municipios("uf", uf) if uf else []
+        else:
+            munis = []
 
-        munis = rm.get("municipios", [])
         for code, nome in sorted(munis, key=lambda m: m[1]):
             self.lst_rm_munis.addItem("{} ({})".format(nome, code))
 
         self.lbl_rm_munis_count.setText(
             self.tr("{count} municipalities").format(count=len(munis))
         )
+        self._atualizar_fontes_disponiveis()
 
     def _build_tab_fontes(self):
         widget = QWidget()
@@ -439,19 +499,73 @@ class DiagnosticoDock(QgsDockWidget):
                     return child
         return None
 
-    def _atualizar_fontes_osm(self, habilitar: bool):
+    def _recorte_previa(self) -> Recorte:
+        modo = self.modo_recorte
+        if modo == ModoRecorte.MUNICIPIO:
+            return Recorte(tipo="municipio", id="", nome="", codes=[])
+
+        uf = self.cmb_uf.currentData() or ""
+        sigla_uf = str(uf).upper() if uf else ""
+        code_prefix = constants.UF_ABBREV_TO_CODE.get(sigla_uf, "")
+        uf_dummy_codes = [f"{code_prefix}00000"] if code_prefix else []
+
+        if modo == ModoRecorte.UF:
+            return Recorte.de_agregado("uf", sigla_uf, sigla_uf, codes=uf_dummy_codes)
+
+        if modo == ModoRecorte.RM:
+            id_rm = self.cmb_rm.currentData()
+            codes = regioes_metropolitanas.codes(id_rm) if id_rm else []
+            if not codes and uf_dummy_codes:
+                codes = uf_dummy_codes
+            return Recorte.de_rm(str(id_rm or ""), "", codes=codes)
+
+        if modo in (ModoRecorte.MICRO, ModoRecorte.MESO):
+            id_reg = self.cmb_rm.currentData()
+            codes = []
+            if id_reg:
+                munis = divisao_regional.municipios(modo.value, id_reg)
+                codes = [c for c, _ in munis]
+            if not codes and uf_dummy_codes:
+                codes = uf_dummy_codes
+            return Recorte.de_agregado(modo.value, str(id_reg or ""), "", codes=codes)
+
+        if modo == ModoRecorte.MACRO:
+            id_macro = self.cmb_rm.currentData()
+            codes = []
+            if id_macro:
+                codes = [c for c, _ in divisao_regional.municipios("macro", id_macro)]
+            return Recorte.de_agregado("macro", str(id_macro or ""), "", codes=codes)
+
+        return Recorte(tipo="municipio", id="", nome="", codes=[])
+
+    def _atualizar_fontes_disponiveis(self):
         if not hasattr(self, "tree"):
             return
-        for sid in ("osm_vias", "osm_pois"):
+        recorte = self._recorte_previa()
+        desabilitadas = []
+        for s in SOURCES:
+            sid = s.get("id")
+            if not sid:
+                continue
             item = self._find_tree_item(sid)
-            if item:
-                if not habilitar:
-                    item.setCheckState(0, Qt.CheckState.Unchecked)
-                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
-                else:
-                    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEnabled)
-        if not habilitar:
-            self._log(self.tr("OSM road network and POIs are available for single municipality mode only (disabled in RM mode)."))
+            if not item:
+                continue
+            motivo = diagnostico._fora_do_recorte(s, recorte)
+            if motivo:
+                item.setCheckState(0, Qt.CheckState.Unchecked)
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
+                item.setToolTip(0, motivo)
+                desabilitadas.append(sid)
+            else:
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEnabled)
+                item.setToolTip(0, "")
+
+        if desabilitadas:
+            self._log(
+                self.tr("Disabled sources: {sources} (disabled for current scale)").format(
+                    sources=", ".join(desabilitadas)
+                )
+            )
 
     def _log(self, msg, focar=False):
         self.txt_log.appendPlainText(msg)
@@ -542,7 +656,18 @@ class DiagnosticoDock(QgsDockWidget):
         self.lst_rm_munis.clear()
         self.lbl_rm_munis_count.setText(self.tr("0 municipalities"))
 
+        if modo == ModoRecorte.MACRO:
+            macros = divisao_regional.listar("macro")
+            self.cmb_rm.blockSignals(True)
+            for id_macro, nome_macro in macros:
+                self.cmb_rm.addItem(nome_macro, id_macro)
+            self.cmb_rm.setCurrentIndex(-1)
+            self.cmb_rm.blockSignals(False)
+            self._atualizar_fontes_disponiveis()
+            return
+
         if not uf:
+            self._atualizar_fontes_disponiveis()
             return
 
         if modo == ModoRecorte.MUNICIPIO:
@@ -551,6 +676,7 @@ class DiagnosticoDock(QgsDockWidget):
                 self._munis = self._listar_municipios(uf)
             except Exception as exc:
                 self._log(self.tr("Failed to list municipalities: {error}").format(error=exc), focar=True)
+                self._atualizar_fontes_disponiveis()
                 return
             self.cmb_muni.blockSignals(True)
             for code in sorted(self._munis, key=lambda c: self._munis[c][0]):
@@ -566,6 +692,32 @@ class DiagnosticoDock(QgsDockWidget):
                 self.cmb_rm.addItem(rm["nome"], rm["id"])
             self.cmb_rm.setCurrentIndex(-1)
             self.cmb_rm.blockSignals(False)
+
+        elif modo == ModoRecorte.MICRO:
+            micros = divisao_regional.listar("micro", sigla_uf=uf)
+            self.cmb_rm.blockSignals(True)
+            for id_micro, nome_micro in micros:
+                self.cmb_rm.addItem(nome_micro, id_micro)
+            self.cmb_rm.setCurrentIndex(-1)
+            self.cmb_rm.blockSignals(False)
+
+        elif modo == ModoRecorte.MESO:
+            mesos = divisao_regional.listar("meso", sigla_uf=uf)
+            self.cmb_rm.blockSignals(True)
+            for id_meso, nome_meso in mesos:
+                self.cmb_rm.addItem(nome_meso, id_meso)
+            self.cmb_rm.setCurrentIndex(-1)
+            self.cmb_rm.blockSignals(False)
+
+        elif modo == ModoRecorte.UF:
+            munis = divisao_regional.municipios("uf", uf)
+            for code, nome in sorted(munis, key=lambda m: m[1]):
+                self.lst_rm_munis.addItem("{} ({})".format(nome, code))
+            self.lbl_rm_munis_count.setText(
+                self.tr("{count} municipalities").format(count=len(munis))
+            )
+
+        self._atualizar_fontes_disponiveis()
 
     def _on_muni_changed(self):
         code = self.cmb_muni.currentData()
@@ -710,7 +862,7 @@ class DiagnosticoDock(QgsDockWidget):
                 return
             recorte = Recorte.de_municipio(code, nome, bbox)
             self._log(self.tr("Municipality: {name} ({code})").format(name=nome, code=code), focar=True)
-        else:
+        elif modo == ModoRecorte.RM:
             id_rm = self.cmb_rm.currentData()
             rm = regioes_metropolitanas.por_id(id_rm) if id_rm else None
             if not id_rm or not rm:
@@ -726,6 +878,82 @@ class DiagnosticoDock(QgsDockWidget):
             nome = recorte.rotulo
             bbox = None
             self._log(self.tr("Metropolitan region: {rotulo} — {count} municipalities").format(
+                rotulo=recorte.rotulo, count=len(recorte.codes)), focar=True)
+        elif modo == ModoRecorte.MICRO:
+            id_micro = self.cmb_rm.currentData()
+            if not id_micro:
+                self._log(self.tr("Select a microregion."), focar=True)
+                return
+            if not gpkg or not ids:
+                self._log(self.tr("Specify GeoPackage and at least 1 source."), focar=True)
+                return
+            nome_micro = divisao_regional.nome("micro", id_micro)
+            rotulo = f"Microrregião de {nome_micro}"
+            munis = divisao_regional.municipios("micro", id_micro)
+            codes = [c for c, _ in munis]
+            nomes = [n for _, n in munis]
+            recorte = Recorte.de_agregado("micro", str(id_micro), rotulo, codes, nomes=nomes)
+            code = recorte.sufixo
+            nome = recorte.rotulo
+            bbox = None
+            self._log(self.tr("Microregion: {rotulo} — {count} municipalities").format(
+                rotulo=recorte.rotulo, count=len(recorte.codes)), focar=True)
+        elif modo == ModoRecorte.MESO:
+            id_meso = self.cmb_rm.currentData()
+            if not id_meso:
+                self._log(self.tr("Select a mesoregion."), focar=True)
+                return
+            if not gpkg or not ids:
+                self._log(self.tr("Specify GeoPackage and at least 1 source."), focar=True)
+                return
+            nome_meso = divisao_regional.nome("meso", id_meso)
+            rotulo = f"Mesorregião {nome_meso}"
+            munis = divisao_regional.municipios("meso", id_meso)
+            codes = [c for c, _ in munis]
+            nomes = [n for _, n in munis]
+            recorte = Recorte.de_agregado("meso", str(id_meso), rotulo, codes, nomes=nomes)
+            code = recorte.sufixo
+            nome = recorte.rotulo
+            bbox = None
+            self._log(self.tr("Mesoregion: {rotulo} — {count} municipalities").format(
+                rotulo=recorte.rotulo, count=len(recorte.codes)), focar=True)
+        elif modo == ModoRecorte.UF:
+            uf = self.cmb_uf.currentData()
+            if not uf:
+                self._log(self.tr("Select a state."), focar=True)
+                return
+            if not gpkg or not ids:
+                self._log(self.tr("Specify GeoPackage and at least 1 source."), focar=True)
+                return
+            nome_uf = divisao_regional.nome("uf", uf)
+            rotulo = f"{nome_uf} ({uf})"
+            munis = divisao_regional.municipios("uf", uf)
+            codes = [c for c, _ in munis]
+            nomes = [n for _, n in munis]
+            recorte = Recorte.de_agregado("uf", str(uf).upper(), rotulo, codes, nomes=nomes)
+            code = recorte.sufixo
+            nome = recorte.rotulo
+            bbox = None
+            self._log(self.tr("State: {rotulo} — {count} municipalities").format(
+                rotulo=recorte.rotulo, count=len(recorte.codes)), focar=True)
+        elif modo == ModoRecorte.MACRO:
+            id_macro = self.cmb_rm.currentData()
+            if not id_macro:
+                self._log(self.tr("Select a macroregion."), focar=True)
+                return
+            if not gpkg or not ids:
+                self._log(self.tr("Specify GeoPackage and at least 1 source."), focar=True)
+                return
+            nome_macro = divisao_regional.nome("macro", id_macro)
+            rotulo = f"Região {nome_macro}"
+            munis = divisao_regional.municipios("macro", id_macro)
+            codes = [c for c, _ in munis]
+            nomes = [n for _, n in munis]
+            recorte = Recorte.de_agregado("macro", str(id_macro), rotulo, codes, nomes=nomes)
+            code = recorte.sufixo
+            nome = recorte.rotulo
+            bbox = None
+            self._log(self.tr("Macroregion: {rotulo} — {count} municipalities").format(
                 rotulo=recorte.rotulo, count=len(recorte.codes)), focar=True)
 
         # Mesma normalização que `diagnostico.carregar_fontes` faz por

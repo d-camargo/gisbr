@@ -13,7 +13,7 @@ from qgis.core import QgsProject, QgsVectorLayer, QgsVectorFileWriter
 from .connectors import wfs, basemap, arcgis_rest, osm, local_file, ibge_agregados, zip_remoto, cog_raster
 from .sources import SOURCES
 from . import (catalog, catalog_censo, censo_join, osm_pipeline, poi_pipeline,
-               agro_pipeline)
+               agro_pipeline, constants)
 
 _UF_POR_CODIGO = {
     "11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16": "AP",
@@ -46,6 +46,28 @@ def _filtro_para(s, code_muni, nome_muni=None):
     f = s.get("filtro") or {"tipo": "bbox"}
     t = f.get("tipo")
     if t not in ("cql_codigo", "cql_nome"):
+        return None, True
+
+    tipo_recorte = getattr(code_muni, "tipo", None)
+    if tipo_recorte in ("uf", "macro") and "uf" in f:
+        cfg_uf = f["uf"]
+        campo = cfg_uf.get("campo")
+        modo = cfg_uf.get("modo")
+        siglas = getattr(code_muni, "siglas_uf", []) or []
+        if campo and siglas:
+            if modo == "sigla":
+                siglas_ord = sorted(siglas)
+                if len(siglas_ord) == 1:
+                    return "{} = '{}'".format(campo, siglas_ord[0]), False
+                siglas_fmt = ["'{}'".format(s) for s in siglas_ord]
+                return "{} IN ({})".format(campo, ",".join(siglas_fmt)), False
+            elif modo == "prefixo":
+                codes = sorted(constants.UF_ABBREV_TO_CODE[s] for s in siglas if s in constants.UF_ABBREV_TO_CODE)
+                if codes:
+                    if len(codes) == 1:
+                        return "{} LIKE '{}%'".format(campo, codes[0]), False
+                    terms = ["{} LIKE '{}%'".format(campo, c) for c in codes]
+                    return " OR ".join(terms), False
         return None, True
 
     codes = []
@@ -317,6 +339,32 @@ def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path,
     return None
 
 
+# Ranking da chave declarativa `escala_max` das fontes (D4): municipio=0,
+# regional=2 (cobre micro, RM e meso), estado=3, macrorregiao=4. Fonte fica
+# disponível quando recorte.escala <= rank(escala_max).
+_ESCALA_MAX_RANK = {"municipio": 0, "regional": 2, "estado": 3, "macrorregiao": 4}
+
+# Nome da escala do recorte para a mensagem do D8 (em inglês; PT-BR vem do .ts).
+_ESCALA_NOME = {0: "municipality", 1: "regional", 2: "regional", 3: "state", 4: "macro-region"}
+
+
+def _fora_do_recorte(s, recorte) -> str | None:
+    proto = s.get("protocolo")
+    if proto == "osm" and recorte.e_agregado:
+        return QCoreApplication.translate("GisBR", "a rede viária e os POIs do OpenStreetMap rodam por município; escolha o recorte Município para carregá-los")
+    escala_max = _ESCALA_MAX_RANK.get(s.get("escala_max"))
+    if escala_max is not None and recorte.escala > escala_max:
+        return QCoreApplication.translate(
+            "GisBR", "unavailable at the {scale} scale (too heavy); choose a smaller area"
+        ).format(scale=_ESCALA_NOME.get(recorte.escala, "regional"))
+    ufs = s.get("ufs")
+    if ufs and recorte.siglas_uf and not set(recorte.siglas_uf) <= set(ufs):
+        return QCoreApplication.translate(
+            "GisBR", "state source ({ufs}); not available for this area"
+        ).format(ufs=", ".join(ufs))
+    return None
+
+
 def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
                     add_basemap=False, force=False, feedback=None,
                     *, recorte=None, censo_ano=None, censo_datasets=(), mapbiomas_ano=None):
@@ -337,6 +385,20 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
     poligono = None
     poligono_tentado = False
 
+    valid_source_ids = []
+    for sid in source_ids:
+        s = next((x for x in SOURCES if x["id"] == sid), None)
+        if not s:
+            valid_source_ids.append(sid)
+            continue
+        motivo = _fora_do_recorte(s, recorte)
+        if motivo:
+            res["pulou"].append((sid, motivo))
+            log("Aviso: {} — {}".format(sid, motivo))
+        else:
+            valid_source_ids.append(sid)
+    source_ids = valid_source_ids
+
     def _obter_poligono():
         nonlocal poligono, poligono_tentado
         if poligono_tentado:
@@ -350,6 +412,20 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
             layer = QgsVectorLayer("{}|layername={}".format(gpkg_path, nome_limite), recorte.rotulo, "ogr")
             if layer.isValid():
                 poligono = layer
+                if recorte.tipo in ("uf", "macro"):
+                    import processing
+                    try:
+                        res_diss = processing.run("native:dissolve", {
+                            "INPUT": poligono,
+                            "OUTPUT": "TEMPORARY_OUTPUT"
+                        })
+                        dissolved = res_diss.get("OUTPUT")
+                        if dissolved and dissolved.isValid():
+                            poligono = dissolved
+                        else:
+                            log("Aviso: falha no dissolve, usando malha original")
+                    except Exception as e:
+                        log("Aviso: falha no dissolve ({})".format(e))
                 return poligono
 
         if recorte.tipo == "municipio":
@@ -370,6 +446,22 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
                     log("OK: {}".format(nome_limite))
             else:
                 log("Aviso: falha ao gravar limite da RM: {}".format(msg))
+
+        if recorte.tipo in ("uf", "macro") and poligono is not None and poligono.isValid():
+            import processing
+            try:
+                res_diss = processing.run("native:dissolve", {
+                    "INPUT": poligono,
+                    "OUTPUT": "TEMPORARY_OUTPUT"
+                })
+                dissolved = res_diss.get("OUTPUT")
+                if dissolved and dissolved.isValid():
+                    poligono = dissolved
+                else:
+                    log("Aviso: falha no dissolve, usando malha original")
+            except Exception as e:
+                log("Aviso: falha no dissolve ({})".format(e))
+
         return poligono
 
 
@@ -427,14 +519,6 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
     osm_sources = [s for s in _por_id(source_ids) if s.get("protocolo") == "osm"]
     for osm_source in osm_sources:
         sid = osm_source["id"]
-        if recorte.tipo == "rm":
-            msg = QCoreApplication.translate(
-                "GisBR",
-                "a rede viária e os POIs do OpenStreetMap rodam por município; escolha o recorte Município para carregá-los"
-            )
-            res["pulou"].append((sid, msg))
-            log("Aviso: {} — {}".format(sid, msg))
-            continue
         if sid == "osm_vias":
             if (not force) and osm_pipeline.osm_vias_ja_existe(existentes, code_muni):
                 res["pulou"].append((sid, "ja existe no GeoPackage (osm_links_{}/osm_nodes_{}) (marque 'Atualizar bases já baixadas' para rebaixar)".format(code_muni, code_muni)))
@@ -535,7 +619,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
                 continue
 
         cql, usa_bbox = _filtro_para(s, recorte)
-        if cql and (s.get("filtro") or {}).get("tipo") == "cql_nome" and recorte.e_rm:
+        if cql and (s.get("filtro") or {}).get("tipo") == "cql_nome" and recorte.e_agregado:
             log("filtro por nome: {} nomes de municípios pedidos para {} (a base pode grafar diferente do IBGE)".format(len(recorte.nomes), s["id"]))
 
         # em modo RM o bbox do pedido sai do retângulo envolvente do próprio
@@ -543,7 +627,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
         # continua afunilando depois) — sem isto, fontes bbox pediram a base
         # nacional inteira. Só para fonte que de fato pede bbox ao servidor.
         bbox_req = bbox
-        if _usou_bbox(s, usa_bbox) and recorte.e_rm and not bbox_req:
+        if _usou_bbox(s, usa_bbox) and recorte.e_agregado and not bbox_req:
             _poly = _obter_poligono()
             if _poly is not None:
                 _ext = _poly.extent()
@@ -614,7 +698,7 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
                 try:
                     joined_layer, rel = censo_join.anexar_censo(
                         layer, censo_ano, censo_datasets,
-                        code_muni=(None if recorte.e_rm else recorte.sufixo),
+                        code_muni=(None if recorte.e_agregado else recorte.sufixo),
                         feedback=feedback
                     )
                     for _info in rel.get("infos", []):

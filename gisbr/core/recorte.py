@@ -19,17 +19,21 @@ class Recorte:
     def de_rm(cls, id_rm: str, nome: str, codes: List[str], nomes: Optional[List[str]] = None):
         return cls(tipo="rm", id=id_rm, nome=nome, codes=codes, nomes=list(nomes or []))
 
+    @classmethod
+    def de_agregado(cls, tipo: str, id_agregado: str, nome: str, codes: List[str], nomes: Optional[List[str]] = None):
+        return cls(tipo=tipo, id=id_agregado, nome=nome, codes=codes, nomes=list(nomes or []))
+
     @property
     def sufixo(self) -> str:
-        if self.tipo == "rm":
-            return f"rm{self.id}"
+        if self.e_agregado:
+            return f"{self.tipo}{self.id}".lower()
         return self.id
 
     @property
     def nome_camada_limite(self) -> Optional[str]:
-        """Nome da camada de limite no GeoPackage (D7: `rm_<id_rm>`); None no modo município."""
-        if self.tipo == "rm":
-            return f"rm_{self.id}"
+        """Nome da camada de limite no GeoPackage (D7: `<tipo>_<id>`); None no modo município."""
+        if self.e_agregado:
+            return f"{self.tipo}_{self.id}".lower()
         return None
 
     @property
@@ -52,8 +56,27 @@ class Recorte:
         return self.codes_por_uf()
 
     @property
+    def e_agregado(self) -> bool:
+        return self.tipo != "municipio"
+
+    @property
     def e_rm(self) -> bool:
         return self.tipo == "rm"
+
+    # Ranking de escala do recorte (D3): municipio=0, micro=1, rm=1, meso=2,
+    # uf=3, macro=4. Agregado desconhecido cai no nível regional (2).
+    _ESCALA_RECORTE = {"municipio": 0, "micro": 1, "rm": 1, "meso": 2, "uf": 3, "macro": 4}
+
+    @property
+    def escala(self) -> int:
+        return self._ESCALA_RECORTE.get(self.tipo, 2 if self.e_agregado else 0)
+
+    @property
+    def siglas_uf(self) -> List[str]:
+        from gisbr.core.constants import UF_CODE_TO_ABBREV
+        siglas = {UF_CODE_TO_ABBREV[int(uf)] for uf in self.codes_por_uf()
+                  if int(uf) in UF_CODE_TO_ABBREV}
+        return sorted(siglas)
 
 
 def camada_do_recorte(recorte: Recorte, feedback=None, algo: str = "read_municipality", extra_params: dict = None):

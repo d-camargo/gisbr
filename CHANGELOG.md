@@ -2,6 +2,29 @@
 
 Generated from the `changelog` block of `gisbr/metadata.txt` by `tools/build_docs_site.py` — do not edit by hand.
 
+## 1.1.0
+
+- New diagnostic extents: Microregion, Mesoregion, State and Macroregion
+(Grande Região) modes, complementing the existing Municipality and
+Metropolitan Region (RM) options.
+- Embedded official IBGE regional division composition data (extracted on
+2026-09-30) mapping all 5,570+ Brazilian municipalities to their
+respective microregions, mesoregions, and macroregions.
+- Scale-based source disabling: heavy layers (such as Overpass OSM networks
+and POIs, SICAR cadastral parcels, dense hydrography, and high-resolution
+rasters) are automatically disabled at state and macroregion scales to
+prevent memory exhaustion and request timeouts.
+- New official state SDI data sources by UF: Minas Gerais (Sisema-MG:
+urbanized areas, state and municipal conservation units, wastewater
+treatment plants [ETE], water usage permits, erosion risk), Goiás
+(Siga-GO: road network, landfills, Saneago water catchments, state
+conservation units, landslide susceptibility), São Paulo (DataGeo-SP:
+flood risk areas), Distrito Federal (IDE-DF: PDOT zoning and
+macrozoning, administrative regions, public schools), Rio Grande do
+Sul (SEDUR-RS: urbanized areas and flood/landslide susceptibility
+for the Taquari Valley), and Paraná (IAT GeoPR: state conservation
+units and DER state roads).
+
 ## 1.0.1
 
 - Fix: Metropolitan Region mode now clips bbox-filtered sources (DNIT, SGB,

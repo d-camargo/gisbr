@@ -181,3 +181,54 @@ def test_camada_do_recorte_sem_extra_params_passa_output(monkeypatch):
     assert gisbr_calls[0].get("OUTPUT") == "TEMPORARY_OUTPUT"
     assert gisbr_calls[0].get("SIMPLIFIED") is True
 
+
+
+def test_recorte_generalizado():
+    # Regressão município
+    rmun = Recorte.de_municipio("3106200", "Contagem")
+    assert rmun.sufixo == "3106200"
+    assert rmun.nome_camada_limite is None
+    assert rmun.escala == 0
+    assert rmun.siglas_uf == ["MG"]
+    assert not rmun.e_agregado
+
+    # Regressão RM
+    rrm = Recorte.de_rm("06301", "Região Metropolitana da Serra", ["3106200"])
+    assert rrm.sufixo == "rm06301"
+    assert rrm.nome_camada_limite == "rm_06301"
+    assert rrm.escala == 1
+    assert rrm.siglas_uf == ["MG"]
+    assert rrm.e_agregado
+    assert rrm.rotulo == "RM da Serra"
+
+    # Novos tipos do D3: id IBGE em micro/meso/macro, sigla em uf
+    rmicro = Recorte.de_agregado("micro", "31030", "Microrregião de Belo Horizonte", ["3118601"])
+    assert rmicro.sufixo == "micro31030"
+    assert rmicro.nome_camada_limite == "micro_31030"
+    assert rmicro.escala == 1
+
+    rmeso = Recorte.de_agregado("meso", "3107", "Mesorregião Metropolitana de Belo Horizonte", ["3118601"])
+    assert rmeso.sufixo == "meso3107"
+    assert rmeso.nome_camada_limite == "meso_3107"
+    assert rmeso.escala == 2
+
+    ruf = Recorte.de_agregado("uf", "MG", "Minas Gerais (MG)", ["3106200"])
+    assert ruf.sufixo == "ufmg"
+    assert ruf.nome_camada_limite == "uf_mg"
+    assert ruf.escala == 3
+    assert ruf.siglas_uf == ["MG"]
+
+    rmacro = Recorte.de_agregado("macro", "3", "Região Sudeste", ["3106200", "3200000", "3300000", "3500000"])
+    assert rmacro.sufixo == "macro3"
+    assert rmacro.nome_camada_limite == "macro_3"
+    assert rmacro.escala == 4
+    assert rmacro.siglas_uf == ["ES", "MG", "RJ", "SP"]
+
+    # Agregado desconhecido: default regional (2)
+    rrpi = Recorte.de_agregado("rpi", "310001", "Região Imediata", ["3106200", "3550308"])
+    assert rrpi.sufixo == "rpi310001"
+    assert rrpi.nome_camada_limite == "rpi_310001"
+    assert rrpi.escala == 2
+    assert rrpi.siglas_uf == ["MG", "SP"]
+    assert rrpi.e_agregado
+    assert rrpi.rotulo == "Região Imediata"
