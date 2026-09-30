@@ -65,26 +65,49 @@ aparece no comentário da primeira linha do arquivo.
     composição inteira é carregada em memória na primeira consulta e memoizada
     para o resto da sessão.
 
-## OSM — indisponível no modo RM
+## OSM no modo RM
 
-As fontes **`osm_vias`** (rede viária) e **`osm_pois`** (pontos de interesse)
-são **desabilitadas automaticamente** no modo Região metropolitana: os
-checkboxes ficam cinza, desmarcados, e o log avisa:
+A fonte **`osm_vias`** (rede viária) funciona no modo Região metropolitana,
+mas por outro caminho: em vez de consultar o Overpass, o plugin baixa a
+**rede veicular pré-processada** da release
+[`gisbr_base/osm-20260929`](https://github.com/d-camargo/gisbr_base/releases/tag/osm-20260929),
+que cobre **84 RMs** — um `.zip` por RM, de ~1 MB a ~105 MB. A consulta
+Overpass para a bounding box de uma RM inteira (dezenas de municípios) seria
+lenta demais e estouraria o limite da API pública; a base é montada fora do
+QGIS, a partir de um extrato do OpenStreetMap, com o mesmo motor de
+topologia do modo Município (veja o [guia de vias](vias.md)).
 
-> *OSM road network and POIs are available for single municipality mode only
-> (disabled in RM mode).*
+O GeoPackage recebe as mesmas três camadas do modo Município, com o sufixo da
+RM: `osm_links_rm<id>`, `osm_nodes_rm<id>` e `osm_problemas_rm<id>`. A
+propriedade `data_extracao` dessas camadas é a **data do extrato OSM** usado
+na montagem da base — não a data em que você clicou em Carregar.
 
-O motivo é técnico: a consulta Overpass para a bounding box de uma RM inteira
-(que pode conter dezenas de municípios) geraria volumes massivos de dados,
-timeouts na API pública e travamento do QGIS durante o parse.
+- **Cache:** o `.zip` da RM e o `manifest.json` da release ficam no cache do
+  plugin (`~/.cache/geobr-qgis/`, prefixados pela tag); numa reexecução não
+  há novo download. Se as camadas já estiverem no GeoPackage, a fonte é
+  pulada — marque **Atualizar bases já baixadas** para regravá-las.
+- **Integridade:** cada `.zip` é conferido contra o **sha256** declarado no
+  manifesto da release; se não bater, o arquivo é descartado do cache e a
+  fonte falha com o hash esperado e o calculado no log.
+- **Atribuição:** os dados são © contribuidores do OpenStreetMap, sob a
+  licença [ODbL](https://opendatacommons.org/licenses/odbl/); o texto de
+  atribuição do manifesto é impresso no log a cada carga. Mantenha essa
+  atribuição em mapas e produtos derivados.
+- **RM fora da base:** se a RM escolhida não estiver entre as 84 (ou tiver
+  falhado na montagem da base), `osm_vias` entra como **pulada, com aviso**
+  no log — não derruba as demais fontes.
 
-!!! tip "O que fazer: carregar OSM por município"
-    Para ter as vias e os POIs do OSM na região metropolitana, volte ao modo
+**`osm_pois` continua indisponível no modo RM:** o checkbox fica cinza e o
+log explica que os POIs rodam só por município. A base pré-processada traz
+apenas a rede viária, e os POIs dependeriam da mesma consulta Overpass de
+área inteira que a base existe para evitar.
+
+!!! tip "O que fazer: carregar POIs por município"
+    Para ter os POIs do OSM na região metropolitana, volte ao modo
     **Município** e carregue cada cidade de interesse individualmente, sempre
-    apontando para o **mesmo GeoPackage**. As camadas OSM de cada município
-    (`osm_links_<code>`, `osm_nodes_<code>`, `osm_pois_<code>`) convivem no
-    mesmo arquivo com as camadas da RM (`<fonte>_rm<id>`) — o GeoPackage aceita
-    ambos os sufixos.
+    apontando para o **mesmo GeoPackage**. As camadas de cada município
+    (`osm_pois_<code>`) convivem no mesmo arquivo com as camadas da RM
+    (`<fonte>_rm<id>`) — o GeoPackage aceita ambos os sufixos.
 
 ## RIDEs não estão no catálogo
 

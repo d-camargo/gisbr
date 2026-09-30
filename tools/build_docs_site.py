@@ -116,7 +116,13 @@ _ESCALA_EN = {
 }
 
 
-def _escala_max(fonte, mapa):
+def _escala_max(fonte, mapa, lang="pt"):
+    base_rm = fonte.get("base_rm")
+    if base_rm and isinstance(base_rm, dict) and "tag" in base_rm:
+        tag = base_rm["tag"]
+        if lang == "en":
+            return "municipality; metro region (pre-built base %s)" % tag
+        return "município; RM (base pré-processada %s)" % tag
     return mapa.get(fonte.get("escala_max"), "—")
 
 
@@ -190,7 +196,7 @@ def _render_fontes(sources, lang):
             linhas.append("| %s | `%s` | %s | %s | %s | %s | %s |\n" % (
                 fonte["nome"], fonte["id"], fonte["protocolo"],
                 _tipo_filtro(fonte, fmap),
-                _escala_max(fonte, emap),
+                _escala_max(fonte, emap, lang),
                 _format_ufs(fonte),
                 fonte.get("licenca", "—")))
     return "".join(linhas)

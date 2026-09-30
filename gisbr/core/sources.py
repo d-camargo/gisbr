@@ -37,6 +37,11 @@ Protocolo "osm": fontes servidas pela API Overpass (host fixo no conector,
 sem endpoint por fonte). O motor de diagnostico despacha por id para o
 pipeline dedicado — "osm_vias" (vias/nós) e "osm_pois" (pontos de interesse).
 Sem host próprio, ficam fora do tools/check_sources_tls.py.
+Chave opcional:
+  base_rm: dict com repo, tag e manifest apontando para a base pré-processada
+           no GitHub Releases usada no recorte de Região Metropolitana (a RM
+           inteira sai de um asset pronto, sem consulta Overpass). A tag é
+           fixa e tem bump manual quando sair base nova.
 """
 
 SOURCES = [
@@ -75,9 +80,12 @@ SOURCES = [
      "protocolo": "wfs", "endpoint": "https://geoservicos.ibge.gov.br/geoserver/ows",
      "type_name": "CCAR:BC250_2025_fer_trecho_ferroviario_l", "srs": "EPSG:4674",
      "filtro": {"tipo": "bbox"}, "escala_max": "macrorregiao", "licenca": "Publica"},
-    {"id": "osm_vias", "eixo": "transportes", "nome": "OSM — Vias urbanas (Overpass)",
+    {"id": "osm_vias", "eixo": "transportes",
+     "nome": "OSM — Vias urbanas (Overpass; RM: base pré-processada)",
      "protocolo": "osm", "escala_max": "municipio",
-     "licenca": "OpenStreetMap contributors"},
+     "licenca": "OpenStreetMap contributors",
+     "base_rm": {"repo": "d-camargo/gisbr_base", "tag": "osm-20260929",
+                 "manifest": "manifest.json"}},
     # --- Eixo 2: Drenagem e Saneamento ---
     {"id": "sgb_rios", "eixo": "saneamento", "nome": "SGB/CPRM — Rios (BC250)",
      "protocolo": "wfs", "endpoint": "https://opendata.sgb.gov.br/geoserver/ows",

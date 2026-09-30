@@ -86,6 +86,16 @@ def test_tabela_fontes_escala_e_ufs_valores(tmp_path):
     assert "| `dnit_snv` | wfs | bbox + recorte | Estado | — |" in pt
     assert "| `dnit_snv` | wfs | bbox + clip | State | — |" in en
 
+    # Fonte com base_rm (osm_vias: disponibilidade em RM com tag da release)
+    assert (
+        "| `osm_vias` | osm | bbox + recorte | "
+        "município; RM (base pré-processada osm-20260929) | — |"
+    ) in pt
+    assert (
+        "| `osm_vias` | osm | bbox + clip | "
+        "municipality; metro region (pre-built base osm-20260929) | — |"
+    ) in en
+
 
 def test_eixo_desconhecido_deruba_o_gerador(tmp_path, monkeypatch):
     import tools.build_docs_site as gerador

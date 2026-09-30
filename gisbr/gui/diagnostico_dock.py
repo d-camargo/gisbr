@@ -963,10 +963,14 @@ class DiagnosticoDock(QgsDockWidget):
         if not gpkg.lower().endswith(".gpkg"):
             gpkg = gpkg + ".gpkg"
         # `osm_vias` roda como `OsmNetworkTask` (QgsTask, em segundo plano,
-        # sem travar a UI) em modo município — as demais fontes continuam por
-        # `diagnostico.carregar_fontes` como sempre (síncronas).
+        # sem travar a UI) SOMENTE no modo município — nos demais recortes a
+        # fonte segue no fluxo síncrono de `diagnostico.carregar_fontes`
+        # (no modo RM, importação da base pré-processada do gisbr_base).
         osm_vias_selecionada = (modo == ModoRecorte.MUNICIPIO) and ("osm_vias" in ids)
-        ids_sincronas = [sid for sid in ids if sid != "osm_vias"]
+        if osm_vias_selecionada:
+            ids_sincronas = [sid for sid in ids if sid != "osm_vias"]
+        else:
+            ids_sincronas = ids
         censo_ano = None
         censo_datasets = ()
         if self.grp_censo.isChecked():

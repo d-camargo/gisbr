@@ -24,6 +24,10 @@ macrozoning, administrative regions, public schools), Rio Grande do
 Sul (SEDUR-RS: urbanized areas and flood/landslide susceptibility
 for the Taquari Valley), and Paraná (IAT GeoPR: state conservation
 units and DER state roads).
+- Metropolitan Region mode now loads the OSM road network (links, nodes,
+problems) from the pre-built gisbr_base release osm-20260929, covering
+all 84 RMs, with sha256 check and disk cache; OSM POIs remain
+municipality-only.
 
 ## 1.0.1
 

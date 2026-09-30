@@ -351,6 +351,17 @@ _ESCALA_NOME = {0: "municipality", 1: "regional", 2: "regional", 3: "state", 4: 
 def _fora_do_recorte(s, recorte) -> str | None:
     proto = s.get("protocolo")
     if proto == "osm" and recorte.e_agregado:
+        if recorte.tipo == "rm":
+            # D5 da rodada 22: no modo RM, osm_vias sai da base pré-processada
+            # do gisbr_base (github_release); osm_pois continua município-only.
+            if s.get("base_rm"):
+                return None
+            tag = next((src.get("base_rm", {}).get("tag") for src in SOURCES if src.get("base_rm")), "unknown")
+            return QCoreApplication.translate(
+                "GisBR",
+                "the pre-built OSM base for metropolitan regions ({tag}) has only "
+                "the road network, no POIs; choose the Municipality extent to load POIs"
+            ).format(tag=tag)
         return QCoreApplication.translate("GisBR", "a rede viária e os POIs do OpenStreetMap rodam por município; escolha o recorte Município para carregá-los")
     escala_max = _ESCALA_MAX_RANK.get(s.get("escala_max"))
     if escala_max is not None and recorte.escala > escala_max:
@@ -520,36 +531,55 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
     for osm_source in osm_sources:
         sid = osm_source["id"]
         if sid == "osm_vias":
-            if (not force) and osm_pipeline.osm_vias_ja_existe(existentes, code_muni):
-                res["pulou"].append((sid, "ja existe no GeoPackage (osm_links_{}/osm_nodes_{}) (marque 'Atualizar bases já baixadas' para rebaixar)".format(code_muni, code_muni)))
+            sufixo = recorte.sufixo
+            if (not force) and osm_pipeline.osm_vias_ja_existe(existentes, sufixo):
+                res["pulou"].append((sid, "ja existe no GeoPackage (osm_links_{}/osm_nodes_{}) (marque 'Atualizar bases já baixadas' para rebaixar)".format(sufixo, sufixo)))
             else:
-                result = osm_pipeline.build_osm_municipal_network(recorte.sufixo, recorte.rotulo, gpkg_path, force=force, feedback=feedback)
+                if recorte.tipo == "rm":
+                    result = osm_pipeline.importar_rede_rm(recorte, gpkg_path, force=force, feedback=feedback)
+                else:
+                    result = osm_pipeline.build_osm_municipal_network(sufixo, recorte.rotulo, gpkg_path, force=force, feedback=feedback)
                 meta = result.get("metadata", {})
                 if meta.get("cancelado"):
                     # o botao "Cancelar" do painel chama feedback.cancel();
                     # sem excecao, a fonte volta como pulada, nao como falha.
                     res["pulou"].append((sid, "cancelado pelo usuário"))
                     log("Aviso: {} — cancelado pelo usuário".format(sid))
+                elif meta.get("pulou"):
+                    res["pulou"].append((sid, meta["pulou"]))
+                    log("Aviso: {} — {}".format(sid, meta["pulou"]))
                 elif meta.get("sem_vias"):
                     # regra da casa: 0 feições entra em pulou com aviso, nao em falhou
                     res["pulou"].append((sid, meta.get("erro", "nenhuma via")))
                     log("Aviso: {} — {}".format(sid, meta.get("erro", "nenhuma via")))
                 elif meta.get("gpkg_ok"):
                     # Carregar DO GPKG, não da memory — persistence real
-                    osm_links = QgsVectorLayer("{}|layername=osm_links_{}".format(gpkg_path, code_muni), "osm_links - {}".format(nome_muni or code_muni), "ogr")
-                    osm_nodes = QgsVectorLayer("{}|layername=osm_nodes_{}".format(gpkg_path, code_muni), "osm_nodes - {}".format(nome_muni or code_muni), "ogr")
+                    osm_links = QgsVectorLayer("{}|layername=osm_links_{}".format(gpkg_path, sufixo), "osm_links - {}".format(recorte.rotulo), "ogr")
+                    osm_nodes = QgsVectorLayer("{}|layername=osm_nodes_{}".format(gpkg_path, sufixo), "osm_nodes - {}".format(recorte.rotulo), "ogr")
+                    # osm_problemas é aditivo: GPKGs antigos (pre-verificacao
+                    # topologica) nao tem essa camada, e isso nao falha a fonte.
+                    osm_problemas = QgsVectorLayer("{}|layername=osm_problemas_{}".format(gpkg_path, sufixo), "osm_problemas - {}".format(recorte.rotulo), "ogr")
+
+                    for layer in (osm_links, osm_nodes, osm_problemas):
+                        if layer and layer.isValid():
+                            if "data_extracao" in meta:
+                                layer.setCustomProperty("data_extracao", meta["data_extracao"])
+                            if "fonte" in meta:
+                                layer.setCustomProperty("fonte", meta["fonte"])
+
                     if osm_links.isValid():
                         QgsProject.instance().addMapLayer(osm_links)
                         log("OK: osm_links (GPKG)")
                     if osm_nodes.isValid():
                         QgsProject.instance().addMapLayer(osm_nodes)
                         log("OK: osm_nodes (GPKG)")
-                    # osm_problemas é aditivo: GPKGs antigos (pre-verificacao
-                    # topologica) nao tem essa camada, e isso nao falha a fonte.
-                    osm_problemas = QgsVectorLayer("{}|layername=osm_problemas_{}".format(gpkg_path, code_muni), "osm_problemas - {}".format(nome_muni or code_muni), "ogr")
                     if osm_problemas.isValid():
                         QgsProject.instance().addMapLayer(osm_problemas)
                         log("OK: osm_problemas (GPKG)")
+
+                    if "atribuicao" in meta:
+                        log(meta["atribuicao"])
+
                     if osm_links.isValid() and osm_nodes.isValid():
                         res["ok"].append(sid)
                     else:

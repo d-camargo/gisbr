@@ -77,6 +77,18 @@ def hosts_from_osm_connector():
     return hosts
 
 
+def hosts_from_base_rm(sources):
+    """Hosts acessados para baixar assets do GitHub Releases em fontes com
+    base pré-processada (base_rm): github.com e
+    release-assets.githubusercontent.com."""
+    hosts = set()
+    for source in sources:
+        if source.get("base_rm"):
+            hosts.add("github.com")
+            hosts.add("release-assets.githubusercontent.com")
+    return hosts
+
+
 def local_anchor_cns():
     """CNs de assunto de todo certificado em CERTS_DIR/*.pem."""
     cns = set()
@@ -148,7 +160,12 @@ def main():
     if args.host:
         hosts = [args.host]
     else:
-        hosts = sorted(hosts_from_sources(load_sources()) | hosts_from_osm_connector())
+        sources = load_sources()
+        hosts = sorted(
+            hosts_from_sources(sources)
+            | hosts_from_osm_connector()
+            | hosts_from_base_rm(sources)
+        )
 
     failed = False
     for host in hosts:

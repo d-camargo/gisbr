@@ -766,24 +766,56 @@ def test_carregar_fontes_osm_rm_pulou(tmp_path, monkeypatch):
     def fail_pipeline(*args, **kwargs):
         pytest.fail("Pipeline OSM nao deveria ser invocado em modo RM")
 
-    monkeypatch.setattr(diagnostico.osm_pipeline, "build_osm_municipal_network", fail_pipeline)
     monkeypatch.setattr(diagnostico.poi_pipeline, "build_osm_municipal_pois", fail_pipeline)
 
     recorte_rm = Recorte.de_rm("04501", "RM Belo Horizonte", ["3106200", "3106705"])
 
-    res = diagnostico.carregar_fontes(["osm_vias", "osm_pois"], None, None, None, gpkg, recorte=recorte_rm)
+    res = diagnostico.carregar_fontes(["osm_pois"], None, None, None, gpkg, recorte=recorte_rm)
 
     assert len(res["falhou"]) == 0
     assert len(res["ok"]) == 0
-    assert len(res["pulou"]) == 2
+    assert len(res["pulou"]) == 1
 
     pulou_dict = dict(res["pulou"])
-    assert "osm_vias" in pulou_dict
     assert "osm_pois" in pulou_dict
 
-    expected_msg = "a rede viária e os POIs do OpenStreetMap rodam por município; escolha o recorte Município para carregá-los"
-    assert pulou_dict["osm_vias"] == expected_msg
-    assert pulou_dict["osm_pois"] == expected_msg
+    # mensagem-fonte em inglês (D5), com a tag da base no lugar (tradução PT-BR no .ts)
+    assert "the pre-built OSM base for metropolitan regions (osm-20260929)" in pulou_dict["osm_pois"]
+    assert "only the road network, no POIs" in pulou_dict["osm_pois"]
+    assert "choose the Municipality extent to load POIs" in pulou_dict["osm_pois"]
+
+
+def test_carregar_fontes_osm_vias_rm(tmp_path, monkeypatch):
+    from gisbr.core.recorte import Recorte
+    gpkg = str(tmp_path / "test_osm_vias_rm.gpkg")
+
+    chocou = []
+    def mock_importar_rede_rm(recorte, gpkg_path, force=False, feedback=None):
+        chocou.append("importar_rede_rm")
+        return {"metadata": {"pulou": "RM 04501 não está na base osm-20260929"}}
+
+    def fail_pipeline(*args, **kwargs):
+        pytest.fail("build_osm_municipal_network nao deveria ser chamado em RM")
+
+    monkeypatch.setattr(diagnostico.osm_pipeline, "importar_rede_rm", mock_importar_rede_rm)
+    monkeypatch.setattr(diagnostico.osm_pipeline, "build_osm_municipal_network", fail_pipeline)
+
+    recorte_rm = Recorte.de_rm("04501", "RM Belo Horizonte", ["3106200", "3106705"])
+    res = diagnostico.carregar_fontes(["osm_vias"], None, None, None, gpkg, recorte=recorte_rm)
+
+    # o motivo do pulo (vindo da metadata["pulou"]) chega inteiro ao resultado
+    assert len(res["pulou"]) == 1
+    assert res["pulou"][0] == ("osm_vias", "RM 04501 não está na base osm-20260929")
+    assert chocou == ["importar_rede_rm"]
+
+    # em micro/meso, osm_vias continua pulando
+    chocou.clear()
+    recorte_micro = Recorte.de_agregado("micro", "31062", "Belo Horizonte", ["3106200"])
+    res_micro = diagnostico.carregar_fontes(["osm_vias"], None, None, None, gpkg, recorte=recorte_micro)
+    assert len(res_micro["pulou"]) == 1
+    assert res_micro["pulou"][0][0] == "osm_vias"
+    assert "escolha o recorte Município" in res_micro["pulou"][0][1]
+    assert not chocou
 
 
 def test_carregar_fontes_modo_rm_integracao(tmp_path, monkeypatch):

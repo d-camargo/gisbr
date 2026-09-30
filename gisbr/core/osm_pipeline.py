@@ -997,3 +997,102 @@ def build_osm_municipal_network(code_muni, nome_muni, gpkg_path, force=False, fe
 
     metadata["gpkg_ok"] = ok_links and ok_nodes and ok_problemas
     return {"raw_cache": resultado["raw_cache"], "layers": layers, "metadata": metadata}
+
+
+def importar_rede_rm(recorte, gpkg_path, force=False, feedback=None):
+    """Importa a rede viária pré-processada de Região Metropolitana (D4).
+
+    Baixa o asset ``.gpkg.zip`` do GitHub Releases da base declarada em
+    ``SOURCES['osm_vias']['base_rm']`` (integridade SHA-256 e cache por tag
+    ficam no conector ``github_release``), abre as 3 camadas via ``/vsizip/``
+    e grava cada uma no GeoPackage de destino com ``diagnostico._grava_gpkg``
+    — a mesma rotina (CreateOrOverwriteLayer) do fluxo municipal, então
+    ``force`` reescreve a partir do zip em cache sem novo download.
+
+    Não passa por ``OsmNetworkTask``: não há topologia para calcular, só
+    download e cópia (D4).
+
+    Args:
+        recorte: Recorte de tipo "rm" (usa ``.id`` e ``.sufixo``).
+        gpkg_path (str): Caminho do GeoPackage de destino.
+        force (bool): aceito por paridade de assinatura com o fluxo municipal
+            (o skip-exists/force é decidido pelo chamador, em
+            ``diagnostico.carregar_fontes``).
+        feedback: Objeto QgsProcessingFeedback opcional para logs.
+
+    Returns:
+        dict com "metadata": {"pulou": motivo} quando a RM está fora da base
+        ou falhou na montagem (aviso honesto, não falha); {"erro": msg,
+        "gpkg_ok": False} em falha de download/abertura/gravação; ou
+        {"gpkg_ok": True, "data_extracao": AAAA-MM-DD do extrato OSM,
+        "fonte": "gisbr_base <tag> (<ref>)", "atribuicao": ...} no sucesso.
+    """
+    from .downloader import DownloadError
+    from .connectors import github_release
+    from .diagnostico import _grava_gpkg
+    from .sources import SOURCES
+
+    def log(msg):
+        if feedback is not None:
+            feedback.pushInfo(msg)
+
+    def log_err(msg):
+        if feedback is not None:
+            feedback.reportError(msg)
+
+    def _erro(msg):
+        log_err(msg)
+        return {"metadata": {"erro": msg, "gpkg_ok": False}}
+
+    base = next((s.get("base_rm") for s in SOURCES if s.get("id") == "osm_vias"), None)
+    if not base:
+        return _erro("fonte osm_vias não possui base_rm declarada no catálogo")
+
+    try:
+        manifest = github_release.fetch_manifest(base, feedback=feedback)
+    except DownloadError as exc:
+        return _erro("falha ao obter o manifest da base {}: {}".format(base["tag"], exc))
+
+    entrada, motivo = github_release.entrada_rm(manifest, recorte.id, base["tag"])
+    if motivo:
+        log("Aviso: osm_vias — {}".format(motivo))
+        return {"metadata": {"pulou": motivo}}
+
+    asset = entrada.get("asset")
+    if not asset:
+        return _erro("manifest sem asset para a RM {}".format(recorte.id))
+    if entrada.get("bytes") is not None:
+        log("[download] {} ({:.1f} MB)".format(asset, entrada["bytes"] / (1024 * 1024)))
+
+    try:
+        zip_path = github_release.fetch_asset(base, asset, sha256=entrada.get("sha256"),
+                                              feedback=feedback)
+    except DownloadError as exc:
+        return _erro("falha ao baixar {}: {}".format(asset, exc))
+
+    # O zip da base tem um único GPKG, com o nome do asset sem o ".zip" (M3).
+    nome_gpkg = asset[:-len(".zip")] if asset.endswith(".zip") else asset
+    for camada in ("osm_links", "osm_nodes", "osm_problemas"):
+        layer_name = "{}_{}".format(camada, recorte.sufixo)
+        layer = QgsVectorLayer(
+            "/vsizip/{}/{}|layername={}".format(zip_path, nome_gpkg, layer_name),
+            layer_name, "ogr")
+        if not layer.isValid():
+            return _erro("falha ao abrir camada {} no zip {}".format(layer_name, asset))
+        ok, err = _grava_gpkg(layer, gpkg_path, layer_name)
+        if not ok:
+            return _erro("falha ao gravar {} em {}: {}".format(layer_name, gpkg_path, err))
+        log("OK: {} ({} feições)".format(layer_name, layer.featureCount()))
+
+    # data_extracao = data do extrato OSM da região Geofabrik da RM — não a
+    # data do clique em Carregar (semântica honesta para base pré-processada).
+    regiao = entrada.get("regiao_geofabrik")
+    timestamp_osm = ((manifest.get("fontes") or {}).get(regiao) or {}).get("timestamp_osm", "")
+    gisbr_ref = (manifest.get("gisbr_ref") or "")[:7]
+    return {"metadata": {
+        "gpkg_ok": True,
+        "data_extracao": timestamp_osm[:10],
+        "fonte": "gisbr_base {}{}".format(base["tag"], " ({})".format(gisbr_ref) if gisbr_ref else ""),
+        "atribuicao": manifest.get("atribuicao", ""),
+    }}
+

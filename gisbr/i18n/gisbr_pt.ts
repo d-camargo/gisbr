@@ -196,17 +196,17 @@
         <translation>Log de Execução:</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="1013"/>
+        <location filename="../gui/diagnostico_dock.py" line="1020"/>
         <source>FAILED {id}: {error}</source>
         <translation>FALHOU {id}: {error}</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="675"/>
+        <location filename="../gui/diagnostico_dock.py" line="678"/>
         <source>Failed to list municipalities: {error}</source>
         <translation>Falha ao listar municípios: {error}</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="858"/>
+        <location filename="../gui/diagnostico_dock.py" line="861"/>
         <source>Failed to resolve municipality: {error}</source>
         <translation>Falha ao resolver o município: {error}</translation>
     </message>
@@ -226,12 +226,12 @@
         <translation>Carregar selecionadas</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="671"/>
+        <location filename="../gui/diagnostico_dock.py" line="674"/>
         <source>Loading municipalities of {uf}...</source>
         <translation>Carregando municípios de {uf}...</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="737"/>
+        <location filename="../gui/diagnostico_dock.py" line="740"/>
         <source>Municipality {code} not found in geobr.</source>
         <translation>Município {code} não encontrado no geobr.</translation>
     </message>
@@ -241,12 +241,12 @@
         <translation>Município:</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="861"/>
+        <location filename="../gui/diagnostico_dock.py" line="864"/>
         <source>Municipality: {name} ({code})</source>
         <translation>Município: {name} ({code})</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="1011"/>
+        <location filename="../gui/diagnostico_dock.py" line="1018"/>
         <source>OK: {layers}</source>
         <translation>OK: {layers}</translation>
     </message>
@@ -256,7 +256,7 @@
         <translation>Caminho para arquivo .gpkg</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="1015"/>
+        <location filename="../gui/diagnostico_dock.py" line="1022"/>
         <source>SKIPPED {id}: {reason}</source>
         <translation>PULOU {id}: {reason}</translation>
     </message>
@@ -266,7 +266,7 @@
         <translation>Selecionar GeoPackage</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="850"/>
+        <location filename="../gui/diagnostico_dock.py" line="853"/>
         <source>Specify municipality, GeoPackage and at least 1 source.</source>
         <translation>Informe município, GeoPackage e ao menos 1 fonte.</translation>
     </message>
@@ -281,7 +281,7 @@
         <translation>Atualizar bases já baixadas (rebaixar)</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="683"/>
+        <location filename="../gui/diagnostico_dock.py" line="686"/>
         <source>{count} municipalities loaded.</source>
         <translation>{count} municípios carregados.</translation>
     </message>
@@ -346,17 +346,17 @@
         <translation>Tabelas / Conjuntos:</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="575"/>
+        <location filename="../gui/diagnostico_dock.py" line="578"/>
         <source>Select &apos;Setores censitarios (IBGE/geobr)&apos; in the Sources tab to enable the Census options.</source>
         <translation>Marque 'Setores censitarios (IBGE/geobr)' na aba Fontes de dados para habilitar as opções do Censo.</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="752"/>
+        <location filename="../gui/diagnostico_dock.py" line="755"/>
         <source>Failed to load censobr catalog ({error}); using fallback datasets.</source>
         <translation>Falha ao carregar catálogo do censobr ({error}); usando conjuntos de dados de fallback.</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="971"/>
+        <location filename="../gui/diagnostico_dock.py" line="978"/>
         <source>Notice: the Census option only applies to census tracts (&apos;geobr_setores&apos;).</source>
         <translation>Aviso: a opção do Censo só se aplica a setores censitários ('geobr_setores').</translation>
     </message>
@@ -376,12 +376,12 @@
         <translation>Região metropolitana:</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="654"/>
+        <location filename="../gui/diagnostico_dock.py" line="657"/>
         <source>0 municipalities</source>
         <translation>0 municípios</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="713"/>
+        <location filename="../gui/diagnostico_dock.py" line="716"/>
         <source>{count} municipalities</source>
         <translation>{count} municípios</translation>
     </message>
@@ -396,67 +396,67 @@
         <translation type="obsolete">A rede viária e POIs do OSM estão disponíveis apenas para o modo município (desativados no modo RM).</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="866"/>
+        <location filename="../gui/diagnostico_dock.py" line="869"/>
         <source>Select a metropolitan region.</source>
         <translation>Selecione uma região metropolitana.</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="942"/>
+        <location filename="../gui/diagnostico_dock.py" line="945"/>
         <source>Specify GeoPackage and at least 1 source.</source>
         <translation>Especifique o GeoPackage e ao menos 1 fonte.</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="877"/>
+        <location filename="../gui/diagnostico_dock.py" line="880"/>
         <source>Metropolitan region: {rotulo} — {count} municipalities</source>
         <translation>Região metropolitana: {rotulo} — {count} municípios</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="1031"/>
+        <location filename="../gui/diagnostico_dock.py" line="1038"/>
         <source>SKIPPED osm_vias: a road network load is already in progress</source>
         <translation>PULOU osm_vias: um carregamento da rede viária já está em andamento</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="1108"/>
+        <location filename="../gui/diagnostico_dock.py" line="1115"/>
         <source>FAILED osm_vias: {error}</source>
         <translation>FALHOU osm_vias: {error}</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="1036"/>
+        <location filename="../gui/diagnostico_dock.py" line="1043"/>
         <source>could not resolve the municipality</source>
         <translation>não foi possível resolver o município</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="1044"/>
+        <location filename="../gui/diagnostico_dock.py" line="1051"/>
         <source>SKIPPED osm_vias: already in the GeoPackage (osm_links_{code}/osm_nodes_{code})</source>
         <translation>PULOU osm_vias: já no GeoPackage (osm_links_{code}/osm_nodes_{code})</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="1051"/>
+        <location filename="../gui/diagnostico_dock.py" line="1058"/>
         <source>OSM: downloading road network in the background...</source>
         <translation>OSM: baixando rede viária em segundo plano...</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="1055"/>
+        <location filename="../gui/diagnostico_dock.py" line="1062"/>
         <source>OSM road network - {code}</source>
         <translation>Rede viária OSM - {code}</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="1080"/>
+        <location filename="../gui/diagnostico_dock.py" line="1087"/>
         <source>SKIPPED osm_vias: cancelled by the user</source>
         <translation>PULOU osm_vias: cancelado pelo usuário</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="1085"/>
+        <location filename="../gui/diagnostico_dock.py" line="1092"/>
         <source>SKIPPED osm_vias: {reason}</source>
         <translation>PULOU osm_vias: {reason}</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="1098"/>
+        <location filename="../gui/diagnostico_dock.py" line="1105"/>
         <source>unknown error</source>
         <translation>erro desconhecido</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="1108"/>
+        <location filename="../gui/diagnostico_dock.py" line="1115"/>
         <source>failed to write to the GeoPackage</source>
         <translation>falha ao gravar no GeoPackage</translation>
     </message>
@@ -496,57 +496,57 @@
         <translation>Macrorregião (Grande Região):</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="561"/>
+        <location filename="../gui/diagnostico_dock.py" line="564"/>
         <source>Disabled sources: {sources} (disabled for current scale)</source>
         <translation>Fontes desabilitadas: {sources} (desabilitadas para a escala atual)</translation>
     </message>
     <message>
         <location filename="../core/diagnostico.py" line="356"/>
         <source>unavailable at the {scale} scale (too heavy); choose a smaller area</source>
-        <translation>indisponível na escala {scale} (muito pesada); escolha uma área menor</translation>
+        <translation type="obsolete">indisponível na escala {scale} (muito pesada); escolha uma área menor</translation>
     </message>
     <message>
         <location filename="../core/diagnostico.py" line="360"/>
         <source>state source ({ufs}); not available for this area</source>
-        <translation>fonte estadual ({ufs}); não disponível para esta área</translation>
+        <translation type="obsolete">fonte estadual ({ufs}); não disponível para esta área</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="882"/>
+        <location filename="../gui/diagnostico_dock.py" line="885"/>
         <source>Select a microregion.</source>
         <translation>Selecione uma microrregião.</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="896"/>
+        <location filename="../gui/diagnostico_dock.py" line="899"/>
         <source>Microregion: {rotulo} — {count} municipalities</source>
         <translation>Microrregião: {rotulo} — {count} municípios</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="901"/>
+        <location filename="../gui/diagnostico_dock.py" line="904"/>
         <source>Select a mesoregion.</source>
         <translation>Selecione uma mesorregião.</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="915"/>
+        <location filename="../gui/diagnostico_dock.py" line="918"/>
         <source>Mesoregion: {rotulo} — {count} municipalities</source>
         <translation>Mesorregião: {rotulo} — {count} municípios</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="920"/>
+        <location filename="../gui/diagnostico_dock.py" line="923"/>
         <source>Select a state.</source>
         <translation>Selecione um estado.</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="934"/>
+        <location filename="../gui/diagnostico_dock.py" line="937"/>
         <source>State: {rotulo} — {count} municipalities</source>
         <translation>Estado: {rotulo} — {count} municípios</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="939"/>
+        <location filename="../gui/diagnostico_dock.py" line="942"/>
         <source>Select a macroregion.</source>
         <translation>Selecione uma macrorregião.</translation>
     </message>
     <message>
-        <location filename="../gui/diagnostico_dock.py" line="953"/>
+        <location filename="../gui/diagnostico_dock.py" line="956"/>
         <source>Macroregion: {rotulo} — {count} municipalities</source>
         <translation>Macrorregião: {rotulo} — {count} municípios</translation>
     </message>
@@ -960,9 +960,24 @@
         <translation>fonte indisponível ({reason})</translation>
     </message>
     <message>
-        <location filename="../core/diagnostico.py" line="345"/>
+        <location filename="../core/diagnostico.py" line="365"/>
         <source>a rede viária e os POIs do OpenStreetMap rodam por município; escolha o recorte Município para carregá-los</source>
         <translation>a rede viária e os POIs do OpenStreetMap rodam por município; escolha o recorte Município para carregá-los</translation>
+    </message>
+    <message>
+        <location filename="../core/diagnostico.py" line="368"/>
+        <source>unavailable at the {scale} scale (too heavy); choose a smaller area</source>
+        <translation>indisponível na escala {scale} (muito pesada); escolha uma área menor</translation>
+    </message>
+    <message>
+        <location filename="../core/diagnostico.py" line="373"/>
+        <source>state source ({ufs}); not available for this area</source>
+        <translation>fonte estadual ({ufs}); não disponível para esta área</translation>
+    </message>
+    <message>
+        <location filename="../core/diagnostico.py" line="360"/>
+        <source>the pre-built OSM base for metropolitan regions ({tag}) has only the road network, no POIs; choose the Municipality extent to load POIs</source>
+        <translation>a base pré-processada para regiões metropolitanas ({tag}) traz apenas a rede viária, sem POIs; escolha o recorte Município para carregar os POIs</translation>
     </message>
 </context>
 <context>

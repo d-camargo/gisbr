@@ -25,6 +25,10 @@ dá para continuar usando o QGIS normalmente enquanto ela roda, e o botão
 **Cancelar** interrompe de verdade a tarefa em andamento, não só o
 carregamento das demais fontes.
 
+**No modo Região metropolitana** a fonte não consulta o Overpass: baixa uma
+rede veicular pré-processada para a RM inteira, com as mesmas três camadas
+(sufixo `_rm<id>`). Detalhes em [OSM no modo RM](regioes-metropolitanas.md#osm-no-modo-rm).
+
 ## Topologia: por que o way é quebrado em arcos
 
 No OSM, uma via é um `way`: uma sequência de nós (`node_id`). É comum um

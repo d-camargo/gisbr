@@ -402,7 +402,7 @@ def test_modo_rm_selecao_uf_mg_e_rm_bh(dock, monkeypatch):
     assert "34" in dock.lbl_rm_munis_count.text()
 
 
-def test_modo_rm_desabilita_e_desmarca_fontes_osm_e_loga_motivo(dock):
+def test_modo_rm_desabilita_osm_pois_e_loga_motivo(dock):
     vias_item = _find_tree_item_by_user_data(dock.tree, "osm_vias")
     pois_item = _find_tree_item_by_user_data(dock.tree, "osm_pois")
     assert vias_item is not None
@@ -413,20 +413,22 @@ def test_modo_rm_desabilita_e_desmarca_fontes_osm_e_loga_motivo(dock):
     # Entra no modo RM
     dock.rad_rm.setChecked(True)
 
-    # Verifica se foram desmarcados e desabilitados
-    assert vias_item.checkState(0) == Qt.CheckState.Unchecked
+    # Verifica se osm_pois foi desmarcado e desabilitado
     assert pois_item.checkState(0) == Qt.CheckState.Unchecked
-    assert bool(vias_item.flags() & Qt.ItemFlag.ItemIsEnabled) is False
     assert bool(pois_item.flags() & Qt.ItemFlag.ItemIsEnabled) is False
+
+    # Verifica se osm_vias continua marcado e habilitado
+    assert vias_item.checkState(0) == Qt.CheckState.Checked
+    assert bool(vias_item.flags() & Qt.ItemFlag.ItemIsEnabled) is True
 
     # Verifica se a razão foi logada no log
     log_text = dock.txt_log.toPlainText()
-    assert "disabled" in log_text or "municipality" in log_text
+    assert "pois" in log_text.lower() or "municipality" in log_text.lower()
 
     # Volta para modo município
     dock.rad_muni.setChecked(True)
-    assert bool(vias_item.flags() & Qt.ItemFlag.ItemIsEnabled) is True
     assert bool(pois_item.flags() & Qt.ItemFlag.ItemIsEnabled) is True
+    assert bool(vias_item.flags() & Qt.ItemFlag.ItemIsEnabled) is True
 
 
 def test_modo_rm_on_carregar_sem_rm_escolhida_valida_mensagem(dock, monkeypatch):
@@ -482,10 +484,16 @@ def test_modo_rm_on_carregar_chama_carregar_fontes_com_recorte_rm_e_sem_task_osm
 
     item = _find_tree_item_by_user_data(dock.tree, "geobr_setores")
     item.setCheckState(0, Qt.CheckState.Checked)
+    # osm_vias fica habilitado no modo RM (base pré-processada, D5) e tem de
+    # seguir pelo fluxo síncrono de carregar_fontes — nunca pela OsmNetworkTask
+    vias_item = _find_tree_item_by_user_data(dock.tree, "osm_vias")
+    vias_item.setCheckState(0, Qt.CheckState.Checked)
 
     dock._on_carregar()
 
     assert osm_iniciado is False
+    assert "geobr_setores" in captured_kwargs["source_ids"]
+    assert "osm_vias" in captured_kwargs["source_ids"]
     assert "recorte" in captured_kwargs
     recorte = captured_kwargs["recorte"]
     assert recorte.tipo == "rm"
