@@ -74,6 +74,7 @@ nav:
       - Espelho geobr/censobr: guias/geobr.md
       - Dados do Censo (censobr): guias/censo.md
       - Rede viária (OSM): guias/vias.md
+      - Redes rodoviárias e ferroviárias: guias/redes-transporte.md
       - Pontos de interesse (OSM): guias/pois.md
       - SIGEF e bases do INCRA: guias/sigef.md
       - Dados agropecuários (IBGE): guias/agro.md

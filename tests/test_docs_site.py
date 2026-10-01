@@ -73,8 +73,8 @@ def test_tabela_fontes_escala_e_ufs_valores(tmp_path):
     assert "| Municipality |" in en
     assert "| Estado |" in pt
     assert "| State |" in en
-    assert "| Macrorregião |" in pt
-    assert "| Macro-region |" in en
+    assert "| Todos os recortes |" in pt
+    assert "| All extents |" in en
     assert "| Regional |" in pt
     assert "| Regional |" in en
 
@@ -135,7 +135,7 @@ def test_changelog_traz_versao_corrente_primeiro(tmp_path):
               if linha.startswith("## ")]
     assert secoes[0] == versao
     # a versão corrente do pacote nesta rodada
-    assert versao == "1.1.0"
+    assert versao == "1.2.0"
 
 
 def test_destino_alternativo(tmp_path):

@@ -42,6 +42,17 @@ Chave opcional:
            no GitHub Releases usada no recorte de Região Metropolitana (a RM
            inteira sai de um asset pronto, sem consulta Overpass). A tag é
            fixa e tem bump manual quando sair base nova.
+  rede: dict indicando que a camada deve ser processada como rede linear
+        roteável (links, nós, problemas e removidos; D9, D12):
+        {"tipo": "rodoviaria" | "ferroviaria",
+         "excluir": {"campo": <str>, "valores": [<str>, ...]}}
+        excluir indica os valores de atributos correspondentes a trechos
+        planejados ou inexistentes que devem ser descartados (D12).
+  duplicidade: dict para detecção e remoção de trechos federais duplicados em
+               malhas estaduais (D9, D13):
+               {"contra": <id_fonte_federal>,
+                "campo_jurisdicao": <str>, "valor_federal": <str>,
+                "campo_br": <str> (opcional)}
 """
 
 SOURCES = [
@@ -49,29 +60,46 @@ SOURCES = [
     {"id": "dnit_snv", "eixo": "transportes", "nome": "DNIT — SNV (rodovias federais)",
      "protocolo": "wfs", "endpoint": "https://geoservicos.inde.gov.br/geoserver/DNIT/ows",
      "type_name": "DNIT:snv_202507a", "srs": "EPSG:4674",
-     "filtro": {"tipo": "bbox"}, "escala_max": "estado", "licenca": "Publica"},
+     "filtro": {"tipo": "bbox"}, "escala_max": "estado", "licenca": "Publica",
+     "rede": {"tipo": "rodoviaria",
+              "excluir": {"campo": "ds_superfi", "valores": ["PLA"]}}},
     {"id": "minfra_ferrovias", "eixo": "transportes", "nome": "MInfra — Ferrovias",
      "protocolo": "wfs", "endpoint": "https://geoservicos.inde.gov.br/geoserver/ows",
      "type_name": "MInfra:Ferrovias", "srs": "EPSG:4674",
      "filtro": {"tipo": "cql_nome", "campo": "municipio",
                 "uf": {"campo": "uf", "modo": "sigla"}},
-     "escala_max": "macrorregiao", "licenca": "Publica"},
+     "escala_max": "macrorregiao", "licenca": "Publica",
+     "rede": {"tipo": "ferroviaria",
+              "excluir": {"campo": "tip_situac",
+                          "valores": ["Planejada", "Estudo", "Em Obra"]}}},
     {"id": "der_mg_rodovias", "eixo": "transportes", "nome": "DER-MG — Rodovias estaduais",
      "protocolo": "wfs", "endpoint": "https://geoserver.meioambiente.mg.gov.br/IDE/wfs",
      "type_name": "IDE:ide_0401_mg_rodovias_lin", "srs": "EPSG:4674",
      "filtro": {"tipo": "bbox"}, "escala_max": "estado", "ufs": ["MG"],
-     "licenca": "Publica"},
+     "licenca": "Publica",
+     "rede": {"tipo": "rodoviaria",
+              "excluir": {"campo": "superficie", "valores": ["PLA"]}},
+     "duplicidade": {"contra": "dnit_snv", "campo_jurisdicao": "jurisdicao",
+                     "valor_federal": "Federal", "campo_br": "codigo_rod"}},
     {"id": "go_malha_viaria", "eixo": "transportes", "nome": "Siga-GO — Malha viária (2024)",
      "protocolo": "wfs", "endpoint": "https://siga.meioambiente.go.gov.br/geoserver/ows",
      "type_name": "geonode:malha_viaria_2024", "srs": "EPSG:4674",
      "filtro": {"tipo": "bbox"}, "escala_max": "estado", "ufs": ["GO"],
-     "licenca": "Publica"},
+     "licenca": "Publica",
+     "rede": {"tipo": "rodoviaria",
+              "excluir": {"campo": "situacao", "valores": ["PLA"]}},
+     "duplicidade": {"contra": "dnit_snv", "campo_jurisdicao": "jurisdicao",
+                     "valor_federal": "Federal"}},
     {"id": "pr_rodovias_der", "eixo": "transportes", "nome": "DER-PR — Rodovias estaduais (IAT GeoPR)",
      "protocolo": "arcgis",
      "endpoint": "https://geopr.iat.pr.gov.br/server/rest/services/00_PUBLICACOES/rodovias_der/FeatureServer",
      "layer_id": "0", "srs": "EPSG:4674",
      "filtro": {"tipo": "bbox"}, "escala_max": "regional", "ufs": ["PR"],
-     "licenca": "Publica"},
+     "licenca": "Publica",
+     "rede": {"tipo": "rodoviaria",
+              "excluir": {"campo": "situacao", "valores": ["PLA"]}},
+     "duplicidade": {"contra": "dnit_snv", "campo_jurisdicao": "jurisdicao",
+                     "valor_federal": "Federal", "campo_br": "rod_num"}},
     {"id": "ibge_bc250_rodovias", "eixo": "transportes", "nome": "IBGE — BC250 Trecho rodoviario",
      "protocolo": "wfs", "endpoint": "https://geoservicos.ibge.gov.br/geoserver/ows",
      "type_name": "CCAR:BC250_2025_rod_trecho_rodoviario_l", "srs": "EPSG:4674",
@@ -79,7 +107,10 @@ SOURCES = [
     {"id": "ibge_bc250_ferrovias", "eixo": "transportes", "nome": "IBGE — BC250 Trecho ferroviario",
      "protocolo": "wfs", "endpoint": "https://geoservicos.ibge.gov.br/geoserver/ows",
      "type_name": "CCAR:BC250_2025_fer_trecho_ferroviario_l", "srs": "EPSG:4674",
-     "filtro": {"tipo": "bbox"}, "escala_max": "macrorregiao", "licenca": "Publica"},
+     "filtro": {"tipo": "bbox"}, "escala_max": "macrorregiao", "licenca": "Publica",
+     "rede": {"tipo": "ferroviaria",
+              "excluir": {"campo": "situacaofisica",
+                          "valores": ["Em construção", "Destruída"]}}},
     {"id": "osm_vias", "eixo": "transportes",
      "nome": "OSM — Vias urbanas (Overpass; RM: base pré-processada)",
      "protocolo": "osm", "escala_max": "municipio",

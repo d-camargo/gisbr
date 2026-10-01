@@ -2,6 +2,25 @@
 
 Generated from the `changelog` block of `gisbr/metadata.txt` by `tools/build_docs_site.py` — do not edit by hand.
 
+## 1.2.0
+
+- Fixed: the GisBR toolbar button could end up hidden in the toolbar
+overflow menu (seen on Wayland); the toolbar layout is now recomputed
+after the button style changes.
+- The Macroregion (Large Region) extent was replaced by Health
+macroregion (Ministry of Health), filtered by state, with the official
+municipality composition from the DATASUS territorial base (June 2026,
+121 macroregions).
+- DNIT, state DER (MG, PR, GO) and railway (MInfra, IBGE BC250) layers are
+now built as routable networks (links, nodes, problems), with automatic
+geometry fixes (endpoint snapping, T-junction split, coincident segment
+merge) and the remaining issues flagged.
+- Planned or non-existent segments (DNIT/DER "PLA", planned/under-study
+railways) are no longer loaded; they go to a "removed" layer.
+- Federal highways repeated in state DER layers are removed from the state
+layer when the overlap with the DNIT layer is confirmed by geometry and
+attributes.
+
 ## 1.1.0
 
 - New diagnostic extents: Microregion, Mesoregion, State and Macroregion

@@ -106,13 +106,13 @@ _ESCALA_PT = {
     "municipio": "Município",
     "regional": "Regional",
     "estado": "Estado",
-    "macrorregiao": "Macrorregião",
+    "macrorregiao": "Todos os recortes",
 }
 _ESCALA_EN = {
     "municipio": "Municipality",
     "regional": "Regional",
     "estado": "State",
-    "macrorregiao": "Macro-region",
+    "macrorregiao": "All extents",
 }
 
 

@@ -743,20 +743,143 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
                 except Exception as exc:
                     log("Aviso: {}".format(exc))
 
-        ok, msg = _grava_gpkg(layer, gpkg_path, layer_name)
-        if not ok:
-            res["falhou"].append((s["id"], "gravar GeoPackage: {}".format(msg)))
-            continue
-        existentes.add(layer_name)
+        rede = s.get("rede")
+        if rede:
+            from . import rede_pipeline
+            layer_para_rede = layer
+            layer_rem_dup = None
+            layer_prob_dup = None
+            rel_dup = {}
 
-        nome_proj = "{} - {}".format(s.get("nome", s["id"]), nome_muni or code_muni)
-        gl = QgsVectorLayer("{}|layername={}".format(gpkg_path, layer_name), nome_proj, "ogr")
-        if gl.isValid():
-            QgsProject.instance().addMapLayer(gl)
-            res["ok"].append(s["id"])
-            log("OK: {}".format(layer_name))
+            dup_info = s.get("duplicidade") or (rede.get("duplicidade") if isinstance(rede, dict) else None)
+            if dup_info:
+                contra_id = dup_info["contra"]
+                contra_name = "{}_{}".format(contra_id, recorte.sufixo)
+                
+                if contra_name in existentes:
+                    layer_fed = QgsVectorLayer("{}|layername={}".format(gpkg_path, contra_name), "fed", "ogr")
+                    # D13/critério 10: os trechos planejados do DNIT estão na
+                    # camada removidos (saem da links) — são eles que fazem o
+                    # federal do DER ficar e ser apontado como federal_sem_par.
+                    layer_fed_pla = None
+                    rem_fed_name = rede_pipeline._nomes_camadas(contra_name)["removidos"]
+                    if rem_fed_name in existentes:
+                        _l_pla = QgsVectorLayer("{}|layername={}".format(gpkg_path, rem_fed_name), "fed_pla", "ogr")
+                        if _l_pla.isValid():
+                            layer_fed_pla = _l_pla
+                    if layer_fed.isValid():
+                        cfg_rede_fed = None
+                        for sfed in SOURCES:
+                            if sfed["id"] == contra_id:
+                                cfg_rede_fed = sfed.get("rede")
+                                break
+                        layer_est_limpa, layer_rem_dup, layer_prob_dup, rel_dup = rede_pipeline.remove_duplicidade_federal(
+                            layer_para_rede, layer_fed, cfg_dup=dup_info, cfg_rede_fed=cfg_rede_fed, feedback=feedback,
+                            layer_fed_pla=layer_fed_pla
+                        )
+                        layer_para_rede = layer_est_limpa
+                else:
+                    log("Aviso: {} — camada federal {} não encontrada no GeoPackage; duplicidade ignorada".format(s["id"], contra_name))
+
+            res_rede = rede_pipeline.montar_rede(layer_para_rede, rede, poligono, layer_name, feedback=feedback)
+            layer_links = res_rede.get("links")
+            layer_nos = res_rede.get("nos")
+            layer_probs = res_rede.get("problemas")
+            layer_rems = res_rede.get("removidos")
+            
+            if layer_links.featureCount() == 0:
+                res["pulou"].append((s["id"], "todos os trechos eram planejados/inexistentes"))
+                continue
+
+            nomes_cam = rede_pipeline._nomes_camadas(layer_name)
+
+            if layer_rem_dup and layer_rem_dup.isValid():
+                if layer_rems and layer_rems.isValid():
+                    layer_rems.startEditing()
+                    for f in layer_rem_dup.getFeatures():
+                        layer_rems.addFeature(f)
+                    layer_rems.commitChanges()
+                else:
+                    layer_rems = layer_rem_dup
+                    layer_rems.setName(nomes_cam["removidos"])
+
+            if layer_prob_dup and layer_prob_dup.isValid():
+                if layer_probs and layer_probs.isValid():
+                    layer_probs.startEditing()
+                    for f in layer_prob_dup.getFeatures():
+                        layer_probs.addFeature(f)
+                    layer_probs.commitChanges()
+                else:
+                    layer_probs = layer_prob_dup
+                    layer_probs.setName(nomes_cam["problemas"])
+
+            nome_proj_base = "{} - {}".format(s.get("nome", s["id"]), nome_muni or code_muni)
+            
+            # Gravar links
+            ok, msg = _grava_gpkg(layer_links, gpkg_path, layer_links.name())
+            if not ok:
+                res["falhou"].append((s["id"], "gravar GeoPackage (links): {}".format(msg)))
+                continue
+            existentes.add(layer_links.name())
+            
+            gl_links = QgsVectorLayer("{}|layername={}".format(gpkg_path, layer_links.name()), "{} (links)".format(nome_proj_base), "ogr")
+            if gl_links.isValid():
+                QgsProject.instance().addMapLayer(gl_links)
+                res["ok"].append(s["id"])
+                log("OK: {}".format(layer_links.name()))
+
+            # Gravar nos
+            ok, msg = _grava_gpkg(layer_nos, gpkg_path, layer_nos.name())
+            if ok:
+                existentes.add(layer_nos.name())
+                gl_nos = QgsVectorLayer("{}|layername={}".format(gpkg_path, layer_nos.name()), "{} (nos)".format(nome_proj_base), "ogr")
+                if gl_nos.isValid():
+                    QgsProject.instance().addMapLayer(gl_nos)
+                    log("OK: {}".format(layer_nos.name()))
+
+            # Gravar problemas
+            if layer_probs and layer_probs.isValid() and layer_probs.featureCount() > 0:
+                ok, msg = _grava_gpkg(layer_probs, gpkg_path, layer_probs.name())
+                if ok:
+                    existentes.add(layer_probs.name())
+                    gl_probs = QgsVectorLayer("{}|layername={}".format(gpkg_path, layer_probs.name()), "{} (problemas)".format(nome_proj_base), "ogr")
+                    if gl_probs.isValid():
+                        QgsProject.instance().addMapLayer(gl_probs)
+                        log("OK: {}".format(layer_probs.name()))
+
+            # Gravar removidos
+            if layer_rems and layer_rems.isValid() and layer_rems.featureCount() > 0:
+                ok, msg = _grava_gpkg(layer_rems, gpkg_path, layer_rems.name())
+                if ok:
+                    existentes.add(layer_rems.name())
+                    gl_rems = QgsVectorLayer("{}|layername={}".format(gpkg_path, layer_rems.name()), "{} (removidos)".format(nome_proj_base), "ogr")
+                    if gl_rems.isValid():
+                        QgsProject.instance().addMapLayer(gl_rems)
+                        log("OK: {}".format(layer_rems.name()))
+            
+            rel_rede = res_rede.get("relatorio", {})
+            if rel_dup:
+                rel_rede["removidos"] = rel_rede.get("removidos", 0) + rel_dup.get("removidos", 0)
+                rel_rede["problemas"] = rel_rede.get("problemas", 0) + rel_dup.get("problemas", 0)
+            
+            msg_rel = "Relatório de rede: " + ", ".join(["{}={}".format(k, v) for k, v in rel_rede.items()])
+            log(msg_rel)
+            
         else:
-            res["falhou"].append((s["id"], "camada do GeoPackage invalida"))
+            ok, msg = _grava_gpkg(layer, gpkg_path, layer_name)
+            if not ok:
+                res["falhou"].append((s["id"], "gravar GeoPackage: {}".format(msg)))
+                continue
+            existentes.add(layer_name)
+    
+            nome_proj = "{} - {}".format(s.get("nome", s["id"]), nome_muni or code_muni)
+            gl = QgsVectorLayer("{}|layername={}".format(gpkg_path, layer_name), nome_proj, "ogr")
+            if gl.isValid():
+                QgsProject.instance().addMapLayer(gl)
+                res["ok"].append(s["id"])
+                log("OK: {}".format(layer_name))
+            else:
+                res["falhou"].append((s["id"], "camada do GeoPackage invalida"))
 
     if add_basemap:
         bl = basemap.satellite_layer()

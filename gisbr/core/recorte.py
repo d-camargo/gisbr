@@ -64,8 +64,8 @@ class Recorte:
         return self.tipo == "rm"
 
     # Ranking de escala do recorte (D3): municipio=0, micro=1, rm=1, meso=2,
-    # uf=3, macro=4. Agregado desconhecido cai no nível regional (2).
-    _ESCALA_RECORTE = {"municipio": 0, "micro": 1, "rm": 1, "meso": 2, "uf": 3, "macro": 4}
+    # macsaud=2, uf=3, macro=4. Agregado desconhecido cai no nível regional (2).
+    _ESCALA_RECORTE = {"municipio": 0, "micro": 1, "rm": 1, "meso": 2, "macsaud": 2, "uf": 3, "macro": 4}
 
     @property
     def escala(self) -> int:

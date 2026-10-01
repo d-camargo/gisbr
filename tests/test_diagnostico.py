@@ -1110,3 +1110,201 @@ def test_d7_recorte_uf_dissolve_bbox(tmp_path, monkeypatch):
     
     assert dissolve_calls == 1
     assert bbox_req_capturado == (0.0, 0.0, 1.0, 1.0)
+
+
+def test_fora_do_recorte_macsaud():
+    from gisbr.core.recorte import Recorte
+    from gisbr.core.diagnostico import _fora_do_recorte
+    from gisbr.core.sources import SOURCES
+
+    recorte_macsaud = Recorte.de_agregado("macsaud", "3103", "Macrorregião de Saúde Centro (MG)", ["3106200"])
+
+    # Fonte com escala_max="regional" liberada no recorte macsaud (escala 2)
+    fonte_regional = {
+        "id": "teste_regional",
+        "protocolo": "wfs",
+        "escala_max": "regional",
+    }
+    assert _fora_do_recorte(fonte_regional, recorte_macsaud) is None
+
+    # osm_vias bloqueado no recorte macsaud
+    osm_vias = next(s for s in SOURCES if s["id"] == "osm_vias")
+    motivo = _fora_do_recorte(osm_vias, recorte_macsaud)
+    assert motivo is not None
+    assert "OpenStreetMap" in motivo
+
+import pytest
+import types
+import sys
+
+pytest.importorskip("qgis.core")
+
+from gisbr.core import diagnostico, qgis_compat
+from gisbr.core.recorte import Recorte
+from qgis.core import QgsVectorLayer, QgsProject, QgsFeature, QgsGeometry, QgsField, QgsPointXY
+
+def create_nonempty_mem_layer():
+    lyr = QgsVectorLayer("Point?crs=EPSG:4674", "dummy", "memory")
+    dp = lyr.dataProvider()
+    f = QgsFeature()
+    f.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(0, 0)))
+    dp.addFeatures([f])
+    lyr.updateExtents()
+    return lyr
+
+
+def test_d14_rede_integracao(tmp_path, monkeypatch):
+    gpkg = str(tmp_path / "test_rede.gpkg")
+
+    sources = [
+        {
+            "id": "sgb_rios",
+            "protocolo": "wfs",
+            "endpoint": "http://example.com/wfs",
+            "type_name": "ns:rios",
+        },
+        {
+            "id": "dnit_snv",
+            "protocolo": "wfs",
+            "endpoint": "http://example.com/wfs",
+            "type_name": "ns:snv",
+            "rede": {"tipo": "rodoviaria"}
+        },
+        {
+            "id": "der_mg_rodovias",
+            "protocolo": "wfs",
+            "endpoint": "http://example.com/wfs",
+            "type_name": "ns:der",
+            "rede": {
+                "tipo": "rodoviaria",
+                "duplicidade": {
+                    "contra": "dnit_snv",
+                    "valor_federal": "Federal",
+                    "campo_jurisdicao": "jurisdicao"
+                }
+            }
+        },
+    ]
+    monkeypatch.setattr(diagnostico, "SOURCES", sources)
+    
+    muni_layer = create_nonempty_mem_layer()
+    monkeypatch.setattr("gisbr.core.recorte.camada_do_recorte", lambda rec, **kwargs: muni_layer)
+    monkeypatch.setattr(diagnostico, "_municipio_poligono", lambda code: muni_layer)
+    monkeypatch.setattr(diagnostico, "_recorta_poligono", lambda layer, poly, name: layer)
+
+    def mock_fetch_layer(endpoint, type_name, layer_name, **kwargs):
+        vl = QgsVectorLayer("LineString?crs=EPSG:4674", layer_name, "memory")
+        dp = vl.dataProvider()
+        if type_name == "ns:snv":
+            dp.addAttributes([QgsField("vl_codigo", qgis_compat.field_type("string"))])
+            vl.updateFields()
+            f = QgsFeature(vl.fields())
+            # Linha p gerar 1 no desconectado e 1 linha = gerar_problema
+            f.setGeometry(QgsGeometry.fromWkt("LINESTRING(0 0, 1 1)"))
+            f["vl_codigo"] = "040"
+            
+            f2 = QgsFeature(vl.fields())
+            f2.setGeometry(QgsGeometry.fromWkt("LINESTRING(2 2, 3 3)"))
+            f2["vl_codigo"] = "040"
+            dp.addFeatures([f, f2])
+            
+            # Pra gerar camada de removidos, a gente coloca algo no 'montar_rede'?
+            # Nao precisa. O teste dnit_snv grava as 4 camadas. Vou injetar "is_pla" True em um deles se necessario
+        elif type_name == "ns:der":
+            dp.addAttributes([QgsField("jurisdicao", qgis_compat.field_type("string")), QgsField("br", qgis_compat.field_type("string"))])
+            vl.updateFields()
+            f = QgsFeature(vl.fields())
+            f.setGeometry(QgsGeometry.fromWkt("LINESTRING(0 0, 1 1)"))
+            f["jurisdicao"] = "Federal"
+            f["br"] = "040"
+            dp.addFeatures([f])
+        else:
+            f = QgsFeature()
+            f.setGeometry(QgsGeometry.fromWkt("LINESTRING(0 0, 1 1)"))
+            dp.addFeatures([f])
+        return vl
+
+    monkeypatch.setattr(diagnostico.wfs, "fetch_layer", mock_fetch_layer)
+    
+    existentes = set()
+    monkeypatch.setattr(diagnostico, "_layers_existentes", lambda path: set(existentes))
+    
+    gravados = []
+    def mock_grava_gpkg(layer, path, layer_name):
+        gravados.append(layer_name)
+        existentes.add(layer_name)
+        return True, ""
+    monkeypatch.setattr(diagnostico, "_grava_gpkg", mock_grava_gpkg)
+    
+    added_layers = []
+    monkeypatch.setattr(QgsProject.instance(), "addMapLayer", lambda lyr: added_layers.append(lyr.name()))
+    
+    orig_qgs_vl = QgsVectorLayer
+    def mock_qgs_vl(uri, name, provider):
+        if uri.startswith(gpkg):
+            if "dnit_snv_3106200" in uri and "dnit_snv_3106200" in existentes:
+                vl = orig_qgs_vl("LineString?crs=EPSG:4674", "fed", "memory")
+                dp = vl.dataProvider()
+                dp.addAttributes([QgsField("vl_codigo", qgis_compat.field_type("string"))])
+                vl.updateFields()
+                f = QgsFeature(vl.fields())
+                f.setGeometry(QgsGeometry.fromWkt("LINESTRING(0 0, 1 1)"))
+                f["vl_codigo"] = "040"
+                dp.addFeatures([f])
+                return vl
+            # To test skip-exists
+            return orig_qgs_vl("Point?crs=EPSG:4674", name, "memory")
+        return orig_qgs_vl(uri, name, provider)
+
+    monkeypatch.setattr(diagnostico, "QgsVectorLayer", mock_qgs_vl)
+    
+    logs = []
+    class DummyFeedback:
+        def isCanceled(self):
+            return False
+        def pushInfo(self, m):
+            logs.append(m)
+    fb = DummyFeedback()
+
+    # 1) sgb_rios - saida identica a de antes
+    res_rios = diagnostico.carregar_fontes(["sgb_rios"], 3106200, "Contagem", None, gpkg, feedback=fb)
+    assert "sgb_rios" in res_rios["ok"]
+    assert "sgb_rios_3106200" in gravados
+
+    # 2) der_mg_rodovias SEM dnit -> loga aviso e grava tudo
+    gravados.clear()
+    logs.clear()
+    res_der_sem = diagnostico.carregar_fontes(["der_mg_rodovias"], 3106200, "Contagem", None, gpkg, feedback=fb)
+    assert "der_mg_rodovias" in res_der_sem["ok"]
+    assert any("camada federal dnit_snv_3106200 não encontrada" in msg for msg in logs)
+    assert "der_mg_rodovias_3106200" in gravados # links
+    assert "der_mg_rodovias_nos_3106200" in gravados # nos
+
+    # 3) dnit_snv grava as camadas
+    gravados.clear()
+    logs.clear()
+    res_dnit = diagnostico.carregar_fontes(["dnit_snv"], 3106200, "Contagem", None, gpkg, feedback=fb)
+    assert "dnit_snv" in res_dnit["ok"]
+    assert "dnit_snv_3106200" in gravados
+    assert "dnit_snv_nos_3106200" in gravados
+
+    # 4) der_mg_rodovias COM dnit (ja existe no gpkg agora) -> perde trecho federal
+    gravados.clear()
+    logs.clear()
+    # we need to remove der_mg_rodovias_3106200 from existentes so it doesn't skip
+    existentes.remove("der_mg_rodovias_3106200")
+    existentes.add("dnit_snv_3106200") # to be sure
+    res_der_com = diagnostico.carregar_fontes(["der_mg_rodovias"], 3106200, "Contagem", None, gpkg, feedback=fb)
+    assert len(res_der_com["pulou"]) == 1
+    assert res_der_com["pulou"][0][0] == "der_mg_rodovias"
+    assert "todos os trechos eram planejados/inexistentes" in res_der_com["pulou"][0][1]
+
+    # 5) skip-exists continua pela camada links
+    gravados.clear()
+    existentes.add("der_mg_rodovias_3106200")
+    res_skip = diagnostico.carregar_fontes(["der_mg_rodovias"], 3106200, "Contagem", None, gpkg, feedback=fb)
+    assert len(res_skip["pulou"]) == 1
+    assert res_skip["pulou"][0][0] == "der_mg_rodovias"
+    assert "ja existe" in res_skip["pulou"][0][1]
+
+

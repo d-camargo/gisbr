@@ -108,7 +108,7 @@ Com as abas preenchidas, clique em **Carregar selecionadas**, no rodapé.
 
 | # | Eixo | O que traz |
 |---|---|---|
-| 1 | **Transportes** | Rodovias federais (DNIT/SNV) e estaduais, ferrovias, trechos rodoviários e ferroviários da BC250 do IBGE e a malha viária urbana do OpenStreetMap (vias + topologia de nós, via Overpass). |
+| 1 | **Transportes** | Rodovias federais (DNIT/SNV), estaduais (DER-MG, DER-PR, Siga-GO) e ferrovias (MInfra e BC250) como **rede roteável** (links, nós, problemas), sem os trechos planejados — ver o [guia das redes](redes-transporte.md); trecho rodoviário da BC250 do IBGE e a malha viária urbana do OpenStreetMap (vias + topologia de nós, via Overpass). |
 | 2 | **Drenagem e Saneamento** | Rios, bacias hidrográficas, trechos de drenagem e massas d'água (SGB/CPRM e BC250), poços do SIAGAS, hidrografia da ANA e os empreendimentos de água, esgoto e aterro sanitário do IBAMA. |
 | 3 | **Demografia** | Limite municipal, setores censitários, áreas de ponderação e favelas/comunidades do IBGE, pelo espelho geobr — a base do cruzamento com o censo (veja o [guia do geobr](geobr.md)). |
 | 4 | **Ambiental** | Imóveis do CAR (SICAR), unidades de conservação e embargos do ICMBio, risco geológico do SGB/CPRM, processos minerários da ANM/SIGMINE, autos de infração do IBAMA, biomas, terras indígenas e quilombolas, áreas de risco de desastre e o meio físico do BDIA/IBGE (pedologia, geologia, geomorfologia, vegetação). |

@@ -212,6 +212,12 @@ def test_recorte_generalizado():
     assert rmeso.nome_camada_limite == "meso_3107"
     assert rmeso.escala == 2
 
+    rmacsaud = Recorte.de_agregado("macsaud", "3103", "Macrorregião de Saúde Centro (MG)", ["3106200"])
+    assert rmacsaud.sufixo == "macsaud3103"
+    assert rmacsaud.nome_camada_limite == "macsaud_3103"
+    assert rmacsaud.escala == 2
+    assert rmacsaud.siglas_uf == ["MG"]
+
     ruf = Recorte.de_agregado("uf", "MG", "Minas Gerais (MG)", ["3106200"])
     assert ruf.sufixo == "ufmg"
     assert ruf.nome_camada_limite == "uf_mg"

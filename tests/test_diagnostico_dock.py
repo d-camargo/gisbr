@@ -550,7 +550,8 @@ def test_seis_modos_ui_e_tabela_d9(dock):
     assert hasattr(dock, "rad_meso")
     assert hasattr(dock, "rad_rm")
     assert hasattr(dock, "rad_uf")
-    assert hasattr(dock, "rad_macro")
+    assert hasattr(dock, "rad_macro_saude")
+    assert not hasattr(dock, "rad_macro")
 
     # 1. Município: como hoje
     dock.rad_muni.setChecked(True)
@@ -596,14 +597,14 @@ def test_seis_modos_ui_e_tabela_d9(dock):
     assert dock.lst_rm_munis.isEnabled() is True
     assert dock.lbl_rm.text() == "State:"
 
-    # 6. Macrorregião: UF desabilitado, cmb_rm lista as 5 regiões, municípios
-    dock.rad_macro.setChecked(True)
-    assert dock.modo_recorte == ModoRecorte.MACRO
+    # 6. Macrorregião de saúde: UF habilitado, cmb_rm habilitado, lista municípios
+    dock.rad_macro_saude.setChecked(True)
+    assert dock.modo_recorte == ModoRecorte.MACRO_SAUDE
     assert dock.cmb_muni.isEnabled() is False
-    assert dock.cmb_uf.isEnabled() is False
+    assert dock.cmb_uf.isEnabled() is True
     assert dock.cmb_rm.isEnabled() is True
     assert dock.lst_rm_munis.isEnabled() is True
-    assert dock.lbl_rm.text() == "Macroregion (Large Region):"
+    assert dock.lbl_rm.text() == "Health macroregion:"
 
 
 def test_modo_micro_on_carregar_monta_recorte_certo(dock, monkeypatch):
@@ -726,7 +727,7 @@ def test_modo_uf_on_carregar_monta_recorte_certo(dock, monkeypatch):
     assert "State: Minas Gerais (MG) — 853 municipalities" in log_text
 
 
-def test_modo_macro_on_carregar_monta_recorte_certo(dock, monkeypatch):
+def test_modo_macro_saude_on_carregar_monta_recorte_certo(dock, monkeypatch):
     captured_kwargs = {}
     def _fake_carregar_fontes(*args, **kwargs):
         captured_kwargs.update(kwargs)
@@ -735,19 +736,24 @@ def test_modo_macro_on_carregar_monta_recorte_certo(dock, monkeypatch):
 
     monkeypatch.setattr(diagnostico_dock.diagnostico, "carregar_fontes", _fake_carregar_fontes)
 
-    dock.rad_macro.setChecked(True)
+    dock.rad_macro_saude.setChecked(True)
 
-    # cmb_uf desabilitado e cmb_rm populado com as 5 macrorregiões
-    assert dock.cmb_uf.isEnabled() is False
-    assert dock.cmb_rm.count() == 5
+    # com UF=MG, o combo tem 16 macros e o rótulo é "Health macroregion:"
+    idx_mg = dock.cmb_uf.findData("MG")
+    assert idx_mg != -1
+    dock.cmb_uf.setCurrentIndex(idx_mg)
 
-    # Região Sudeste (código 3)
-    idx_macro = dock.cmb_rm.findData("3")
+    assert dock.cmb_uf.isEnabled() is True
+    assert dock.cmb_rm.count() == 16
+    assert dock.lbl_rm.text() == "Health macroregion:"
+
+    # selecionar 3103 lista BH e monta Recorte(tipo="macsaud", sufixo="macsaud3103")
+    idx_macro = dock.cmb_rm.findData("3103")
     assert idx_macro != -1
     dock.cmb_rm.setCurrentIndex(idx_macro)
 
-    assert dock.lst_rm_munis.count() == 1668
-    assert "1668" in dock.lbl_rm_munis_count.text()
+    items = [dock.lst_rm_munis.item(i).text() for i in range(dock.lst_rm_munis.count())]
+    assert any("Belo Horizonte" in it and "3106200" in it for it in items)
 
     dock.ed_gpkg.setText("/tmp/macro_test.gpkg")
     item = _find_tree_item_by_user_data(dock.tree, "geobr_setores")
@@ -757,16 +763,11 @@ def test_modo_macro_on_carregar_monta_recorte_certo(dock, monkeypatch):
 
     assert "recorte" in captured_kwargs
     recorte = captured_kwargs["recorte"]
-    assert recorte.tipo == "macro"
-    assert recorte.id == "3"
-    assert len(recorte.codes) == 1668
-    assert len(recorte.nomes) == 1668
-    assert recorte.rotulo == "Região Sudeste"
-    assert recorte.sufixo == "macro3"
-    assert recorte.nome_camada_limite == "macro_3"
-
-    log_text = dock.txt_log.toPlainText()
-    assert "Macroregion: Região Sudeste — 1668 municipalities" in log_text
+    assert recorte.tipo == "macsaud"
+    assert recorte.id == "3103"
+    assert recorte.sufixo == "macsaud3103"
+    assert recorte.nome_camada_limite == "macsaud_3103"
+    assert "3106200" in recorte.codes
 
 
 def test_novos_modos_on_carregar_sem_selecao_valida_mensagem(dock):
@@ -792,11 +793,11 @@ def test_novos_modos_on_carregar_sem_selecao_valida_mensagem(dock):
     dock._on_carregar()
     assert "Select a state" in dock.txt_log.toPlainText()
 
-    # Macro sem seleção
-    dock.rad_macro.setChecked(True)
+    # Macro de saúde sem seleção
+    dock.rad_macro_saude.setChecked(True)
     dock.cmb_rm.setCurrentIndex(-1)
     dock._on_carregar()
-    assert "Select a macroregion" in dock.txt_log.toPlainText()
+    assert "Select a health macroregion" in dock.txt_log.toPlainText()
 
 
 def test_desabilitar_fontes_por_escala_e_cobertura(dock):
@@ -844,13 +845,7 @@ def test_desabilitar_fontes_por_escala_e_cobertura(dock):
     assert "sicar_imoveis" in log_text
     assert "osm_vias" in log_text
 
-    # 2. em Macro, dnit_snv fica desabilitado;
-    dock.rad_macro.setChecked(True)
-    assert bool(item_dnit.flags() & Qt.ItemFlag.ItemIsEnabled) is False
-    assert item_dnit.checkState(0) == Qt.CheckState.Unchecked
-    assert item_dnit.toolTip(0) != ""
-
-    # 3. em Estado=SE, der_mg_rodovias fica desabilitado;
+    # 2. em Estado=SE, der_mg_rodovias fica desabilitado;
     dock.rad_uf.setChecked(True)
     idx_se = dock.cmb_uf.findData("SE")
     assert idx_se != -1
@@ -859,7 +854,7 @@ def test_desabilitar_fontes_por_escala_e_cobertura(dock):
     assert item_der.checkState(0) == Qt.CheckState.Unchecked
     assert item_der.toolTip(0) != ""
 
-    # 4. de volta a Município, tudo reabilita.
+    # 3. de volta a Município, tudo reabilita.
     dock.rad_muni.setChecked(True)
     assert bool(item_sicar.flags() & Qt.ItemFlag.ItemIsEnabled) is True
     assert bool(item_sgb.flags() & Qt.ItemFlag.ItemIsEnabled) is True
