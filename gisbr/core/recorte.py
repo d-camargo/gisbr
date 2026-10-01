@@ -92,7 +92,7 @@ def camada_do_recorte(recorte: Recorte, feedback=None, algo: str = "read_municip
         if feedback:
             feedback.reportError(msg)
         else:
-            QgsMessageLog.logMessage(msg, "GisBR", Qgis.Warning)
+            QgsMessageLog.logMessage(msg, "GisBR", Qgis.MessageLevel.Warning)
         return None
 
     camadas_uf = []
@@ -114,7 +114,7 @@ def camada_do_recorte(recorte: Recorte, feedback=None, algo: str = "read_municip
             if feedback:
                 feedback.reportError(msg)
             else:
-                QgsMessageLog.logMessage(msg, "GisBR", Qgis.Warning)
+                QgsMessageLog.logMessage(msg, "GisBR", Qgis.MessageLevel.Warning)
             return None
 
     if not camadas_uf:
@@ -122,7 +122,7 @@ def camada_do_recorte(recorte: Recorte, feedback=None, algo: str = "read_municip
         if feedback:
             feedback.reportError(msg)
         else:
-            QgsMessageLog.logMessage(msg, "GisBR", Qgis.Warning)
+            QgsMessageLog.logMessage(msg, "GisBR", Qgis.MessageLevel.Warning)
         return None
 
     if len(camadas_uf) > 1:
@@ -145,7 +145,7 @@ def camada_do_recorte(recorte: Recorte, feedback=None, algo: str = "read_municip
             if feedback:
                 feedback.reportError(msg)
             else:
-                QgsMessageLog.logMessage(msg, "GisBR", Qgis.Warning)
+                QgsMessageLog.logMessage(msg, "GisBR", Qgis.MessageLevel.Warning)
             return None
     else:
         base_layer = camadas_uf[0]
@@ -169,7 +169,7 @@ def camada_do_recorte(recorte: Recorte, feedback=None, algo: str = "read_municip
         if feedback:
             feedback.reportError(msg)
         else:
-            QgsMessageLog.logMessage(msg, "GisBR", Qgis.Warning)
+            QgsMessageLog.logMessage(msg, "GisBR", Qgis.MessageLevel.Warning)
         return None
 
     if not final_layer or (hasattr(final_layer, "featureCount") and final_layer.featureCount() == 0):
@@ -177,7 +177,7 @@ def camada_do_recorte(recorte: Recorte, feedback=None, algo: str = "read_municip
         if feedback:
             feedback.reportError(msg)
         else:
-            QgsMessageLog.logMessage(msg, "GisBR", Qgis.Warning)
+            QgsMessageLog.logMessage(msg, "GisBR", Qgis.MessageLevel.Warning)
         return None
 
     if algo == "read_municipality" and hasattr(final_layer, "featureCount") and final_layer.featureCount() < len(recorte.codes):
@@ -185,6 +185,6 @@ def camada_do_recorte(recorte: Recorte, feedback=None, algo: str = "read_municip
         if feedback:
             feedback.pushInfo(msg)
         else:
-            QgsMessageLog.logMessage(msg, "GisBR", Qgis.Info)
+            QgsMessageLog.logMessage(msg, "GisBR", Qgis.MessageLevel.Info)
 
     return final_layer

@@ -72,7 +72,7 @@ def _filtra_apenas_linhas(geom: Optional[QgsGeometry]) -> Optional[QgsGeometry]:
     """Garante que a geometria contenha apenas partes lineares (LineString / MultiLineString)."""
     if geom is None or geom.isEmpty():
         return None
-    if geom.type() == QgsWkbTypes.LineGeometry:
+    if geom.type() == QgsWkbTypes.GeometryType.LineGeometry:
         return geom
     linhas: List[QgsGeometry] = []
     try:
@@ -80,7 +80,7 @@ def _filtra_apenas_linhas(geom: Optional[QgsGeometry]) -> Optional[QgsGeometry]:
     except Exception:
         parts = []
     for part in parts:
-        if part and not part.isEmpty() and part.type() == QgsWkbTypes.LineGeometry:
+        if part and not part.isEmpty() and part.type() == QgsWkbTypes.GeometryType.LineGeometry:
             linhas.append(part)
     if not linhas:
         return None
@@ -508,7 +508,7 @@ def remove_duplicidade_federal(
             geom_p = feat_p.geometry()
             if not geom_p or geom_p.isEmpty():
                 continue
-            if geom_p.type() != QgsWkbTypes.LineGeometry:
+            if geom_p.type() != QgsWkbTypes.GeometryType.LineGeometry:
                 continue
             buf_p = geom_p.buffer(deg_buf, 8, cap_style, join_style, 2.0)
             cods_p: Set[str] = set()
