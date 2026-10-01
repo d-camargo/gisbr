@@ -78,18 +78,12 @@ def _quebra_linha_em_snaps(
             "coords": coords,
         }]
 
-    # Funde snaps muito próximos entre si (< TOL_NO_M) ao longo da linha
+    # Snaps já chegam com `node_id` final (pés fundidos em monta_rede);
+    # apenas pula snap consecutivo com o mesmo nó (evita sub-linha degenerada).
     snaps_filtrados: List[Dict[str, Any]] = []
     for s in snaps:
-        if snaps_filtrados:
-            ult = snaps_filtrados[-1]
-            d = _haversine_m(s["coords"][0], s["coords"][1],
-                             ult["coords"][0], ult["coords"][1])
-            if d <= TOL_NO_M:
-                # Reutiliza nó do snap anterior
-                s["node_id"] = ult["node_id"]
-                s["coords"] = ult["coords"]
-                continue
+        if snaps_filtrados and snaps_filtrados[-1]["node_id"] == s["node_id"]:
+            continue
         snaps_filtrados.append(s)
 
     sub_linhas: List[Dict[str, Any]] = []
@@ -341,105 +335,152 @@ def monta_rede(
             for cel in celulas_seg:
                 grade_segs.setdefault(cel, []).append((l_idx, s_idx))
 
-    # Identifica snaps para cada ponta de cada linha
+    # Identifica um snap por NÓ de ponta (menor dist_perp)
+    nos_ponta: Set[int] = set()
+    for item in linhas_explodidas:
+        nos_ponta.add(item["from_node"])
+        nos_ponta.add(item["to_node"])
+
+    snap_por_no: Dict[int, Dict[str, Any]] = {}
+
+    for p_node in sorted(nos_ponta):
+        p_coord = nos[p_node]
+        px, py = p_coord
+        cgx, cgy = _celula_seg(px, py)
+
+        candidatos_vistos = set()
+        melhor_snap = None
+        menor_dist_snap = float("inf")
+
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for cand in grade_segs.get((cgx + dx, cgy + dy), []):
+                    if cand in candidatos_vistos:
+                        continue
+                    candidatos_vistos.add(cand)
+
+                    alvo_l_idx, alvo_s_idx = cand
+                    alvo_item = linhas_explodidas[alvo_l_idx]
+                    if p_node in (alvo_item["from_node"], alvo_item["to_node"]):
+                        # Não conecta em linha incidente ao próprio nó
+                        continue
+
+                    alvo_c = alvo_item["coords"]
+                    a_coord = alvo_c[alvo_s_idx]
+                    b_coord = alvo_c[alvo_s_idx + 1]
+
+                    # Projeção equiretangular local centrada na ponta P
+                    ax, ay = _lonlat_para_xy(a_coord[0], a_coord[1], px, py)
+                    bx, by = _lonlat_para_xy(b_coord[0], b_coord[1], px, py)
+
+                    vx, vy = bx - ax, by - ay
+                    l2 = vx * vx + vy * vy
+                    if l2 < 1e-12:
+                        continue
+
+                    comp_seg = math.sqrt(l2)
+                    # P na origem (0, 0), vetor W = P - A = (-ax, -ay)
+                    t = (-ax * vx - ay * vy) / l2
+
+                    if t <= 0.0 or t >= 1.0:
+                        # Fora do interior do segmento
+                        continue
+
+                    # Distância ao longo do segmento até os vértices A e B
+                    dist_a = t * comp_seg
+                    dist_b = (1.0 - t) * comp_seg
+                    if dist_a <= TOL_NO_M or dist_b <= TOL_NO_M:
+                        # Próximo demais dos nós das pontas do segmento
+                        continue
+
+                    # Pé da perpendicular F
+                    fx = ax + t * vx
+                    fy = ay + t * vy
+                    dist_perp = math.sqrt(fx * fx + fy * fy)
+
+                    if dist_perp > TOL_SNAP_M:
+                        continue
+
+                    f_lon, f_lat = _xy_para_lonlat(fx, fy, px, py)
+
+                    # Verifica se F está longe de nós existentes da linha alvo
+                    perto_no_alvo = False
+                    for nid in (alvo_item["from_node"], alvo_item["to_node"]):
+                        if nid in nos:
+                            if _haversine_m(f_lon, f_lat, nos[nid][0], nos[nid][1]) <= TOL_NO_M:
+                                perto_no_alvo = True
+                                break
+                    if perto_no_alvo:
+                        continue
+
+                    if dist_perp < menor_dist_snap:
+                        menor_dist_snap = dist_perp
+                        melhor_snap = {
+                            "alvo_line_idx": alvo_l_idx,
+                            "ponta_node": p_node,
+                            "seg_idx": alvo_s_idx,
+                            "t": t,
+                            "coords": (f_lon, f_lat),
+                            "distancia_m": dist_perp,
+                        }
+
+        if melhor_snap is not None:
+            snap_por_no[p_node] = melhor_snap
+
+    # Agrupa snaps por linha alvo e funde pés a <= TOL_NO_M ANTES de criar nós
     snaps_por_linha: Dict[int, List[Dict[str, Any]]] = {}
+    for p_node in sorted(snap_por_no):
+        s = snap_por_no[p_node]
+        snaps_por_linha.setdefault(s["alvo_line_idx"], []).append(s)
 
-    for l_idx, item in enumerate(linhas_explodidas):
-        c = item["coords"]
-        pontas = [
-            (c[0], True, item["from_node"]),
-            (c[-1], False, item["to_node"]),
-        ]
+    for alvo_idx in sorted(snaps_por_linha):
+        snaps = snaps_por_linha[alvo_idx]
+        snaps.sort(key=lambda s: (s["seg_idx"], s["t"]))
+        rep: Optional[Dict[str, Any]] = None
+        for s in snaps:
+            if rep is not None and _haversine_m(
+                    s["coords"][0], s["coords"][1],
+                    rep["coords"][0], rep["coords"][1]) <= TOL_NO_M:
+                s["node_id"] = rep["node_id"]
+                s["coords"] = rep["coords"]
+                continue
+            novo_id = next_node_id
+            next_node_id += 1
+            nos[novo_id] = s["coords"]
+            s["node_id"] = novo_id
+            rep = s
 
-        for p_coord, is_start, p_node in pontas:
-            px, py = p_coord
-            cgx, cgy = _celula_seg(px, py)
+    # Religa TODAS as linhas de cada nó snapado ao nó novo
+    linhas_por_no: Dict[int, List[Tuple[Dict[str, Any], bool]]] = {}
+    for item in linhas_explodidas:
+        linhas_por_no.setdefault(item["from_node"], []).append((item, True))
+        linhas_por_no.setdefault(item["to_node"], []).append((item, False))
 
-            candidatos_vistos = set()
-            melhor_snap = None
-            menor_dist_snap = float("inf")
+    for p_node in sorted(snap_por_no):
+        s = snap_por_no[p_node]
+        f_id = s["node_id"]
+        f_coord = nos[f_id]
+        fid_ref = None
+        for item, is_start in linhas_por_no.get(p_node, []):
+            if is_start:
+                item["coords"][0] = f_coord
+                item["from_node"] = f_id
+            else:
+                item["coords"][-1] = f_coord
+                item["to_node"] = f_id
+            if fid_ref is None:
+                fid_ref = item["fid"]
 
-            for dx in (-1, 0, 1):
-                for dy in (-1, 0, 1):
-                    for cand in grade_segs.get((cgx + dx, cgy + dy), []):
-                        if cand in candidatos_vistos:
-                            continue
-                        candidatos_vistos.add(cand)
+        correcoes.append({
+            "tipo": "ponta_conectada",
+            "x": f_coord[0],
+            "y": f_coord[1],
+            "detalhe": f"distancia {s['distancia_m']:.2f} m",
+            "fid": fid_ref,
+        })
+        contagens["ponta_conectada"] += 1
 
-                        alvo_l_idx, alvo_s_idx = cand
-                        if alvo_l_idx == l_idx:
-                            # Não conecta na própria linha
-                            continue
-
-                        alvo_c = linhas_explodidas[alvo_l_idx]["coords"]
-                        a_coord = alvo_c[alvo_s_idx]
-                        b_coord = alvo_c[alvo_s_idx + 1]
-
-                        # Projeção equiretangular local centrada na ponta P
-                        ax, ay = _lonlat_para_xy(a_coord[0], a_coord[1], px, py)
-                        bx, by = _lonlat_para_xy(b_coord[0], b_coord[1], px, py)
-
-                        vx, vy = bx - ax, by - ay
-                        l2 = vx * vx + vy * vy
-                        if l2 < 1e-12:
-                            continue
-
-                        comp_seg = math.sqrt(l2)
-                        # P na origem (0, 0), vetor W = P - A = (-ax, -ay)
-                        t = (-ax * vx - ay * vy) / l2
-
-                        if t <= 0.0 or t >= 1.0:
-                            # Fora do interior do segmento
-                            continue
-
-                        # Distância ao longo do segmento até os vértices A e B
-                        dist_a = t * comp_seg
-                        dist_b = (1.0 - t) * comp_seg
-                        if dist_a <= TOL_NO_M or dist_b <= TOL_NO_M:
-                            # Próximo demais dos nós das pontas do segmento
-                            continue
-
-                        # Pé da perpendicular F
-                        fx = ax + t * vx
-                        fy = ay + t * vy
-                        dist_perp = math.sqrt(fx * fx + fy * fy)
-
-                        if dist_perp > TOL_SNAP_M:
-                            continue
-
-                        f_lon, f_lat = _xy_para_lonlat(fx, fy, px, py)
-
-                        # Verifica se F está longe de nós existentes da linha alvo
-                        nos_alvo = (
-                            linhas_explodidas[alvo_l_idx]["from_node"],
-                            linhas_explodidas[alvo_l_idx]["to_node"],
-                        )
-                        perto_no_alvo = False
-                        for nid in nos_alvo:
-                            if nid in nos:
-                                if _haversine_m(f_lon, f_lat, nos[nid][0], nos[nid][1]) <= TOL_NO_M:
-                                    perto_no_alvo = True
-                                    break
-                        if perto_no_alvo:
-                            continue
-
-                        if dist_perp < menor_dist_snap:
-                            menor_dist_snap = dist_perp
-                            melhor_snap = {
-                                "alvo_line_idx": alvo_l_idx,
-                                "ponta_line_idx": l_idx,
-                                "is_start": is_start,
-                                "seg_idx": alvo_s_idx,
-                                "t": t,
-                                "coords": (f_lon, f_lat),
-                                "distancia_m": dist_perp,
-                                "fid": item["fid"],
-                            }
-
-            if melhor_snap is not None:
-                snaps_por_linha.setdefault(melhor_snap["alvo_line_idx"], []).append(melhor_snap)
-
-    # Aplica as quebras nas linhas alvo e conecta as pontas
+    # Aplica as quebras nas linhas alvo
     novas_linhas: List[Dict[str, Any]] = []
 
     for l_idx, item in enumerate(linhas_explodidas):
@@ -447,35 +488,6 @@ def monta_rede(
         if not snaps:
             novas_linhas.append(item)
             continue
-
-        # Ordena snaps por (seg_idx, t)
-        snaps.sort(key=lambda s: (s["seg_idx"], s["t"]))
-
-        for s in snaps:
-            # Cria nó para o pé da perpendicular
-            f_coord = s["coords"]
-            novo_id = next_node_id
-            next_node_id += 1
-            nos[novo_id] = f_coord
-            s["node_id"] = novo_id
-
-            # Conecta a ponta da linha incidente ao novo nó
-            p_line = linhas_explodidas[s["ponta_line_idx"]]
-            if s["is_start"]:
-                p_line["coords"][0] = f_coord
-                p_line["from_node"] = novo_id
-            else:
-                p_line["coords"][-1] = f_coord
-                p_line["to_node"] = novo_id
-
-            correcoes.append({
-                "tipo": "ponta_conectada",
-                "x": f_coord[0],
-                "y": f_coord[1],
-                "detalhe": f"distancia {s['distancia_m']:.2f} m",
-                "fid": s["fid"],
-            })
-            contagens["ponta_conectada"] += 1
 
         # Quebra a linha alvo nos pontos de snap
         sub_partes = _quebra_linha_em_snaps(

@@ -398,3 +398,76 @@ def test_linha_diagonal_longa_nao_explode_memoria_e_conecta_em_t():
     con = [c for c in correcoes if c["tipo"] == "ponta_conectada"]
     assert len(con) == 1
     assert con[0]["fid"] == "incidente"
+
+
+def _graus(arcos):
+    graus = {}
+    for a in arcos:
+        for n in (a["from_node"], a["to_node"]):
+            graus[n] = graus.get(n, 0) + 1
+    return graus
+
+
+def test_cruzamento_duas_pontas_mesmo_pe_conectam_no_mesmo_no():
+    """Duas pontas opostas com o mesmo pé em A -> um único nó de grau 4."""
+    linhas = [
+        {"fid": "A", "coords": [(0, 0), (0.001, 0)], "attrs": {}},
+        {"fid": "B", "coords": [(0.0005, 0.001), (0.0005, 0.00003)], "attrs": {}},
+        {"fid": "C", "coords": [(0.0005, -0.001), (0.0005, -0.00003)], "attrs": {}},
+    ]
+    arcos, nos, _correcoes, contagens = monta_rede(linhas)
+
+    assert len(arcos) == 4
+    graus = _graus(arcos)
+    centro = [n for n, g in graus.items() if g == 4]
+    assert len(centro) == 1
+    c = centro[0]
+    for fid in ("B", "C"):
+        arco = next(a for a in arcos if a["fid"] == fid)
+        assert c in (arco["from_node"], arco["to_node"])
+    for n, g in graus.items():
+        if g == 1:
+            assert _haversine(nos[n], nos[c]) >= 1.0
+    assert contagens["ponta_conectada"] == 2
+
+
+def test_no_compartilhado_perto_de_linha_move_todas_as_linhas():
+    """Nó compartilhado por B e C perto de A: ambas migram para o mesmo pé."""
+    linhas = [
+        {"fid": "A", "coords": [(0, 0), (0.001, 0)], "attrs": {}},
+        {"fid": "B", "coords": [(0.0004, 0.001), (0.0005, 0.000045)], "attrs": {}},
+        {"fid": "C", "coords": [(0.0006, 0.001), (0.0005, 0.000045)], "attrs": {}},
+    ]
+    arcos, _nos, _correcoes, contagens = monta_rede(linhas)
+
+    graus = _graus(arcos)
+    b = next(a for a in arcos if a["fid"] == "B")
+    c = next(a for a in arcos if a["fid"] == "C")
+    no_b = b["to_node"]
+    assert c["to_node"] == no_b
+    assert graus[no_b] == 4
+    arcos_a = [a for a in arcos if a["fid"] == "A"]
+    assert len(arcos_a) == 2
+    assert {arcos_a[0]["to_node"], arcos_a[1]["from_node"]} == {no_b}
+    assert contagens["nos"] == 5
+
+
+def test_pontas_em_pes_distintos_criam_nos_distintos():
+    """Pontas a ~30 m uma da outra em A -> dois nós internos distintos."""
+    linhas = [
+        {"fid": "A", "coords": [(0, 0), (0.001, 0)], "attrs": {}},
+        {"fid": "B", "coords": [(0.0003, 0.001), (0.0003, 0.00003)], "attrs": {}},
+        {"fid": "C", "coords": [(0.0006, 0.001), (0.0006, 0.00003)], "attrs": {}},
+    ]
+    arcos, _nos, _correcoes, contagens = monta_rede(linhas)
+
+    assert len([a for a in arcos if a["fid"] == "A"]) == 3
+    graus = _graus(arcos)
+    internos = [n for n, g in graus.items() if g == 3]
+    assert len(internos) == 2
+    assert contagens["ponta_conectada"] == 2
+
+
+def _haversine(p, q):
+    from gisbr.core.rede_linhas import _haversine_m
+    return _haversine_m(p[0], p[1], q[0], q[1])

@@ -15,6 +15,9 @@ municipality composition from the DATASUS territorial base (June 2026,
 now built as routable networks (links, nodes, problems), with automatic
 geometry fixes (endpoint snapping, T-junction split, coincident segment
 merge) and the remaining issues flagged.
+- Fixed: two road ends meeting the same point of another road, or several roads
+sharing an end near it, could leave one of them disconnected from the network;
+they now all join a single node.
 - Planned or non-existent segments (DNIT/DER "PLA", planned/under-study
 railways) are no longer loaded; they go to a "removed" layer.
 - Federal highways repeated in state DER layers are removed from the state
