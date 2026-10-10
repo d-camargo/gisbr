@@ -16,8 +16,12 @@ def sample_parquet(tmp_path):
             pa.array(["MG", "MG", "SP", "RJ"]),
             pa.array([3106200, 3100100, 3550308, 3304557]),
             pa.array(["Belo Horizonte", "Abadia dos Dourados", "São Paulo", "Rio de Janeiro"]),
+            pa.array(
+                [310620005000001.0, 310010005000001.0, 355030805000001.0, 330455705000001.0],
+                type=pa.float64(),
+            ),
         ],
-        names=["abbrev_state", "code_muni", "name_muni"],
+        names=["abbrev_state", "code_muni", "name_muni", "code_tract"],
     )
     pq.write_table(table, str(file_path))
     return file_path
@@ -57,6 +61,32 @@ def test_filtro_prefixo(sample_parquet):
     assert layer2.featureCount() == 1
     feat = next(layer2.getFeatures())
     assert feat["name_muni"] == "Rio de Janeiro"
+
+
+def test_filtro_igualdade_double_valor_texto(sample_parquet):
+    layer = _load_with_pyarrow(
+        sample_parquet, "test_layer", filtro=("code_tract", "310620005000001", "igual")
+    )
+    assert layer.isValid()
+    assert layer.featureCount() == 1
+    feat = next(layer.getFeatures())
+    assert feat["code_tract"] == 310620005000001.0
+
+
+def test_filtro_prefixo_double(sample_parquet):
+    layer = _load_with_pyarrow(
+        sample_parquet, "test_layer", filtro=("code_tract", "3106200", "prefixo")
+    )
+    assert layer.isValid()
+    assert layer.featureCount() == 1
+    feat = next(layer.getFeatures())
+    assert feat["code_tract"] == 310620005000001.0
+
+    layer2 = _load_with_pyarrow(
+        sample_parquet, "test_layer", filtro=("code_tract", "31", "prefixo")
+    )
+    assert layer2.isValid()
+    assert layer2.featureCount() == 2
 
 
 def test_filtro_coluna_inexistente(sample_parquet):

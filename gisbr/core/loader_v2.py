@@ -23,7 +23,7 @@ from qgis.core import (
     QgsWkbTypes,
 )
 
-from . import capabilities, qgis_compat
+from . import capabilities, parquet_filtro, qgis_compat
 from .constants import EPSG_GEOBR
 
 
@@ -106,40 +106,16 @@ def _detect_geometry_column(schema):
 
 def _load_with_pyarrow(path, name, default_epsg=EPSG_GEOBR, filtro=None):
     import pyarrow as pa
-    import pyarrow.compute as pc
     import pyarrow.parquet as pq
 
     table = pq.read_table(str(path))
     schema = table.schema
 
     if filtro:
-        coluna, valor, modo = filtro
-        if coluna not in schema.names:
-            first_cols = ", ".join(schema.names[:5])
-            raise LoaderV2Error(
-                f"Coluna '{coluna}' ausente no schema. Colunas existentes: {first_cols}"
-            )
-
-        field_type = schema.field(coluna).type
-        col_arr = table[coluna]
-
-        if modo == "igual":
-            if pa.types.is_integer(field_type):
-                val_coagido = int(valor)
-            elif pa.types.is_string(field_type) or pa.types.is_large_string(field_type):
-                val_coagido = str(valor)
-            else:
-                val_coagido = valor
-            mask = pc.equal(col_arr, val_coagido)
-        elif modo == "prefixo":
-            val_coagido = str(valor)
-            if not (pa.types.is_string(field_type) or pa.types.is_large_string(field_type)):
-                col_arr = pc.cast(col_arr, pa.string())
-            mask = pc.starts_with(col_arr, val_coagido)
-        else:
-            raise LoaderV2Error(f"Modo de filtro desconhecido: '{modo}'")
-
-        table = table.filter(mask)
+        try:
+            table = table.filter(parquet_filtro.mascara(table, filtro))
+        except parquet_filtro.FiltroParquetError as exc:
+            raise LoaderV2Error(str(exc)) from exc
 
     geom_col, crs_epsg = _detect_geometry_column(schema)
     if crs_epsg is None:

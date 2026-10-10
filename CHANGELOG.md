@@ -2,6 +2,12 @@
 
 Generated from the `changelog` block of `gisbr/metadata.txt` by `tools/build_docs_site.py` — do not edit by hand.
 
+## 1.2.1
+
+- Fixed: Census (censobr) tables could fail to load, or join zero tracts,
+when the pyarrow backend filtered a code column stored as floating point
+(state/municipality filter by code now works on double columns).
+
 ## 1.2.0
 
 - Fixed: the GisBR toolbar button could end up hidden in the toolbar
