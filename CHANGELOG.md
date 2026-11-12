@@ -2,6 +2,16 @@
 
 Generated from the `changelog` block of `gisbr/metadata.txt` by `tools/build_docs_site.py` — do not edit by hand.
 
+## 1.3.0
+
+- New source: São Paulo state highways (DER-SP, State Highway System),
+loaded as a routable network, with planned segments removed and federal
+highways already present in the DNIT layer de-duplicated.
+- Remote zip sources are now reprojected to the catalog CRS when the file
+ships in another projection, and "Update already downloaded data" also
+refreshes the cached zip (the previous copy is kept if the download
+fails).
+
 ## 1.2.1
 
 - Fixed: Census (censobr) tables could fail to load, or join zero tracts,

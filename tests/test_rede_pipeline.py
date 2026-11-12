@@ -557,3 +557,70 @@ def test_duplicidade_federal_coincidente_aceita_br_coincidente(qgis_app):
     assert prob is None
     assert rel["removidos"] == 1
 
+
+def test_montar_rede_camada_3d_linestringz(qgis_app):
+    """montar_rede recebe camada LineStringZ em EPSG:4674 e produz links e nós sem erro (D5)."""
+    if qgis_app is None:
+        pytest.skip("QGIS indisponivel neste ambiente")
+
+    layer = QgsVectorLayer("LineStringZ?crs=EPSG:4674", "der_sp_teste_3d", "memory")
+    dp = layer.dataProvider()
+    dp.addAttributes([
+        QgsField("Rodovia", qgis_compat.field_type("string")),
+        QgsField("TipoPista", qgis_compat.field_type("string")),
+        QgsField("Jurisdicao", qgis_compat.field_type("string")),
+    ])
+    layer.updateFields()
+
+    layer.startEditing()
+    # Trecho 1: PAV (cota 650 -> 720 m)
+    f1 = QgsFeature(layer.fields())
+    f1.setGeometry(QgsGeometry.fromWkt("LINESTRING Z (-47.0 -23.0 650.0, -47.1 -23.1 720.0)"))
+    f1["Rodovia"] = "SP 330"
+    f1["TipoPista"] = "PAV"
+    f1["Jurisdicao"] = "Estadual"
+    layer.addFeature(f1)
+
+    # Trecho 2: PAV conectado ao trecho 1 (cota 720 -> 800 m)
+    f2 = QgsFeature(layer.fields())
+    f2.setGeometry(QgsGeometry.fromWkt("LINESTRING Z (-47.1 -23.1 720.0, -47.2 -23.2 800.0)"))
+    f2["Rodovia"] = "SP 330"
+    f2["TipoPista"] = "PAV"
+    f2["Jurisdicao"] = "Estadual"
+    layer.addFeature(f2)
+
+    # Trecho 3: trecho planejado (PLAN, cota 800 -> 850 m)
+    f3 = QgsFeature(layer.fields())
+    f3.setGeometry(QgsGeometry.fromWkt("LINESTRING Z (-47.2 -23.2 800.0, -47.3 -23.3 850.0)"))
+    f3["Rodovia"] = "SP 330"
+    f3["TipoPista"] = "PLAN"
+    f3["Jurisdicao"] = "Estadual"
+    layer.addFeature(f3)
+    layer.commitChanges()
+
+    cfg_rede = {
+        "tipo": "rodoviaria",
+        "excluir": {"campo": "TipoPista", "valores": ["PLAN"]},
+    }
+
+    resultado = montar_rede(layer, cfg_rede, None, "der_sp_rodovias_teste")
+
+    links = resultado["links"]
+    assert links is not None and links.isValid()
+    assert links.featureCount() == 2
+    assert links.crs().authid() == "EPSG:4674"
+
+    nos = resultado["nos"]
+    assert nos is not None and nos.isValid()
+    assert nos.featureCount() == 3
+    assert nos.crs().authid() == "EPSG:4674"
+
+    removidos = resultado["removidos"]
+    assert removidos is not None and removidos.isValid()
+    assert removidos.featureCount() == 1
+
+    assert resultado["relatorio"]["arcos"] == 2
+    assert resultado["relatorio"]["nos"] == 3
+    assert resultado["relatorio"]["removidos"] == 1
+
+

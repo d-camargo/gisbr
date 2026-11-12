@@ -20,6 +20,12 @@ filtro: {"tipo": "cql_codigo", "campo": <str>}  -> CQL campo = <code_muni>
       {"campo": <str>, "modo": "prefixo"} -> campo LIKE '31%' ou OR (...)
 type_name pode conter "{uf}" (substituido pela sigla da UF do municipio).
 
+Protocolo "zip_remoto": bases disponibilizadas em arquivos .zip remotos
+contendo shapefiles. Chaves: endpoint, srs, filtro, subset (opcional).
+Chave opcional:
+  cache_id: nome do arquivo no cache local para sobrepor o nome derivado
+            da URL (se omitido, usa o ultimo segmento da URL).
+
 Protocolo "ibge_tabular": dados tabulares do IBGE (PAM e Censo Agropecuário)
 servidos pela API v3 de Agregados. Chaves: agregado, variaveis, classificacao,
 periodo_default.
@@ -100,6 +106,18 @@ SOURCES = [
               "excluir": {"campo": "situacao", "valores": ["PLA"]}},
      "duplicidade": {"contra": "dnit_snv", "campo_jurisdicao": "jurisdicao",
                      "valor_federal": "Federal", "campo_br": "rod_num"}},
+    {"id": "der_sp_rodovias", "eixo": "transportes",
+     "nome": "DER-SP — Rodovias estaduais (Sistema Rodoviário Estadual)",
+     "protocolo": "zip_remoto",
+     "endpoint": "https://dersp.der.sp.gov.br/WebSite/Arquivos/DadosAbertos/MalhaRodoviariaEstadual/MalhaRodoviariaEstadual/Sistema%20Rodovi%C3%A1rio%20Estadual.zip",
+     "cache_id": "der_sp_sistema_rodoviario_estadual.zip",
+     "origem_url": "https://dersp.der.sp.gov.br/WebSite/Servicos/ConjuntoDados.aspx?tema=Sistema_Rodoviario_Estadual&conjunto=",
+     "srs": "EPSG:4674", "filtro": {"tipo": "bbox"}, "escala_max": "estado",
+     "ufs": ["SP"], "licenca": "Publica",
+     "rede": {"tipo": "rodoviaria",
+              "excluir": {"campo": "TipoPista", "valores": ["PLAN"]}},
+     "duplicidade": {"contra": "dnit_snv", "campo_jurisdicao": "Jurisdicao",
+                     "valor_federal": "Federal", "campo_br": "Rodovia"}},
     {"id": "ibge_bc250_rodovias", "eixo": "transportes", "nome": "IBGE — BC250 Trecho rodoviario",
      "protocolo": "wfs", "endpoint": "https://geoservicos.ibge.gov.br/geoserver/ows",
      "type_name": "CCAR:BC250_2025_rod_trecho_rodoviario_l", "srs": "EPSG:4674",

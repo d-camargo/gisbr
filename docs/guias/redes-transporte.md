@@ -1,6 +1,6 @@
 # Redes rodoviárias e ferroviárias
 
-Seis fontes do eixo **1. Transportes** do painel de diagnóstico não saem
+Sete fontes do eixo **1. Transportes** do painel de diagnóstico não saem
 mais como linhas soltas: saem como **rede roteável**, com links, nós e uma
 camada de problemas. Mesmo GeoPackage, mesmo fluxo do [guia do
 painel](diagnostico.md): marque as fontes, escolha o município e clique em
@@ -11,6 +11,7 @@ painel](diagnostico.md): marque as fontes, escolha o município e clique em
 | `dnit_snv` | DNIT — SNV (rodovias federais) | rodoviária |
 | `der_mg_rodovias` | DER-MG — Rodovias estaduais | rodoviária |
 | `pr_rodovias_der` | DER-PR — Rodovias estaduais (IAT GeoPR) | rodoviária |
+| `der_sp_rodovias` | DER-SP — Rodovias estaduais (Sistema Rodoviário Estadual) | rodoviária |
 | `go_malha_viaria` | Siga-GO — Malha viária (2024) | rodoviária |
 | `minfra_ferrovias` | MInfra — Ferrovias | ferroviária |
 | `ibge_bc250_ferrovias` | IBGE — BC250 Trecho ferroviario | ferroviária |
@@ -18,6 +19,13 @@ painel](diagnostico.md): marque as fontes, escolha o município e clique em
 A `ibge_bc250_rodovias` **não** vira rede, porque mistura todas as
 jurisdições; ela sai como antes. As demais fontes do painel também ficam como
 antes.
+
+A `der_sp_rodovias` não é serviço: é um arquivo estadual (zip de 2,5 MB, 4.794
+trechos) que o DER-SP atualiza algumas vezes por ano no seu portal de Dados
+Abertos. O plugin baixa o estado inteiro uma vez, guarda no cache e recorta
+pelo município. Para pegar a versão nova, marque **"Atualizar bases já
+baixadas"** no painel: o zip é baixado de novo (se o download falhar, a cópia
+em cache é mantida e o log avisa).
 
 A diferença para a [rede viária do OSM](vias.md) é a topologia. No OSM, o
 `node_id` compartilhado já é a topologia (ver [por que o way é quebrado em
@@ -121,6 +129,7 @@ filtro de existência por atributo próprio, com comparação exata do valor:
 | `der_mg_rodovias` | `superficie` | `PLA` |
 | `pr_rodovias_der` | `situacao` | `PLA` |
 | `go_malha_viaria` | `situacao` | `PLA` |
+| `der_sp_rodovias` | `TipoPista` | `PLAN` |
 | `minfra_ferrovias` | `tip_situac` | `Planejada`, `Estudo`, `Em Obra` |
 | `ibge_bc250_ferrovias` | `situacaofisica` | `Em construção`, `Destruída` |
 
@@ -130,18 +139,19 @@ propósito:
 - "Desativada" (MInfra) e "Abandonada" (BC250), que existem fisicamente; o
   atributo vai junto para quem quiser filtrar.
 - Obras de pavimentação e duplicação (`EOP`/`EOD`): a estrada já existe.
+- No DER-SP, os trechos `Jurisdicao=Municipal` (municipalizados, que seguem no cadastro do DER) e os `TipoPista=IMP` (implantados, sem pavimento).
 
 Números medidos: em MG inteiro, 414 de 945 trechos do DNIT são `PLA`; no
 bbox de Contagem/BH, 18 de 30. No MInfra nacional são 2.489 trechos, dos
 quais 479 Planejada, 220 Estudo e 105 Em Obra. Na BC250 ferrovias, 500
-trechos, 7 Em construção e 3 Destruída.
+trechos, 7 Em construção e 3 Destruída. No DER-SP, 181 dos 4.794 trechos do arquivo são `PLAN`; no modo Estado SP, 176 foram para removidos como planejados.
 
 Se depois do filtro não sobrar nada, a fonte aparece como pulada com "todos
 os trechos eram planejados/inexistentes".
 
 ## Duplicidade federal × estadual
 
-Os DERs (MG, PR) e o Siga-GO também trazem as rodovias federais
+Os DERs (MG, PR, SP) e o Siga-GO também trazem as rodovias federais
 (`jurisdicao=Federal`; no bbox de Contagem, 22 dos 44 trechos do DER-MG).
 Sem tratamento o mapa fica com a BR em dobro.
 
@@ -161,7 +171,7 @@ removido quando as três condições valem:
 2. há 100 m ou mais sobrepostos;
 3. o número da BR bate.
 
-O número da BR vem do campo `codigo_rod` no DER-MG e `rod_num` no DER-PR,
+O número da BR vem do campo `codigo_rod` no DER-MG, `rod_num` no DER-PR e `Rodovia` no DER-SP ("BR 116" vira 116),
 completado com zeros à esquerda até 3 dígitos e comparado com `vl_br` e com as BRs coincidentes
 `ds_coinc` do DNIT; assim "040" casa com um trecho 040×135, e "135" também.
 O Siga-GO não tem número de BR confiável: lá decidem só a jurisdição e a
@@ -193,6 +203,15 @@ Medido no bbox de Contagem, a sobreposição do DER-MG com o DNIT mantido é
 1,00 em 040BMG0360, 040BMG0400 e 262BMG0640/0645, e vai de 0,72 a 1,00 em
 381BMG9060 (que casa com 381CMG3015: mesma BR 381, código diferente). As
 estaduais (808, 806, 010, 040EMG…) dão no máximo 0,02, só nos entroncamentos.
+
+No DER-SP, em São José dos Campos saem 3 trechos da BR-116 (Dutra) como
+`duplicado_federal`, e a Dutra fica só na camada do DNIT; a SP-099 (Tamoios)
+segue inteira na camada estadual. No modo Estado SP saem 165 trechos (39 com
+corte parcial), sobretudo BR-116, BR-153 e BR-381, e ficam apontados 5
+`federal_br_divergente`, 3 `federal_sem_par` e 40 `sobreposicao_sem_atributo`.
+Trecho `Jurisdicao=Federal` cadastrado com código "SP xxx" não casa com
+nenhuma BR e fica como divergente: é o lado seguro, não apaga rodovia por
+engano.
 
 ## GeoPackage antigo
 

@@ -366,8 +366,11 @@ def test_carregar_fontes_zip_remoto_feliz(tmp_path, monkeypatch):
     mem_layer = create_nonempty_mem_layer()
     fetch_calls = []
 
-    def mock_fetch_layer(url, layer_name, srs="EPSG:4674", subset=None, feedback=None):
-        fetch_calls.append({"url": url, "layer_name": layer_name, "srs": srs, "subset": subset})
+    def mock_fetch_layer(url, layer_name, srs="EPSG:4674", subset=None, feedback=None, cache_id=None, refresh=False):
+        fetch_calls.append({
+            "url": url, "layer_name": layer_name, "srs": srs, "subset": subset,
+            "cache_id": cache_id, "refresh": refresh,
+        })
         return mem_layer
 
     monkeypatch.setattr(diagnostico.zip_remoto, "fetch_layer", mock_fetch_layer)
@@ -395,6 +398,63 @@ def test_carregar_fontes_zip_remoto_feliz(tmp_path, monkeypatch):
     assert len(fetch_calls) == 1
     assert fetch_calls[0]["url"] == "https://exemplo.gov.br/dados.zip"
     assert fetch_calls[0]["subset"] == "FASE = 'LAVRA'"
+    assert fetch_calls[0]["cache_id"] is None
+    assert fetch_calls[0]["refresh"] is False
+
+
+def test_carregar_fontes_zip_remoto_repassa_cache_id_e_force(tmp_path, monkeypatch):
+    gpkg = str(tmp_path / "test_zip_params.gpkg")
+    source = {
+        "id": "teste_zip_params",
+        "protocolo": "zip_remoto",
+        "url": "https://exemplo.gov.br/dados.zip",
+        "cache_id": "anm_sigmine_lavra",
+        "subset": "FASE = 'LAVRA'",
+        "srs": "EPSG:4674",
+        "filtro": {"tipo": "bbox"},
+    }
+    monkeypatch.setattr(diagnostico, "SOURCES", [source])
+    monkeypatch.setattr(diagnostico, "_layers_existentes", lambda path: set())
+
+    mem_layer = create_nonempty_mem_layer()
+    fetch_calls = []
+
+    def mock_fetch_layer(url, layer_name, srs="EPSG:4674", subset=None, feedback=None, cache_id=None, refresh=False):
+        fetch_calls.append({
+            "url": url, "layer_name": layer_name, "srs": srs, "subset": subset,
+            "cache_id": cache_id, "refresh": refresh,
+        })
+        return mem_layer
+
+    monkeypatch.setattr(diagnostico.zip_remoto, "fetch_layer", mock_fetch_layer)
+
+    muni_layer = create_nonempty_mem_layer()
+    monkeypatch.setattr(diagnostico, "_municipio_poligono", lambda code: muni_layer)
+    monkeypatch.setattr(diagnostico, "_recorta_poligono", lambda layer, poly, name: layer)
+    monkeypatch.setattr(diagnostico, "_grava_gpkg", lambda layer, path, name: (True, ""))
+    monkeypatch.setattr(QgsProject.instance(), "addMapLayer", lambda lyr: None)
+
+    orig_qgs_vl = QgsVectorLayer
+    def mock_qgs_vl(uri, name, provider):
+        if uri.startswith(gpkg):
+            return mem_layer
+        return orig_qgs_vl(uri, name, provider)
+
+    monkeypatch.setattr(diagnostico, "QgsVectorLayer", mock_qgs_vl)
+
+    # Default (sem force): refresh=False, cache_id repassado
+    res1 = diagnostico.carregar_fontes(["teste_zip_params"], 3106200, "Belo Horizonte", None, gpkg)
+    assert "teste_zip_params" in res1["ok"]
+    assert len(fetch_calls) == 1
+    assert fetch_calls[0]["refresh"] is False
+    assert fetch_calls[0]["cache_id"] == "anm_sigmine_lavra"
+
+    # force=True: refresh=True, cache_id repassado
+    res2 = diagnostico.carregar_fontes(["teste_zip_params"], 3106200, "Belo Horizonte", None, gpkg, force=True)
+    assert "teste_zip_params" in res2["ok"]
+    assert len(fetch_calls) == 2
+    assert fetch_calls[1]["refresh"] is True
+    assert fetch_calls[1]["cache_id"] == "anm_sigmine_lavra"
 
 
 

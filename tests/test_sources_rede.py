@@ -12,13 +12,14 @@ FONTES_REDE_ESPERADAS = {
     "go_malha_viaria",
     "pr_rodovias_der",
     "ibge_bc250_ferrovias",
+    "der_sp_rodovias",
 }
 
 TIPOS_REDE_VALIDOS = {"rodoviaria", "ferroviaria"}
 
 
-def test_seis_fontes_tem_rede_tipo_valido_e_excluir_nao_vazio():
-    """As 6 fontes do D9 têm rede.tipo válido e excluir não vazio (D9, D12)."""
+def test_fontes_com_rede_tipo_valido_e_excluir_nao_vazio():
+    """As fontes com chave 'rede' têm tipo válido e excluir não vazio (D9, D12, D5)."""
     fontes_com_rede = [f for f in SOURCES if "rede" in f]
     ids_com_rede = {f["id"] for f in fontes_com_rede}
 
@@ -60,9 +61,9 @@ def test_toda_duplicidade_contra_aponta_para_fonte_com_rede_e_vem_antes():
     id_para_fonte = {f["id"]: f for f in SOURCES}
 
     fontes_com_duplicidade = [f for f in SOURCES if "duplicidade" in f]
-    assert len(fontes_com_duplicidade) == 3, "Esperadas 3 fontes estaduais com duplicidade"
+    assert len(fontes_com_duplicidade) == 4, "Esperadas 4 fontes estaduais com duplicidade"
 
-    fontes_dup_esperadas = {"der_mg_rodovias", "go_malha_viaria", "pr_rodovias_der"}
+    fontes_dup_esperadas = {"der_mg_rodovias", "go_malha_viaria", "pr_rodovias_der", "der_sp_rodovias"}
     assert {f["id"] for f in fontes_com_duplicidade} == fontes_dup_esperadas
 
     for f in fontes_com_duplicidade:
@@ -86,7 +87,7 @@ def test_toda_duplicidade_contra_aponta_para_fonte_com_rede_e_vem_antes():
             f"Fonte alvo '{contra}' (idx {idx_contra}) deve vir antes de '{fid}' (idx {idx_fonte}) no SOURCES"
         )
 
-        assert dup.get("campo_jurisdicao") == "jurisdicao"
+        assert dup.get("campo_jurisdicao") in {"jurisdicao", "Jurisdicao"}
         assert dup.get("valor_federal") == "Federal"
 
     # Checa especificidades de campo_br
@@ -98,6 +99,35 @@ def test_toda_duplicidade_contra_aponta_para_fonte_com_rede_e_vem_antes():
 
     go_malha = id_para_fonte["go_malha_viaria"]["duplicidade"]
     assert "campo_br" not in go_malha
+
+    der_sp = id_para_fonte["der_sp_rodovias"]["duplicidade"]
+    assert der_sp.get("campo_br") == "Rodovia"
+    assert der_sp.get("campo_jurisdicao") == "Jurisdicao"
+
+
+def test_der_sp_rodovias_campos_fixados():
+    """Fixa os campos da fonte der_sp_rodovias (D5)."""
+    from urllib.parse import urlparse
+
+    fonte = next((f for f in SOURCES if f.get("id") == "der_sp_rodovias"), None)
+    assert fonte is not None, "Fonte 'der_sp_rodovias' não encontrada no SOURCES"
+
+    cfg_rede = fonte.get("rede", {})
+    excluir = cfg_rede.get("excluir", {})
+    assert excluir.get("campo") == "TipoPista"
+    assert excluir.get("valores") == ["PLAN"]
+
+    dup = fonte.get("duplicidade", {})
+    assert dup.get("campo_jurisdicao") == "Jurisdicao"
+    assert dup.get("campo_br") == "Rodovia"
+
+    assert fonte.get("ufs") == ["SP"]
+
+    parsed = urlparse(fonte.get("endpoint", ""))
+    assert parsed.netloc == "dersp.der.sp.gov.br"
+
+    cache_id = fonte.get("cache_id", "")
+    assert isinstance(cache_id, str) and cache_id.endswith(".zip")
 
 
 def test_ibge_bc250_rodovias_nao_tem_rede():

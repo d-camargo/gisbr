@@ -279,7 +279,7 @@ def _msg_fonte_indisponivel(s):
 
 def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path,
                   feedback=None, caminho_manual=None, censo_ano=None, nome_muni=None,
-                  recorte=None):
+                  recorte=None, force=False):
     proto = s.get("protocolo")
     srs = s.get("srs", "EPSG:4674")
     if proto == "wfs":
@@ -302,7 +302,8 @@ def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path,
         url = s.get("url") or s.get("endpoint") or s.get("origem_url")
         subset = s.get("subset")
         return zip_remoto.fetch_layer(url, layer_name, srs=srs, subset=subset,
-                                      feedback=feedback)
+                                      feedback=feedback, cache_id=s.get("cache_id"),
+                                      refresh=force)
     if proto == "ibge_tabular":
         agregado = s["agregado"]
         variaveis = s.get("variaveis", "all")
@@ -671,7 +672,8 @@ def carregar_fontes(source_ids, code_muni, nome_muni, bbox, gpkg_path,
                               caminho_manual=caminho_manual,
                               censo_ano=censo_ano,
                               nome_muni=recorte.rotulo,
-                              recorte=recorte)
+                              recorte=recorte,
+                              force=force)
         if layer is None or not layer.isValid():
             msg = getattr(layer, "error_msg", "camada invalida") if layer else "protocolo desconhecido"
             res["falhou"].append((s["id"], msg))
