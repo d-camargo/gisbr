@@ -58,13 +58,20 @@ def _extrai_codigos_br(val: Any) -> Set[str]:
     s = str(val).strip()
     if not s:
         return set()
-    nums = re.findall(r"\d+", s)
     res: Set[str] = set()
-    for n in nums:
-        try:
-            res.add(str(int(n)).zfill(3))
-        except ValueError:
-            pass
+    for tok in re.split(r"[;,\s]+", s):
+        tok = tok.strip()
+        if not tok:
+            continue
+        m = re.fullmatch(r"(\d{3})[A-Za-z]{3}\d{4}", tok)
+        if m:
+            res.add(m.group(1))
+        else:
+            for n in re.findall(r"\d+", tok):
+                try:
+                    res.add(str(int(n)).zfill(3))
+                except ValueError:
+                    pass
     return res
 
 
@@ -451,14 +458,14 @@ def remove_duplicidade_federal(
     nomes_campos_fed = layer_fed.fields().names()
     campo_br_fed = cfg_d.get("campo_br_fed")
     if not campo_br_fed:
-        for cand in ["vl_codigo", "codigo", "rodovia", "br", "cod_rodovia"]:
+        for cand in ["vl_codigo", "codigo", "rodovia", "br", "cod_rodovia", "Codigo_BR"]:
             if cand in nomes_campos_fed:
                 campo_br_fed = cand
                 break
 
     campo_coinc_fed = cfg_d.get("campo_coinc_fed")
     if not campo_coinc_fed:
-        for cand in ["ds_coinc", "coincidentes", "vl_coinc"]:
+        for cand in ["ds_coinc", "coincidentes", "vl_coinc", "Coincidencia_Federal"]:
             if cand in nomes_campos_fed:
                 campo_coinc_fed = cand
                 break

@@ -125,7 +125,7 @@ filtro de existência por atributo próprio, com comparação exata do valor:
 
 | Fonte | Campo | Sai |
 |---|---|---|
-| `dnit_snv` | `ds_superfi` | `PLA` |
+| `dnit_snv` | `Superficie_Federal` | `PLA` |
 | `der_mg_rodovias` | `superficie` | `PLA` |
 | `pr_rodovias_der` | `situacao` | `PLA` |
 | `go_malha_viaria` | `situacao` | `PLA` |
@@ -163,6 +163,8 @@ encontrada no GeoPackage; duplicidade ignorada". O filtro de `PLA` do DNIT é
 reaplicado sobre essa camada, então um GeoPackage antigo com `PLA` não serve
 de prova.
 
+A malha federal vem sempre na **edição vigente** do SNV, publicada pelo DNIT.
+
 Para cada trecho estadual mede-se quanto dele cai dentro de um buffer de
 **50 m** (`TOL_DUP_M`) em torno dos trechos federais mantidos. O trecho é
 removido quando as três condições valem:
@@ -173,7 +175,8 @@ removido quando as três condições valem:
 
 O número da BR vem do campo `codigo_rod` no DER-MG, `rod_num` no DER-PR e `Rodovia` no DER-SP ("BR 116" vira 116),
 completado com zeros à esquerda até 3 dígitos e comparado com `vl_br` e com as BRs coincidentes
-`ds_coinc` do DNIT; assim "040" casa com um trecho 040×135, e "135" também.
+`Coincidencia_Federal` do DNIT, que vêm como códigos SNV (`262BMG0610` conta
+como BR 262); assim "040" casa com um trecho 040×135, e "135" também.
 O Siga-GO não tem número de BR confiável: lá decidem só a jurisdição e a
 sobreposição.
 

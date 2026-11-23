@@ -49,7 +49,7 @@ The UI follows the **QGIS locale**: Portuguese (pt) shows the **PT-BR** translat
 Distinguish the **reference year of the data** (vintage) from the **extraction date** (when the download happened):
 
 - **geobr**: Phase 1 references IBGE data up to ~2020; Phase 2 up to 2022/2025.
-- **Diagnostic**: each source has its own reference year (e.g., DNIT SNV is `snv_202507a`, July 2025). See [docs/diagnostico-plano-diretor/fontes-detalhe.md](docs/diagnostico-plano-diretor/fontes-detalhe.md).
+- **Diagnostic**: each source has its own reference year (e.g., DNIT SNV comes from the current edition, currently `202610A`). See [docs/diagnostico-plano-diretor/fontes-detalhe.md](docs/diagnostico-plano-diretor/fontes-detalhe.md).
 
 Downloaded layers store the download date in a custom property `data_extracao`, distinct from the dataset's vintage.
 
@@ -158,7 +158,7 @@ A interface segue a **localização do QGIS**: em português (pt) aparece a trad
 Distinga o **ano de referência dos dados** (vintage) da **data de extração** (quando o download foi feito):
 
 - **geobr**: a Fase 1 referencia dados do IBGE até ~2020; a Fase 2, até 2022/2025.
-- **Diagnóstico**: cada fonte tem sua própria vintage (ex.: a malha do DNIT é `snv_202507a`, julho/2025). Veja [docs/diagnostico-plano-diretor/fontes-detalhe.md](docs/diagnostico-plano-diretor/fontes-detalhe.md).
+- **Diagnóstico**: cada fonte tem sua própria vintage (ex.: a malha do DNIT vem na edição vigente, hoje `202610A`). Veja [docs/diagnostico-plano-diretor/fontes-detalhe.md](docs/diagnostico-plano-diretor/fontes-detalhe.md).
 
 As camadas baixadas gravam a data do download na propriedade `data_extracao`, distinta do ano de referência do conjunto de dados.
 

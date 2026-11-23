@@ -6,7 +6,7 @@ Esta tabela consolidada mapeia os metadados exatos de todas as fontes geoespacia
 
 | id | eixo | protocolo | endpoint | type_name/layer | crs | output_format | campo_muni (nome exato + tipo) | licenca | status (data) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **dnit_snv** | 1. Transportes | WFS | `https://geoservicos.inde.gov.br/geoserver/DNIT/ows` | `DNIT:snv_202507a` | EPSG:4674 | application/json | `sem campo muni -> filtrar por bbox` *(tem sg_uf)* | Pública | Online (29/06/2026) |
+| **dnit_snv** | 1. Transportes | WFS | `https://servicos.dnit.gov.br/dnitgeo/geoserver/wfs` | `vgeo:vw_snv_rod` (GeoServer do DNIT, edição vigente por data) | EPSG:4674 | application/json | `sem campo muni -> filtrar por bbox` *(tem sg_uf)* | Pública | Online (29/06/2026) |
 | **dnit_cide** | 1. Transportes | WFS | `https://geoservicos.inde.gov.br/geoserver/DNIT/ows` | `DNIT:cide_2024_25` | EPSG:4674 | application/json | `sem campo muni -> filtrar por bbox` *(tem uf)* | Pública | Online (29/06/2026) |
 | **minfra_ferrovias** | 1. Transportes | WFS | `https://geoservicos.inde.gov.br/geoserver/ows` | `MInfra:Ferrovias` | EPSG:4674 | application/json | `municipio (string)` / `uf (string)` | Pública | Online (29/06/2026) |
 | **minfra_rodovias** | 1. Transportes | WFS | `https://geoservicos.inde.gov.br/geoserver/ows` | `MInfra:Rodovias Federais` | EPSG:4674 | application/json | `sem campo muni -> filtrar por bbox` *(tem sg_uf)* | Pública | Online (29/06/2026) |

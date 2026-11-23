@@ -136,3 +136,20 @@ def test_ibge_bc250_rodovias_nao_tem_rede():
     assert fonte_bc250_rod is not None, "Fonte 'ibge_bc250_rodovias' não encontrada no SOURCES"
     assert "rede" not in fonte_bc250_rod, "Fonte 'ibge_bc250_rodovias' não deve ter chave 'rede'"
     assert "duplicidade" not in fonte_bc250_rod, "Fonte 'ibge_bc250_rodovias' não deve ter chave 'duplicidade'"
+
+
+def test_dnit_snv_vigencia_e_rede():
+    """dnit_snv tem vigencia com inicio/fim e excluir.campo == Superficie_Federal (D1, D2, D5)."""
+    fonte = next((f for f in SOURCES if f.get("id") == "dnit_snv"), None)
+    assert fonte is not None, "Fonte 'dnit_snv' não encontrada no SOURCES"
+
+    vig = fonte.get("vigencia")
+    assert isinstance(vig, dict), "dnit_snv deve ter chave 'vigencia'"
+    assert "inicio" in vig and "fim" in vig
+    assert vig.get("inicio") == "dt_ini"
+    assert vig.get("fim") == "dt_fim"
+
+    cfg_rede = fonte.get("rede", {})
+    excluir = cfg_rede.get("excluir", {})
+    assert excluir.get("campo") == "Superficie_Federal"
+

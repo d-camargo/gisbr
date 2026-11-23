@@ -19,6 +19,7 @@ from gisbr.core.rede_pipeline import (
     LIMIAR_SOBREPOSICAO_SEM_ATRIBUTO_M,
     LIMIAR_TOQUE_M,
     TOL_DUP_M,
+    _extrai_codigos_br,
     _nomes_camadas,
     montar_rede,
     remove_duplicidade_federal,
@@ -622,5 +623,70 @@ def test_montar_rede_camada_3d_linestringz(qgis_app):
     assert resultado["relatorio"]["arcos"] == 2
     assert resultado["relatorio"]["nos"] == 3
     assert resultado["relatorio"]["removidos"] == 1
+
+
+def test_extrai_codigos_br_snv_e_legados():
+    """Valida extração de códigos BR para códigos SNV e formatos legados (D5, D6)."""
+    assert _extrai_codigos_br("262BMG0610;381BMG0440") == {"262", "381"}
+    assert _extrai_codigos_br("040") == {"040"}
+    assert _extrai_codigos_br("BR-381") == {"381"}
+    assert _extrai_codigos_br("040/135") == {"040", "135"}
+
+
+def test_duplicidade_esquema_novo_snv_codigo_br_e_superficie_pla(qgis_app):
+    """Camada federal com Codigo_BR e Superficie_Federal casa BR e trata PLA como planejado (D5, D6)."""
+    if qgis_app is None:
+        pytest.skip("QGIS indisponivel neste ambiente")
+
+    p0 = _m(0, 0)
+    p1000 = _m(1000, 0)
+    p2000 = _m(2000, 0)
+    p3000 = _m(3000, 0)
+
+    fed_campos = [("Codigo_BR", "string"), ("Superficie_Federal", "string")]
+    est_campos = [("jurisdicao", "string"), ("rodovia", "string")]
+
+    # Trecho 1: Federal ativo (Superficie_Federal = PAV) -> estadual duplicado deve sair para removidos
+    # Trecho 2: Federal planejado (Superficie_Federal = PLA) -> estadual deve ficar com problema federal_sem_par
+    l_fed = _cria_layer(
+        "dnit_snv_novo_3118601",
+        fed_campos,
+        [
+            (f"LINESTRING({p0[0]} {p0[1]}, {p1000[0]} {p1000[1]})", {"Codigo_BR": "262BMG0610", "Superficie_Federal": "PAV"}),
+            (f"LINESTRING({p2000[0]} {p2000[1]}, {p3000[0]} {p3000[1]})", {"Codigo_BR": "040BMG0100", "Superficie_Federal": "PLA"}),
+        ],
+    )
+    l_est = _cria_layer(
+        "der_mg_3118601",
+        est_campos,
+        [
+            (f"LINESTRING({p0[0]} {p0[1]}, {p1000[0]} {p1000[1]})", {"jurisdicao": "Federal", "rodovia": "BR-262"}),
+            (f"LINESTRING({p2000[0]} {p2000[1]}, {p3000[0]} {p3000[1]})", {"jurisdicao": "Federal", "rodovia": "BR-040"}),
+        ],
+    )
+    cfg_dup = {"campo_jurisdicao": "jurisdicao", "valor_federal": "Federal", "campo_br": "rodovia"}
+    cfg_fed = {"tipo": "rodoviaria", "excluir": {"campo": "Superficie_Federal", "valores": ["PLA"]}}
+
+    limpa, rem, prob, rel = remove_duplicidade_federal(l_est, l_fed, cfg_dup, cfg_fed)
+
+    # O trecho BR-262 casa com o federal ativo e sai para removidos
+    assert rem is not None and rem.featureCount() == 1
+    f_rem = next(rem.getFeatures())
+    assert f_rem["motivo"] == "duplicado_federal"
+    assert f_rem["rodovia"] == "BR-262"
+
+    # O trecho BR-040 sobre o federal planejado (PLA) fica na limpa e gera federal_sem_par
+    assert limpa.featureCount() == 1
+    f_limpa = next(limpa.getFeatures())
+    assert f_limpa["rodovia"] == "BR-040"
+
+    assert prob is not None and prob.featureCount() == 1
+    p = next(prob.getFeatures())
+    assert p["tipo"] == "federal_sem_par"
+
+    assert rel["removidos"] == 1
+    assert rel["mantidos"] == 1
+    assert rel["federal_sem_par"] == 1
+
 
 

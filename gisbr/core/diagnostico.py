@@ -6,6 +6,7 @@ para nao trazer feicoes de municipios vizinhos. Camadas sem feicoes sao puladas
 com aviso no Log.
 """
 import os
+from datetime import date
 
 from qgis.PyQt.QtCore import QCoreApplication, QSettings, QStandardPaths
 from qgis.core import QgsProject, QgsVectorLayer, QgsVectorFileWriter
@@ -105,6 +106,39 @@ def _filtro_para(s, code_muni, nome_muni=None):
         return "{} IN ({})".format(f["campo"], ",".join(nomes_fmt)), False
 
     return None, True
+
+
+def _cql_vigencia(s, bbox=None, hoje=None):
+    """Monta filtro CQL de vigencia (e BBOX embutido quando aplicavel).
+
+    Devolve None se a fonte nao tem a chave 'vigencia'.
+    """
+    if not isinstance(s, dict):
+        return None
+    vig = s.get("vigencia")
+    if not vig:
+        return None
+    if hoje is None:
+        hoje = date.today()
+    if hasattr(hoje, "strftime"):
+        data_str = hoje.strftime("%Y-%m-%d")
+    else:
+        data_str = str(hoje)
+    inicio = vig.get("inicio", "dt_ini")
+    fim = vig.get("fim", "dt_fim")
+    cql = "{} <= '{}' AND {} >= '{}'".format(inicio, data_str, fim, data_str)
+    if bbox is not None:
+        geom_campo = s.get("geom_campo") or "geom"
+        srs = s.get("srs") or "EPSG:4674"
+        if hasattr(bbox, "xMinimum"):
+            minx = bbox.xMinimum()
+            miny = bbox.yMinimum()
+            maxx = bbox.xMaximum()
+            maxy = bbox.yMaximum()
+        else:
+            minx, miny, maxx, maxy = bbox
+        cql += " AND BBOX({},{},{},{},{},'{}')".format(geom_campo, minx, miny, maxx, maxy, srs)
+    return cql
 
 
 
@@ -277,6 +311,41 @@ def _msg_fonte_indisponivel(s):
     ).format(reason=motivo)
 
 
+def _log_versao_vigencia(s, layer, feedback):
+    """Loga no feedback os valores distintos de versao da camada baixada (D4)."""
+    if feedback is None or layer is None or not getattr(layer, "isValid", lambda: False)():
+        return
+    vig = s.get("vigencia")
+    if not isinstance(vig, dict):
+        return
+    campo_versao = vig.get("campo_versao")
+    if not campo_versao:
+        return
+    fields = layer.fields()
+    idx = fields.indexOf(campo_versao)
+    if idx == -1:
+        return
+    if hasattr(layer, "uniqueValues"):
+        try:
+            raw_vals = layer.uniqueValues(idx)
+        except Exception:
+            raw_vals = {f[campo_versao] for f in layer.getFeatures() if f[campo_versao] is not None}
+    else:
+        raw_vals = {f[campo_versao] for f in layer.getFeatures() if f[campo_versao] is not None}
+    vals = sorted(str(v) for v in raw_vals if v is not None and str(v).strip() != "")
+    if not vals:
+        return
+    nome = s.get("nome") or s.get("id") or "Camada"
+    versoes_str = ", ".join(vals)
+    feedback.pushInfo("{}: edição {}".format(nome, versoes_str))
+    if len(vals) > 1:
+        aviso = "Aviso: {} — mais de uma edição encontrada ({})".format(nome, versoes_str)
+        if hasattr(feedback, "pushWarning"):
+            feedback.pushWarning(aviso)
+        else:
+            feedback.pushInfo(aviso)
+
+
 def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path,
                   feedback=None, caminho_manual=None, censo_ano=None, nome_muni=None,
                   recorte=None, force=False):
@@ -284,9 +353,17 @@ def _busca_camada(s, layer_name, uf, cql, usa_bbox, bbox, code_muni, gpkg_path,
     srs = s.get("srs", "EPSG:4674")
     if proto == "wfs":
         type_name = s["type_name"].replace("{uf}", uf)
-        return wfs.fetch_layer(s["endpoint"], type_name, layer_name, srs=srs,
-                               cql_filter=cql, bbox=(bbox if usa_bbox else None),
+        cql_vig = _cql_vigencia(s, bbox=(bbox if usa_bbox else None))
+        cql_final = cql
+        bbox_param = bbox if usa_bbox else None
+        if cql_vig:
+            cql_final = "{} AND {}".format(cql, cql_vig) if cql else cql_vig
+            bbox_param = None
+        layer = wfs.fetch_layer(s["endpoint"], type_name, layer_name, srs=srs,
+                               cql_filter=cql_final, bbox=bbox_param,
                                feedback=feedback)
+        _log_versao_vigencia(s, layer, feedback)
+        return layer
     if proto == "arcgis":
         return arcgis_rest.fetch_layer(s["endpoint"], s["layer_id"], layer_name,
                                        srs=srs, where=cql,

@@ -3,6 +3,7 @@
 
 import sys
 import types
+from datetime import date
 import pytest
 
 pytest.importorskip("qgis.core")
@@ -1366,5 +1367,137 @@ def test_d14_rede_integracao(tmp_path, monkeypatch):
     assert len(res_skip["pulou"]) == 1
     assert res_skip["pulou"][0][0] == "der_mg_rodovias"
     assert "ja existe" in res_skip["pulou"][0][1]
+
+
+def test_cql_vigencia_com_bbox():
+    s = {
+        "id": "dnit_snv",
+        "srs": "EPSG:4674",
+        "geom_campo": "geom",
+        "vigencia": {"inicio": "dt_ini", "fim": "dt_fim", "campo_versao": "Versao_SNV"},
+    }
+    hoje = date(2026, 11, 23)
+    bbox = (-44.2, -20.1, -43.9, -19.8)
+    res = diagnostico._cql_vigencia(s, bbox=bbox, hoje=hoje)
+    assert res == "dt_ini <= '2026-11-23' AND dt_fim >= '2026-11-23' AND BBOX(geom,-44.2,-20.1,-43.9,-19.8,'EPSG:4674')"
+
+
+def test_cql_vigencia_sem_bbox():
+    s = {
+        "id": "dnit_snv",
+        "vigencia": {"inicio": "dt_ini", "fim": "dt_fim"},
+    }
+    hoje = date(2026, 11, 23)
+    res = diagnostico._cql_vigencia(s, bbox=None, hoje=hoje)
+    assert res == "dt_ini <= '2026-11-23' AND dt_fim >= '2026-11-23'"
+
+
+def test_cql_vigencia_sem_vigencia():
+    s = {"id": "qualquer_fonte"}
+    assert diagnostico._cql_vigencia(s) is None
+    assert diagnostico._cql_vigencia(s, bbox=(-44.2, -20.1, -43.9, -19.8)) is None
+
+
+def test_busca_camada_wfs_vigencia_e_bbox(monkeypatch):
+    captured = {}
+    def mock_fetch(endpoint, type_name, layer_name, **kwargs):
+        captured["endpoint"] = endpoint
+        captured["type_name"] = type_name
+        captured["layer_name"] = layer_name
+        captured.update(kwargs)
+        return create_nonempty_mem_layer()
+
+    monkeypatch.setattr(diagnostico.wfs, "fetch_layer", mock_fetch)
+
+    s = {
+        "id": "dnit_snv",
+        "protocolo": "wfs",
+        "endpoint": "https://servicos.dnit.gov.br/dnitgeo/geoserver/wfs",
+        "type_name": "vgeo:vw_snv_rod",
+        "srs": "EPSG:4674",
+        "geom_campo": "geom",
+        "vigencia": {"inicio": "dt_ini", "fim": "dt_fim", "campo_versao": "Versao_SNV"},
+    }
+    bbox = (-44.2, -20.1, -43.9, -19.8)
+    lyr = diagnostico._busca_camada(s, "dnit_snv_test", "mg", cql=None, usa_bbox=True,
+                                    bbox=bbox, code_muni="3106200", gpkg_path="/tmp/test.gpkg")
+
+    assert lyr is not None
+    assert captured["bbox"] is None
+    cql = captured["cql_filter"]
+    assert "dt_ini <=" in cql
+    assert "dt_fim >=" in cql
+    assert "BBOX(geom,-44.2,-20.1,-43.9,-19.8,'EPSG:4674')" in cql
+
+    # Se a fonte ja tiver CQL proprio, deve juntar com AND
+    captured.clear()
+    diagnostico._busca_camada(s, "dnit_snv_test", "mg", cql="uf = 'MG'", usa_bbox=True,
+                              bbox=bbox, code_muni="3106200", gpkg_path="/tmp/test.gpkg")
+    assert captured["bbox"] is None
+    assert captured["cql_filter"].startswith("uf = 'MG' AND dt_ini <=")
+
+
+def test_busca_camada_vigencia_logging(monkeypatch):
+    from qgis.core import QgsField
+    from gisbr.core import qgis_compat
+
+    def mock_fetch(endpoint, type_name, layer_name, **kwargs):
+        lyr = QgsVectorLayer("LineString?crs=EPSG:4674", layer_name, "memory")
+        dp = lyr.dataProvider()
+        dp.addAttributes([QgsField("Versao_SNV", qgis_compat.field_type("string"))])
+        lyr.updateFields()
+        f1 = QgsFeature(lyr.fields())
+        f1.setGeometry(QgsGeometry.fromWkt("LINESTRING(0 0, 1 1)"))
+        f1["Versao_SNV"] = "202610A"
+        dp.addFeatures([f1])
+        return lyr
+
+    monkeypatch.setattr(diagnostico.wfs, "fetch_layer", mock_fetch)
+
+    logs = []
+    class DummyFeedback:
+        def pushInfo(self, m):
+            logs.append(m)
+
+    fb = DummyFeedback()
+    s = {
+        "id": "dnit_snv",
+        "nome": "DNIT — SNV",
+        "protocolo": "wfs",
+        "endpoint": "https://servicos.dnit.gov.br/dnitgeo/geoserver/wfs",
+        "type_name": "vgeo:vw_snv_rod",
+        "vigencia": {"inicio": "dt_ini", "fim": "dt_fim", "campo_versao": "Versao_SNV"},
+    }
+    diagnostico._busca_camada(s, "dnit_snv_test", "mg", cql=None, usa_bbox=True,
+                              bbox=(-44.2, -20.1, -43.9, -19.8), code_muni="3106200",
+                              gpkg_path="/tmp/test.gpkg", feedback=fb)
+
+    assert any("DNIT — SNV: edição 202610A" in m for m in logs)
+    assert not any("mais de uma edição" in m for m in logs)
+
+    # Multi-editions warning
+    def mock_fetch_multi(endpoint, type_name, layer_name, **kwargs):
+        lyr = QgsVectorLayer("LineString?crs=EPSG:4674", layer_name, "memory")
+        dp = lyr.dataProvider()
+        dp.addAttributes([QgsField("Versao_SNV", qgis_compat.field_type("string"))])
+        lyr.updateFields()
+        f1 = QgsFeature(lyr.fields())
+        f1.setGeometry(QgsGeometry.fromWkt("LINESTRING(0 0, 1 1)"))
+        f1["Versao_SNV"] = "202607A"
+        f2 = QgsFeature(lyr.fields())
+        f2.setGeometry(QgsGeometry.fromWkt("LINESTRING(1 1, 2 2)"))
+        f2["Versao_SNV"] = "202610A"
+        dp.addFeatures([f1, f2])
+        return lyr
+
+    monkeypatch.setattr(diagnostico.wfs, "fetch_layer", mock_fetch_multi)
+    logs.clear()
+    diagnostico._busca_camada(s, "dnit_snv_test", "mg", cql=None, usa_bbox=True,
+                              bbox=(-44.2, -20.1, -43.9, -19.8), code_muni="3106200",
+                              gpkg_path="/tmp/test.gpkg", feedback=fb)
+
+    assert any("DNIT — SNV: edição 202607A, 202610A" in m for m in logs)
+    assert any("mais de uma edição encontrada" in m for m in logs)
+
 
 

@@ -43,7 +43,11 @@ Protocolo "osm": fontes servidas pela API Overpass (host fixo no conector,
 sem endpoint por fonte). O motor de diagnostico despacha por id para o
 pipeline dedicado — "osm_vias" (vias/nós) e "osm_pois" (pontos de interesse).
 Sem host próprio, ficam fora do tools/check_sources_tls.py.
-Chave opcional:
+Chaves opcionais:
+  vigencia: dict com mapeamento de campos de vigência para filtragem temporal
+            no CQL (inicio, fim e campo_versao opcional para logging de edicoes).
+  geom_campo: nome do campo de geometria no WFS (default "geom") usado na
+              clausula BBOX do CQL quando combinado com vigencia.
   base_rm: dict com repo, tag e manifest apontando para a base pré-processada
            no GitHub Releases usada no recorte de Região Metropolitana (a RM
            inteira sai de um asset pronto, sem consulta Overpass). A tag é
@@ -64,11 +68,12 @@ Chave opcional:
 SOURCES = [
     # --- Eixo 1: Transportes ---
     {"id": "dnit_snv", "eixo": "transportes", "nome": "DNIT — SNV (rodovias federais)",
-     "protocolo": "wfs", "endpoint": "https://geoservicos.inde.gov.br/geoserver/DNIT/ows",
-     "type_name": "DNIT:snv_202507a", "srs": "EPSG:4674",
+     "protocolo": "wfs", "endpoint": "https://servicos.dnit.gov.br/dnitgeo/geoserver/wfs",
+     "type_name": "vgeo:vw_snv_rod", "srs": "EPSG:4674", "geom_campo": "geom",
      "filtro": {"tipo": "bbox"}, "escala_max": "estado", "licenca": "Publica",
+     "vigencia": {"inicio": "dt_ini", "fim": "dt_fim", "campo_versao": "Versao_SNV"},
      "rede": {"tipo": "rodoviaria",
-              "excluir": {"campo": "ds_superfi", "valores": ["PLA"]}}},
+              "excluir": {"campo": "Superficie_Federal", "valores": ["PLA"]}}},
     {"id": "minfra_ferrovias", "eixo": "transportes", "nome": "MInfra — Ferrovias",
      "protocolo": "wfs", "endpoint": "https://geoservicos.inde.gov.br/geoserver/ows",
      "type_name": "MInfra:Ferrovias", "srs": "EPSG:4674",

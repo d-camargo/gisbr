@@ -73,7 +73,7 @@ SOURCES = [
     "nivel": "federal",
     "protocolo": "wfs",
     "endpoint": "https://geoservicos.inde.gov.br/geoserver/DNIT/ows",
-    "type_name": "DNIT:snv_202507a",
+    "type_name": "vgeo:vw_snv_rod",  # GeoServer do DNIT, edição vigente por data
     "crs": "EPSG:4674",
     "campo_muni": None,          # filtro por UF/bbox quando não houver campo muni
     "output_format": "application/json",

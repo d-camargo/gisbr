@@ -2,6 +2,12 @@
 
 Generated from the `changelog` block of `gisbr/metadata.txt` by `tools/build_docs_site.py` — do not edit by hand.
 
+## 1.3.1
+
+- Fix: DNIT federal highways (SNV) load again — the source moved from
+the INDE GeoServer to DNIT's own WFS and now always fetches the
+current SNV edition.
+
 ## 1.3.0
 
 - New source: São Paulo state highways (DER-SP, State Highway System),
